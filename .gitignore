@@ -1,0 +1,6 @@
+# Ignorar variables de entorno
+.env
+
+# Ignorar archivos ocultos del sistema
+.DS_Store
+Thumbs.db
