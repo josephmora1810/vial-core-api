@@ -25,24 +25,22 @@ class Request {
 	public function all(){
 		$data = [];
 		
-		//Con esto capturamos los parametros de la url (?id=3)
-		if(!empty($_GET)) {
-			foreach($_GET as $key => $value){
-				$data[$key] = filter_input(INPUT_GET, $key, FILTER_SANITIZE_SPECIAL_CHARS);
-			}
-		}
+		/**
+		 * Ahora prescindimos de sanitizar los datos, 
+		 * eso lo haremos con values object, 
+		 * que es una clase que nos permite validar y sanitizar los datos de manera más eficiente
+		 */
 
-		if(!empty($_POST)){
-			foreach($_POST as $key => $value){
-				$data[$key] = filter_input(INPUT_POST, $key, FILTER_SANITIZE_SPECIAL_CHARS);
-			}
-		}
+		//Con esto capturamos los parametros de la url (?id=3)
+		if(!empty($_GET)) $data = array_merge($data, $_GET);
+		//Con esto capturamos los parametros de un formulario (name=juan)
+		if(!empty($_POST)) $data = array_merge($data, $_POST);
 
 		//Con esto capturamos los json que se pasen por el body
 		$jsonBody = file_get_contents('php://input'); // leemos el cuerpo bruto de la aplicación
 		$jsonData  = json_decode($jsonBody, true); // lo volvemos un array de php
 
-		//Si es un jsoválido, lo fusionamos con los demas datos
+		//Si es un json válido, lo fusionamos con los demas datos
 		if(json_last_error() === JSON_ERROR_NONE && is_array($jsonData)) $data = array_merge($data, $jsonData);	
 
 		return $data;

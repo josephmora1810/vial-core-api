@@ -39,26 +39,26 @@ class Router{
 	}
 	
 	protected function cleanUri(string $uri) : string {
-        	return '/' . trim($uri, '/');
-   	}
+		return '/' . trim($uri, '/');
+	}
 
-    	public function get(string $uri, string $action){
-        	$this->routes['GET'][$this->cleanUri($uri)] = $action;
-    	}
+	public function get(string $uri, string $action){
+		$this->routes['GET'][$this->cleanUri($uri)] = $action;
+	}
 
-    	public function post(string $uri, string $action){
-        	$this->routes['POST'][$this->cleanUri($uri)] = $action;
-    	}
+	public function post(string $uri, string $action){
+		$this->routes['POST'][$this->cleanUri($uri)] = $action;
+	}
 
-    	public function put(string $uri, string $action){
-        	$this->routes['PUT'][$this->cleanUri($uri)] = $action;
-    	}
+	public function put(string $uri, string $action){
+		$this->routes['PUT'][$this->cleanUri($uri)] = $action;
+	}
 
-    	public function delete(string $uri, string $action){
-        	$this->routes['DELETE'][$this->cleanUri($uri)] = $action;
-    	}
+	public function delete(string $uri, string $action){
+		$this->routes['DELETE'][$this->cleanUri($uri)] = $action;
+	}
 
-    	public function patch(string $uri, string $action){
-        	$this->routes['PATCH'][$this->cleanUri($uri)] = $action;
-    	}
+	public function patch(string $uri, string $action){
+		$this->routes['PATCH'][$this->cleanUri($uri)] = $action;
+	}
 }

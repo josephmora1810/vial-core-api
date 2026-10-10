@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ubik_api_php
+    ports:
+      - "8000:80"
+    volumes:
+      - .:/var/www/html
+    environment:
+      - DB_HOST=mariadb
+      - DB_NAME=ubikgo
+      - DB_USER=ubik
+      - DB_PASSWORD=password
+      - REDIS_HOST=redis
+    depends_on:
+      - mariadb
+      - redis
+
+  mariadb:
+    image: mariadb:10.11
+    container_name: ubik_mariadb
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: ubikgo
+      MYSQL_USER: ubik
+      MYSQL_PASSWORD: password
+    volumes:
+      - mariadb_data:/var/lib/mysql
+
+  redis:
+    image: redis:alpine
+    container_name: ubik_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+volumes:
+  mariadb_data:
+  redis_data:
