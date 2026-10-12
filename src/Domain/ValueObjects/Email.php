@@ -28,4 +28,9 @@ readonly class Email
     {
         return $this->value === $other->getValue();
     }
+
+    public function __toString(): string
+    {
+        return $this->value;
+    }
 }

@@ -30,11 +30,9 @@ class Pipeline{
 	}
 
 	protected function carry(): Closure {
-		return function ($next, $pipe){
-			return function ($request) use ($next, $pipe){
-				$middleware = new $pipe();
-				return $middleware->handle($request, $next);
-			};
-		};
+		return fn($next, $pipe) => 
+			fn($request) => 
+				($middleware = \is_object($pipe) ? $pipe : new $pipe())
+					->handle($request, $next);
 	}
 }

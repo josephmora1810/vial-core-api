@@ -1,8 +1,11 @@
 <?php
 
 namespace App\Core;
+use App\Domain\Entities\User;
 
 class Request {
+
+	private ?User $user = null;
 	
 	// funcion que se trae el metodo de la peticion http
 	public function method(){
@@ -44,5 +47,44 @@ class Request {
 		if(json_last_error() === JSON_ERROR_NONE && is_array($jsonData)) $data = array_merge($data, $jsonData);	
 
 		return $data;
+	}
+
+	public function body(): array
+	{
+		return $this->all();
+	}
+
+	public function setUser(User $user): self
+	{
+		$this->user = $user;
+		return $this;
+	}
+
+	public function user(): ?User
+	{
+		return $this->user;
+	}
+
+	public function getUser(): ?User
+	{
+		return $this->user;
+	}
+
+	public function bearerToken(): ?string
+	{
+		$header = $_SERVER['HTTP_AUTHORIZATION'] 
+			?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] 
+			?? '';
+
+		if (empty($header) && function_exists('apache_request_headers')) {
+			$headers = apache_request_headers();
+			$header = $headers['Authorization'] ?? $headers['authorization'] ?? '';
+		}
+
+		if (str_starts_with($header, 'Bearer ')) {
+			return substr($header, 7);
+		}
+
+		return null;
 	}
 }

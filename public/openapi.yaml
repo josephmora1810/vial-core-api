@@ -1,0 +1,107 @@
+openapi: 3.0.3
+info:
+  title: UbikGo Core API
+  description: |
+    API Transaccional de Asistencia Vial construida en PHP Puro con DDD.
+    Procesa autenticación JWT, matching de grúas y telemetría en tiempo real.
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:8088/api/v1
+    description: Servidor de Desarrollo Local
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Ingrese su token JWT generado en /login.
+
+paths:
+  /ping:
+    get:
+      summary: Smoke test / Ping del sistema
+      tags:
+        - Sistema
+      responses:
+        '200':
+          description: Servicio activo y saludable
+
+  /login:
+    post:
+      summary: Autenticación de Usuario (FR-02)
+      description: Valida credenciales con hash Bcrypt y emite un JWT firmado. Sujeto a Rate Limiting de 5 req/min (NFR-11).
+      tags:
+        - Autenticación
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: cliente@ubikgo.com
+                password:
+                  type: string
+                  format: password
+                  example: MiClaveSegura123!
+      responses:
+        '200':
+          description: Inicio de sesión exitoso
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  message:
+                    type: string
+                    example: Inicio de sesión exitoso.
+                  data:
+                    type: object
+                    properties:
+                      token:
+                        type: string
+                        example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                      user:
+                        type: object
+                        properties:
+                          uuid:
+                            type: string
+                            example: 019273c5-9b2f-7601-8ef2-482a0dcb3621
+                          name:
+                            type: string
+                            example: Juan Pérez
+                          email:
+                            type: string
+                            example: cliente@ubikgo.com
+                          role:
+                            type: string
+                            example: client
+        '401':
+          description: Credenciales incorrectas
+        '429':
+          description: Demasiados intentos (Throttle activado por Redis/Memurai)
+
+  /me:
+    get:
+      summary: Obtener perfil del usuario autenticado
+      description: Requiere cabecera Bearer Token para validar la identidad apátrida del usuario.
+      tags:
+        - Autenticación
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Datos del usuario autenticado
+        '401':
+          description: Token no proporcionado o inválido
