@@ -4,6 +4,7 @@ namespace Tests\Doubles;
 
 use App\Domain\Exceptions\DocumentExtractionException;
 use App\Domain\Services\DocumentExtractorInterface;
+use App\Domain\ValueObjects\BirthDate;
 use App\Domain\ValueObjects\ExtractedIdentity;
 use App\Domain\ValueObjects\Names;
 use App\Domain\ValueObjects\NationalId;
@@ -30,7 +31,7 @@ class FakeDocumentExtractor implements DocumentExtractorInterface
             nationalId: new NationalId('V80123456'),
             names: new Names('ANDREÍNA SOFÍA'),
             surnames: new Surnames('QUINTERO BASTIDAS'),
-            birthDate: new DateTimeImmutable('1990-04-17'),
+            birthDate: new BirthDate('1990-04-17'),
             confidenceScore: 0.98,
             status: 'success',
             rawPayload: ['mocked' => true]

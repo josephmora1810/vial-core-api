@@ -82,7 +82,7 @@ class LaVenezolanaDocumentExtractor implements DocumentExtractorInterface
             $nationalId = new NationalId($rawDocNumber);
             $names = new Names($rawGivenNames);
             $lastNames = new Surnames($rawSurnames);
-            $birthDate = !empty($rawDob) ? new DateTimeImmutable($rawDob) : null;
+            $birthDate = !empty($rawDob) ? new BirthDate($rawDob) : null;
         } catch (Throwable $e) {
             throw new DocumentExtractionException("Los datos extraídos del documento tienen formato inválido: {$e->getMessage()}", 422, $e);
         }

@@ -11,3 +11,6 @@ scripts/*.png
 
 # Ignorar archivos de caché de PHPUnit
 .phpunit.cache/
+
+# Ignorar carpeta de visual studio code
+.vscode/

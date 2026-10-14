@@ -6,13 +6,14 @@ use App\Domain\Entities\Permission;
 use App\Domain\Entities\Role;
 use App\Domain\Entities\User;
 use App\Domain\Repositories\UserRepositoryInterface;
+use App\Domain\ValueObjects\BirthDate;
 use App\Domain\ValueObjects\Email;
-use App\Domain\ValueObjects\Surnames;
 use App\Domain\ValueObjects\Money;
 use App\Domain\ValueObjects\Names;
 use App\Domain\ValueObjects\NationalId;
 use App\Domain\ValueObjects\Password;
 use App\Domain\ValueObjects\Phone;
+use App\Domain\ValueObjects\Surnames;
 use App\Domain\ValueObjects\Uuid;
 use DateTimeImmutable;
 use PDO;
@@ -286,7 +287,7 @@ class MariaDbUserRepository implements UserRepositoryInterface
             phone: new Phone($row['phone']),
             walletBalance: new Money((float) $row['wallet_balance'], 'VES'),
             identificationCard: new NationalId($row['identification_card']),
-            birthDate: !empty($row['birth_date']) ? new DateTimeImmutable($row['birth_date']) : null,
+            birthDate: !empty($row['birth_date']) ? new BirthDate($row['birth_date']) : null,
             createdAt: new DateTimeImmutable($row['created_at']),
             updatedAt: !empty($row['updated_at']) ? new DateTimeImmutable($row['updated_at']) : null,
             consentAt: !empty($row['consent_at']) ? new DateTimeImmutable($row['consent_at']) : null,

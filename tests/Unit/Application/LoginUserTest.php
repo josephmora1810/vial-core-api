@@ -6,6 +6,7 @@ use App\Application\UseCases\LoginUser;
 use App\Core\JwtService;
 use App\Domain\Entities\Role;
 use App\Domain\Entities\User;
+use App\Domain\ValueObjects\BirthDate;
 use App\Domain\ValueObjects\Email;
 use App\Domain\ValueObjects\Money;
 use App\Domain\ValueObjects\Names;
@@ -53,7 +54,7 @@ class LoginUserTest extends TestCase
             phone: new Phone('+584141234567'),
             walletBalance: new Money(0.00, 'VES'),
             identificationCard: new NationalId('V12345678'),
-            birthDate: new DateTimeImmutable('1988-10-20'),
+            birthDate: new BirthDate('1988-10-20'),
             createdAt: new DateTimeImmutable(),
             updatedAt: null,
             consentAt: new DateTimeImmutable(),

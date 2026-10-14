@@ -2,15 +2,13 @@
 
 namespace App\Domain\ValueObjects;
 
-use DateTimeImmutable;
-
 readonly class ExtractedIdentity
 {
     public function __construct(
         private NationalId $nationalId,
         private Names $names,
         private Surnames $surnames,
-        private ?DateTimeImmutable $birthDate,
+        private ?BirthDate $birthDate,
         private float $confidenceScore,
         private string $status,
         private array $rawPayload = []
@@ -32,7 +30,7 @@ readonly class ExtractedIdentity
         return $this->surnames;
     }
 
-    public function getBirthDate(): ?DateTimeImmutable
+    public function getBirthDate(): ?BirthDate
     {
         return $this->birthDate;
     }

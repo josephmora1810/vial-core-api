@@ -60,6 +60,6 @@ class Money {
 
     public function equals(Money $other): bool
     {
-        return $this->value === $other->getAmount() && $this->currency === $other->getCurrency();
+        return $this->value === $other->getAmount() && $this->currency === $other->getCurrencyEnum();
     }
 }

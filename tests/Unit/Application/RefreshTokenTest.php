@@ -7,6 +7,7 @@ use App\Core\JwtService;
 use App\Domain\Entities\PersonalAccessToken;
 use App\Domain\Entities\Role;
 use App\Domain\Entities\User;
+use App\Domain\ValueObjects\BirthDate;
 use App\Domain\ValueObjects\Email;
 use App\Domain\ValueObjects\Money;
 use App\Domain\ValueObjects\Names;
@@ -51,7 +52,7 @@ class RefreshTokenTest extends TestCase
             phone: new Phone('+584145551234'),
             walletBalance: new Money(100.00, 'USD'),
             identificationCard: new NationalId('V20111222'),
-            birthDate: new DateTimeImmutable('1985-05-15'),
+            birthDate: new BirthDate('1985-05-15'),
             createdAt: new DateTimeImmutable(),
             updatedAt: null,
             consentAt: new DateTimeImmutable(),

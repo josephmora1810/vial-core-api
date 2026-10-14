@@ -2,19 +2,23 @@
 
 namespace App\Domain\Entities;
 
+use App\Domain\Entities\Concerns\HasRolesAndPermissions;
+use App\Domain\ValueObjects\BirthDate;
 use App\Domain\ValueObjects\Email;
-use App\Domain\ValueObjects\Surnames;
 use App\Domain\ValueObjects\Money;
 use App\Domain\ValueObjects\Names;
 use App\Domain\ValueObjects\NationalId;
 use App\Domain\ValueObjects\Passport;
 use App\Domain\ValueObjects\Password;
 use App\Domain\ValueObjects\Phone;
+use App\Domain\ValueObjects\Surnames;
 use App\Domain\ValueObjects\Uuid;
 use DateTimeImmutable;
 
 class User
 {
+    use HasRolesAndPermissions;
+
     /**
      * @param Role[] $roles
      * @param Permission[] $permissions
@@ -29,7 +33,7 @@ class User
         private Phone $phone,
         private Money $walletBalance,
         private NationalId $identificationCard,
-        private ?DateTimeImmutable $birthDate = null,
+        private ?BirthDate $birthDate = null,
         private ?DateTimeImmutable $createdAt = null,
         private ?DateTimeImmutable $updatedAt = null,
         private ?DateTimeImmutable $consentAt = null,
@@ -52,7 +56,7 @@ class User
         ?Password $password,
         Phone $phone,
         NationalId $identificationCard,
-        ?DateTimeImmutable $birthDate = null,
+        ?BirthDate $birthDate = null,
         ?Money $walletBalance = null
     ): self {
         return new self(
@@ -145,7 +149,7 @@ class User
         return $this->identificationCard;
     }
 
-    public function getBirthDate(): ?DateTimeImmutable
+    public function getBirthDate(): ?BirthDate
     {
         return $this->birthDate;
     }
@@ -173,150 +177,6 @@ class User
     public function isActive(): bool
     {
         return $this->isActive;
-    }
-
-    // --- Gestión de Roles ---
-
-    /**
-     * Asigna un rol al usuario evitando duplicados
-     */
-    public function assignToRole(Role $role): self
-    {
-        if (!$this->hasRole($role)) {
-            $this->roles[] = $role;
-            $this->touch();
-        }
-
-        return $this;
-    }
-
-    public function assignRole(Role $role): self
-    {
-        return $this->assignToRole($role);
-    }
-
-    public function removeRole(Role $role): self
-    {
-        $this->roles = array_values(
-            array_filter($this->roles, function (Role $r) use ($role) {
-                if ($r->getId() !== null && $role->getId() !== null) {
-                    return $r->getId() !== $role->getId();
-                }
-                return $r->getName() !== $role->getName();
-            })
-        );
-        $this->touch();
-
-        return $this;
-    }
-
-    public function hasRole(Role|string $role): bool
-    {
-        $roleName = $role instanceof Role ? $role->getName() : $role;
-
-        foreach ($this->roles as $r) {
-            if ($r instanceof Role && $r->getName() === $roleName) {
-                return true;
-            }
-            if (is_string($r) && $r === $roleName) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /**
-     * @return Role[]
-     */
-    public function getRoles(): array
-    {
-        return $this->roles;
-    }
-
-    /**
-     * Retorna el rol principal del usuario (el primero asignado o null)
-     */
-    public function getRole(): ?Role
-    {
-        return $this->roles[0] ?? null;
-    }
-
-    /**
-     * @return string[]
-     */
-    public function getRoleNames(): array
-    {
-        return array_map(function (Role|string $role) {
-            return $role instanceof Role ? $role->getName() : (string) $role;
-        }, $this->roles);
-    }
-
-    // --- Gestión de Permisos ---
-
-    public function givePermissionTo(Permission $permission): self
-    {
-        if (!$this->hasDirectPermission($permission)) {
-            $this->permissions[] = $permission;
-            $this->touch();
-        }
-
-        return $this;
-    }
-
-    public function revokePermission(Permission $permission): self
-    {
-        $this->permissions = array_values(
-            array_filter($this->permissions, function (Permission $p) use ($permission) {
-                if ($p->getId() !== null && $permission->getId() !== null) {
-                    return $p->getId() !== $permission->getId();
-                }
-                return $p->getName() !== $permission->getName();
-            })
-        );
-        $this->touch();
-
-        return $this;
-    }
-
-    public function hasDirectPermission(Permission|string $permission): bool
-    {
-        $permName = $permission instanceof Permission ? $permission->getName() : $permission;
-
-        foreach ($this->permissions as $p) {
-            if ($p instanceof Permission && $p->getName() === $permName) {
-                return true;
-            }
-            if (is_string($p) && $p === $permName) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    public function hasPermissionTo(Permission|string $permission): bool
-    {
-        if ($this->hasDirectPermission($permission)) {
-            return true;
-        }
-
-        $permName = $permission instanceof Permission ? $permission->getName() : $permission;
-        foreach ($this->roles as $role) {
-            if ($role instanceof Role && method_exists($role, 'hasPermissionTo') && $role->hasPermissionTo($permName)) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /**
-     * @return Permission[]
-     */
-    public function getPermissions(): array
-    {
-        return $this->permissions;
     }
 
     // --- Acciones de Dominio ---

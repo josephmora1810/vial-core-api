@@ -6,6 +6,7 @@ use App\Application\UseCases\ResetPassword;
 use App\Domain\Entities\PersonalAccessToken;
 use App\Domain\Entities\Role;
 use App\Domain\Entities\User;
+use App\Domain\ValueObjects\BirthDate;
 use App\Domain\ValueObjects\Email;
 use App\Domain\ValueObjects\Money;
 use App\Domain\ValueObjects\Names;
@@ -52,7 +53,7 @@ class ResetPasswordTest extends TestCase
             phone: new Phone('+584149998877'),
             walletBalance: new Money(0.00, 'VES'),
             identificationCard: new NationalId('V14555666'),
-            birthDate: new DateTimeImmutable('1980-02-21'),
+            birthDate: new BirthDate('1980-02-21'),
             createdAt: new DateTimeImmutable(),
             updatedAt: null,
             consentAt: new DateTimeImmutable(),

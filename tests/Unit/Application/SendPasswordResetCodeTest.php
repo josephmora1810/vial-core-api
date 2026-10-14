@@ -5,6 +5,7 @@ namespace Tests\Unit\Application;
 use App\Application\UseCases\SendPasswordResetCode;
 use App\Domain\Entities\Role;
 use App\Domain\Entities\User;
+use App\Domain\ValueObjects\BirthDate;
 use App\Domain\ValueObjects\Email;
 use App\Domain\ValueObjects\Money;
 use App\Domain\ValueObjects\Names;
@@ -49,7 +50,7 @@ class SendPasswordResetCodeTest extends TestCase
             phone: new Phone('+584120001122'),
             walletBalance: new Money(0.00, 'VES'),
             identificationCard: new NationalId('V18999888'),
-            birthDate: new DateTimeImmutable('1992-03-10'),
+            birthDate: new BirthDate('1992-03-10'),
             createdAt: new DateTimeImmutable(),
             updatedAt: null,
             consentAt: new DateTimeImmutable(),
