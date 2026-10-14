@@ -4,3 +4,10 @@
 # Ignorar archivos ocultos del sistema
 .DS_Store
 Thumbs.db
+
+# Ignorar imágenes de prueba (pueden contener datos personales)
+scripts/*.jpg
+scripts/*.png
+
+# Ignorar archivos de caché de PHPUnit
+.phpunit.cache/

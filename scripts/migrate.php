@@ -1,13 +1,22 @@
 <?php
 
-require_once __DIR__ . '/autoload.php';
+/**
+ * Uso (desde la raíz del proyecto):
+ *   php scripts/migrate.php            -> aplica migraciones pendientes
+ *   php scripts/migrate.php rollback   -> revierte las migraciones aplicadas
+ */
 
 use App\Core\DotEnv;
 use App\Infrastructure\Database\Database;
 use App\Infrastructure\Database\Migrator;
 
+// Raíz del proyecto (este script vive en /scripts)
+$rootPath = dirname(__DIR__);
 
-$envFile = __DIR__ .  "/.env";
+require_once "{$rootPath}/autoload.php";
+
+
+$envFile = $rootPath . "/.env";
 $dotEnv = new DotEnv($envFile);
 $dotEnv->load();
 

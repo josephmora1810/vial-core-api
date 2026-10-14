@@ -10,7 +10,7 @@ class m000001_create_users_table {
                 id BIGINT AUTO_INCREMENT PRIMARY KEY,
                 uuid VARCHAR(36) NOT NULL UNIQUE,
                 names VARCHAR(255) NOT NULL,
-                last_name VARCHAR(255) NOT NULL,
+                surnames VARCHAR(255) NOT NULL,
                 identification_card VARCHAR(255) NOT NULL,
                 birth_date DATE NOT NULL,
                 phone VARCHAR(255) NOT NULL,

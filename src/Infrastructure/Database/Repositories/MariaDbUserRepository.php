@@ -7,7 +7,7 @@ use App\Domain\Entities\Role;
 use App\Domain\Entities\User;
 use App\Domain\Repositories\UserRepositoryInterface;
 use App\Domain\ValueObjects\Email;
-use App\Domain\ValueObjects\LastNames;
+use App\Domain\ValueObjects\Surnames;
 use App\Domain\ValueObjects\Money;
 use App\Domain\ValueObjects\Names;
 use App\Domain\ValueObjects\NationalId;
@@ -39,11 +39,11 @@ class MariaDbUserRepository implements UserRepositoryInterface
     {
         $stmt = $this->connection->prepare('
             INSERT INTO users (
-                uuid, names, last_name, identification_card, birth_date,
+                uuid, names, surnames, identification_card, birth_date,
                 phone, email, password, wallet_balance, is_active,
                 consent_at, created_at, updated_at, deleted_at
             ) VALUES (
-                :uuid, :names, :last_name, :identification_card, :birth_date,
+                :uuid, :names, :surnames, :identification_card, :birth_date,
                 :phone, :email, :password, :wallet_balance, :is_active,
                 :consent_at, :created_at, :updated_at, :deleted_at
             )
@@ -52,7 +52,7 @@ class MariaDbUserRepository implements UserRepositoryInterface
         $stmt->execute([
             ':uuid' => $user->getUuid()->getValue(),
             ':names' => $user->getNames()->getValue(),
-            ':last_name' => $user->getLastNames()->getValue(),
+            ':surnames' => $user->getSurnames()->getValue(),
             ':identification_card' => $user->getIdentificationCard()->getValue(),
             ':birth_date' => $user->getBirthDate()?->format('Y-m-d'),
             ':phone' => $user->getPhone()->getValue(),
@@ -76,7 +76,7 @@ class MariaDbUserRepository implements UserRepositoryInterface
             UPDATE users SET
                 uuid = :uuid,
                 names = :names,
-                last_name = :last_name,
+                surnames = :surnames,
                 identification_card = :identification_card,
                 birth_date = :birth_date,
                 phone = :phone,
@@ -94,7 +94,7 @@ class MariaDbUserRepository implements UserRepositoryInterface
             ':id' => $user->getId(),
             ':uuid' => $user->getUuid()->getValue(),
             ':names' => $user->getNames()->getValue(),
-            ':last_name' => $user->getLastNames()->getValue(),
+            ':surnames' => $user->getSurnames()->getValue(),
             ':identification_card' => $user->getIdentificationCard()->getValue(),
             ':birth_date' => $user->getBirthDate()?->format('Y-m-d'),
             ':phone' => $user->getPhone()->getValue(),
@@ -122,10 +122,24 @@ class MariaDbUserRepository implements UserRepositoryInterface
             INSERT INTO role_user (role_id, user_id) VALUES (:role_id, :user_id)
         ');
 
+        $findRoleStmt = $this->connection->prepare('SELECT id FROM roles WHERE name = :name LIMIT 1');
+
         foreach ($user->getRoles() as $role) {
-            if ($role instanceof Role && $role->getId() !== null) {
+            $roleId = null;
+            if ($role instanceof Role) {
+                $roleId = $role->getId();
+                if ($roleId === null) {
+                    $findRoleStmt->execute([':name' => $role->getName()]);
+                    $roleId = $findRoleStmt->fetchColumn() ?: null;
+                }
+            } elseif (\is_string($role)) {
+                $findRoleStmt->execute([':name' => $role]);
+                $roleId = $findRoleStmt->fetchColumn() ?: null;
+            }
+
+            if ($roleId !== null) {
                 $insertStmt->execute([
-                    ':role_id' => $role->getId(),
+                    ':role_id' => (int) $roleId,
                     ':user_id' => $userId,
                 ]);
             }
@@ -190,7 +204,10 @@ class MariaDbUserRepository implements UserRepositoryInterface
         return $this->hydrateUser($row);
     }
 
-    public function findById(int $id): ?User
+    /**
+     * Helper interno para relaciones foráneas de la base de datos (no expuesto en UserRepositoryInterface)
+     */
+    private function findById(int $id): ?User
     {
         $stmt = $this->connection->prepare('
             SELECT * FROM users
@@ -263,7 +280,7 @@ class MariaDbUserRepository implements UserRepositoryInterface
             id: $userId,
             uuid: new Uuid($row['uuid']),
             names: new Names($row['names']),
-            lastNames: new LastNames($row['last_name']),
+            surnames: new Surnames($row['surnames']),
             email: new Email($row['email']),
             password: $row['password'] !== null ? Password::fromHash($row['password']) : null,
             phone: new Phone($row['phone']),

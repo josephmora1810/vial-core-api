@@ -1,0 +1,331 @@
+openapi: 3.0.3
+info:
+  title: UbikGo Core API
+  description: |
+    API Transaccional de Asistencia Vial construida en PHP Puro con DDD.
+    Procesa autenticación JWT, matching de grúas y telemetría en tiempo real.
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:8088/api/v1
+    description: Servidor de Desarrollo Local
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Ingrese su token JWT generado en /login.
+
+paths:
+  /ping:
+    get:
+      summary: Smoke test / Ping del sistema
+      tags:
+        - Sistema
+      responses:
+        '200':
+          description: Servicio activo y saludable
+
+  /login:
+    post:
+      summary: Autenticación de Usuario (FR-02)
+      description: Valida credenciales con hash Bcrypt y emite un JWT firmado. Sujeto a Rate Limiting de 5 req/min (NFR-11).
+      tags:
+        - Autenticación
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: cliente@ubikgo.com
+                password:
+                  type: string
+                  format: password
+                  example: MiClaveSegura123!
+      responses:
+        '200':
+          description: Inicio de sesión exitoso
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  message:
+                    type: string
+                    example: Inicio de sesión exitoso.
+                  data:
+                    type: object
+                    properties:
+                      token:
+                        type: string
+                        example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                      user:
+                        type: object
+                        properties:
+                          uuid:
+                            type: string
+                            example: 019273c5-9b2f-7601-8ef2-482a0dcb3621
+                          name:
+                            type: string
+                            example: Juan Pérez
+                          email:
+                            type: string
+                            example: cliente@ubikgo.com
+                          role:
+                            type: string
+                            example: client
+        '401':
+          description: Credenciales incorrectas
+        '429':
+          description: Demasiados intentos (Throttle activado por Redis/Memurai)
+
+  /register:
+    post:
+      summary: Registro Multi-perfil con Validación KYC/OCR (FR-01, FR-03, FR-07)
+      description: |
+        Registra nuevos usuarios bajo los roles 'client', 'driver' o 'seller'.
+        Requiere consentimiento legal obligatorio y fotografía de la Cédula de Identidad para extracción desatendida mediante IA/OCR.
+      tags:
+        - Autenticación
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+                - phone
+                - role
+                - consent
+                - document
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: conductor@ubikgo.com
+                password:
+                  type: string
+                  format: password
+                  example: MiClaveSegura123!
+                phone:
+                  type: string
+                  example: +584121234567
+                role:
+                  type: string
+                  enum: [client, driver, seller]
+                  example: driver
+                consent:
+                  type: boolean
+                  description: Aceptación obligatoria de términos y condiciones (FR-03 / NFR-21)
+                  example: true
+                document:
+                  type: string
+                  format: binary
+                  description: Fotografía nítida de la Cédula de Identidad en formato JPG/PNG
+      responses:
+        '201':
+          description: Usuario registrado, verificado y autenticado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  message:
+                    type: string
+                    example: Usuario registrado y verificado exitosamente.
+                  data:
+                    type: object
+                    properties:
+                      token:
+                        type: string
+                        example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                      user:
+                        type: object
+                        properties:
+                          uuid:
+                            type: string
+                            example: 019283f4-1234-7abc-9def-0123456789ab
+                          names:
+                            type: string
+                            example: ANDREÍNA SOFÍA
+                          surnames:
+                            type: string
+                            example: QUINTERO BASTIDAS
+                          identification_card:
+                            type: string
+                            example: V-80123456
+                          birth_date:
+                            type: string
+                            example: 1990-04-17
+                          email:
+                            type: string
+                            example: conductor@ubikgo.com
+                          phone:
+                            type: string
+                            example: +584121234567
+                          role:
+                            type: string
+                            example: driver
+        '400':
+          description: Faltan campos requeridos, formato inválido o términos no aceptados
+        '403':
+          description: Intento de registro no autorizado (ej. rol admin)
+        '409':
+          description: El correo electrónico ya está registrado
+        '422':
+          description: Error en extracción o validación del documento por parte del OCR
+
+  /me:
+    get:
+      summary: Obtener perfil del usuario autenticado
+      description: Requiere cabecera Bearer Token para validar la identidad apátrida del usuario.
+      tags:
+        - Autenticación
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Datos del usuario autenticado
+        '401':
+          description: Token no proporcionado o inválido
+
+  /refresh-token:
+    post:
+      summary: Renovar Access Token JWT (FR-02 / NFR-15)
+      description: Envía un Refresh Token válido para recibir un nuevo JWT sin reingresar credenciales. Implementa rotación de tokens.
+      tags:
+        - Autenticación
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - refresh_token
+              properties:
+                refresh_token:
+                  type: string
+                  example: 4a2b9f8e... (64 caracteres hex)
+      responses:
+        '200':
+          description: Token renovado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  data:
+                    type: object
+                    properties:
+                      token:
+                        type: string
+                      refresh_token:
+                        type: string
+        '401':
+          description: Refresh token inválido, revocado o expirado
+
+  /logout:
+    post:
+      summary: Cierre de Sesión / Revocación de Token
+      description: Invalida el Refresh Token del dispositivo para revocar el acceso permanente.
+      tags:
+        - Autenticación
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - refresh_token
+              properties:
+                refresh_token:
+                  type: string
+      responses:
+        '200':
+          description: Sesión cerrada exitosamente
+
+  /forgot-password:
+    post:
+      summary: Solicitar código OTP de recuperación de contraseña (FR-06)
+      description: Envía un código OTP de 6 dígitos al correo electrónico registrado con expiración de 15 minutos.
+      tags:
+        - Autenticación
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: usuario@ubikgo.com
+      responses:
+        '200':
+          description: Correo de recuperación despachado o respuesta neutra anti-enumeración
+
+  /reset-password:
+    post:
+      summary: Restablecer contraseña con código OTP (FR-06)
+      description: Valida el código OTP, actualiza la contraseña en Bcrypt y revoca todas las sesiones anteriores.
+      tags:
+        - Autenticación
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - code
+                - password
+                - password_confirmation
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: usuario@ubikgo.com
+                code:
+                  type: string
+                  example: "123456"
+                password:
+                  type: string
+                  format: password
+                  example: "NuevaClave123!"
+                password_confirmation:
+                  type: string
+                  format: password
+                  example: "NuevaClave123!"
+      responses:
+        '200':
+          description: Contraseña restablecida con éxito
+        '400':
+          description: Código incorrecto, expirado o contraseñas no coinciden
+

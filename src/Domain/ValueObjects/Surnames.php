@@ -4,7 +4,7 @@ namespace App\Domain\ValueObjects;
 
 use InvalidArgumentException;
 
-readonly class LastNames
+readonly class Surnames
 {
     private const string PATTERN = '/^[\p{L}]+(?:[\s\-\'][\p{L}]+)*$/u';
 
@@ -76,7 +76,7 @@ readonly class LastNames
         return $this->value;
     }
 
-    public function equals(LastNames $other): bool
+    public function equals(Surnames $other): bool
     {
         return mb_strtolower($this->value) === mb_strtolower($other->getValue());
     }

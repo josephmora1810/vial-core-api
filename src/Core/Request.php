@@ -54,6 +54,22 @@ class Request {
 		return $this->all();
 	}
 
+	/**
+	 * Obtiene información de un archivo cargado ($_FILES)
+	 */
+	public function file(string $key): ?array
+	{
+		return $_FILES[$key] ?? null;
+	}
+
+	/**
+	 * Comprueba si un archivo fue cargado exitosamente sin errores
+	 */
+	public function hasFile(string $key): bool
+	{
+		return isset($_FILES[$key]) && (int)($_FILES[$key]['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_OK;
+	}
+
 	public function setUser(User $user): self
 	{
 		$this->user = $user;

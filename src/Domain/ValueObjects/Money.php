@@ -2,23 +2,24 @@
 
 namespace App\Domain\ValueObjects;
 
+use App\Domain\Enums\Currency;
 use InvalidArgumentException;
 
 class Money {
+    private Currency $currency;
+
 	public function __construct(
 		private float $value = 0.00,
-        private string $currency = 'VES'
+        Currency|string $currency = Currency::VES
 	) {
-		$this->ensureAreValidMoney($value, $currency);
+		$this->currency = $currency instanceof Currency ? $currency : Currency::fromString($currency);
+		$this->ensureAreValidMoney($value);
 	}
 
-	private function ensureAreValidMoney(float $value, string $currency): void
+	private function ensureAreValidMoney(float $value): void
 	{
 		if ($value < 0) {
 			throw new InvalidArgumentException('El valor debe ser mayor o igual a 0.');
-		}
-		if ($currency !== 'VES') {
-			throw new InvalidArgumentException('La moneda debe ser VES.');
 		}
 	}
 
@@ -28,6 +29,11 @@ class Money {
     }
 
     public function getCurrency(): string
+    {
+        return $this->currency->value;
+    }
+
+    public function getCurrencyEnum(): Currency
     {
         return $this->currency;
     }

@@ -3,7 +3,7 @@
 namespace App\Domain\Entities;
 
 use App\Domain\ValueObjects\Email;
-use App\Domain\ValueObjects\LastNames;
+use App\Domain\ValueObjects\Surnames;
 use App\Domain\ValueObjects\Money;
 use App\Domain\ValueObjects\Names;
 use App\Domain\ValueObjects\NationalId;
@@ -23,7 +23,7 @@ class User
         private ?int $id,
         private Uuid $uuid,
         private Names $names,
-        private LastNames $lastNames,
+        private Surnames $surnames,
         private Email $email,
         private ?Password $password,
         private Phone $phone,
@@ -47,7 +47,7 @@ class User
     public static function create(
         Uuid $uuid,
         Names $names,
-        LastNames $lastNames,
+        Surnames $surnames,
         Email $email,
         ?Password $password,
         Phone $phone,
@@ -59,7 +59,7 @@ class User
             id: null,
             uuid: $uuid,
             names: $names,
-            lastNames: $lastNames,
+            surnames: $surnames,
             email: $email,
             password: $password,
             phone: $phone,
@@ -99,9 +99,9 @@ class User
         return $this->names;
     }
 
-    public function getLastNames(): LastNames
+    public function getSurnames(): Surnames
     {
-        return $this->lastNames;
+        return $this->surnames;
     }
 
     /**
@@ -109,7 +109,7 @@ class User
      */
     public function getFullName(): string
     {
-        return sprintf('%s %s', $this->names->getValue(), $this->lastNames->getValue());
+        return \sprintf('%s %s', $this->names->getValue(), $this->surnames->getValue());
     }
 
     /**
@@ -326,6 +326,11 @@ class User
         $this->password = $newPassword;
         $this->touch();
         return $this;
+    }
+
+    public function setPassword(Password $password): self
+    {
+        return $this->changePassword($password);
     }
 
     public function updateWalletBalance(Money $newBalance): self

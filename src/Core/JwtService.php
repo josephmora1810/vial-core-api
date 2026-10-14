@@ -14,10 +14,15 @@ class JwtService{
     private int $ttlSeconds;
 
     public function __construct() {
-        // Obtenemos la clave secreta del .env o usamos una por defecto en local
-        $this->secretKey = $_ENV['JWT_SECRET'] ?? 'ubikgo_super_secret_jwt_key_2026';
-        // Duración estándar del token de acceso: 1 hora (3600s)
-        $this->ttlSeconds = (int)($_ENV['JWT_TTL'] ?? 3600);
+        $secret = !empty($_ENV['JWT_SECRET']) ? $_ENV['JWT_SECRET'] : null;
+        if (!$secret) {
+            if (($_ENV['APP_ENV'] ?? 'local') === 'production') {
+                throw new Exception("JWT_SECRET no configurado en producción.", 500);
+            }
+            $secret = 'ubikgo_super_secret_jwt_key_2026';
+        }
+        $this->secretKey = $secret;
+        $this->ttlSeconds = (int)(!empty($_ENV['JWT_TTL']) ? $_ENV['JWT_TTL'] : 3600);
     }
 
     /**
