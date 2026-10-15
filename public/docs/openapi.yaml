@@ -2,13 +2,27 @@ openapi: 3.0.3
 info:
   title: UbikGo Core API
   description: |
-    API Transaccional de Asistencia Vial construida en PHP Puro con DDD.
-    Procesa autenticación JWT, matching de grúas y telemetría en tiempo real.
+    API Transaccional de Asistencia Vial construida en PHP 8.5+ Puro con Arquitectura Hexagonal y Domain-Driven Design (DDD).
+    Procesa autenticación JWT stateless, validación KYC desatendida mediante OCR (Docker), catálogo de vehículos con caché Redis, y gestión de direcciones favoritas con geolocalización.
   version: 1.0.0
 
 servers:
   - url: http://localhost:8088/api/v1
     description: Servidor de Desarrollo Local
+
+tags:
+  - name: Sistema
+    description: Endpoints de diagnóstico, salud del servicio y verificación RFC.
+  - name: Autenticación
+    description: Registro multi-rol, autenticación JWT, pre-escaneo de cédula (OCR), rotación de tokens y recuperación de contraseña vía SMTP.
+  - name: Documentos KYC
+    description: Gestión del ciclo de vida de documentos de identidad y vehiculares para cumplimiento regulatorio (Know Your Customer).
+  - name: Direcciones Guardadas
+    description: Libreta de direcciones favoritas con coordenadas GPS para solicitudes rápidas de asistencia vial (FR-19).
+  - name: Catálogo de Vehículos
+    description: Maestros normalizados de clases, marcas y modelos de vehículos con caché en Redis.
+  - name: Vehículos
+    description: Escaneo OCR de carnet/título, registro de vehículos propios (FR-18), listado y desactivación lógica (Soft Delete).
 
 components:
   securitySchemes:
@@ -16,22 +30,247 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
-      description: Ingrese su token JWT generado en /login.
+      description: Ingrese su token JWT generado en /login o /register (válido por 15 minutos).
+
+  schemas:
+    ApiResponse:
+      type: object
+      required:
+        - status
+        - code
+        - message
+        - data
+      properties:
+        status:
+          type: string
+          enum: [success, fail, error]
+          example: success
+        code:
+          type: integer
+          example: 200
+        message:
+          type: string
+          example: Operación realizada exitosamente.
+        data:
+          type: object
+          description: Carga útil con la entidad o DTO resultante
+
+    ErrorResponse:
+      type: object
+      required:
+        - status
+        - code
+        - message
+        - data
+      properties:
+        status:
+          type: string
+          example: fail
+        code:
+          type: integer
+          example: 400
+        message:
+          type: string
+          example: Mensaje descriptivo del error o validación fallida.
+        data:
+          type: array
+          items: {}
+          example: []
+
+    UserDto:
+      type: object
+      properties:
+        uuid:
+          type: string
+          format: uuid
+          example: 01a13d0e-d579-7bca-a10d-dfac1b594574
+        names:
+          type: string
+          example: ANDREÍNA SOFÍA
+        surnames:
+          type: string
+          example: QUINTERO BASTIDAS
+        full_name:
+          type: string
+          example: ANDREÍNA SOFÍA QUINTERO BASTIDAS
+        identification_card:
+          type: string
+          example: V-80123456
+        birth_date:
+          type: string
+          format: date
+          nullable: true
+          example: 1990-04-17
+        email:
+          type: string
+          format: email
+          example: cliente@ubikgo.test
+        phone:
+          type: string
+          example: +584121234567
+        role:
+          type: string
+          example: client
+        roles:
+          type: array
+          items:
+            type: string
+          example: [client]
+        wallet_balance:
+          type: number
+          format: float
+          example: 0.00
+        is_active:
+          type: boolean
+          example: true
+        created_at:
+          type: string
+          example: 2026-10-15 00:55:44
+        consent_at:
+          type: string
+          nullable: true
+          example: 2026-10-15 00:55:44
+
+    VehicleDto:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 01a13dc7-d5ab-7a6c-941c-34747ebaf549
+        plate_number:
+          type: string
+          example: AB123CD
+        niv:
+          type: string
+          example: 8X123456789012345
+        engine_serial:
+          type: string
+          nullable: true
+          example: ENG998877
+        year:
+          type: integer
+          example: 2018
+        color:
+          type: string
+          example: Gris Plata
+        brand:
+          type: string
+          nullable: true
+          example: Toyota
+        model:
+          type: string
+          nullable: true
+          example: Corolla
+        vehicle_class:
+          type: string
+          nullable: true
+          example: Automovil
+        vehicle_subclass:
+          type: string
+          nullable: true
+          example: null
+        status:
+          type: string
+          enum: [pending, active, inactive, rejected]
+          example: pending
+        is_verified:
+          type: boolean
+          example: false
+        created_at:
+          type: string
+          example: 2026-10-15T01:30:00+00:00
+
+    SavedAddressDto:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 01a13e2f-5b6c-7f8a-9012-3456789abcde
+        label:
+          type: string
+          example: Mi Casa
+        address_line:
+          type: string
+          example: Calle Los Pinos, Quinta María, Caracas
+        latitude:
+          type: number
+          format: float
+          example: 10.488012
+        longitude:
+          type: number
+          format: float
+          example: -66.862145
+        is_favorite:
+          type: boolean
+          example: true
+        created_at:
+          type: string
+          example: 2026-10-15T01:45:00+00:00
 
 paths:
+  # ==========================================
+  # SISTEMA
+  # ==========================================
   /ping:
     get:
       summary: Smoke test / Ping del sistema
+      description: Comprueba que el servidor HTTP y el enrutador se encuentren activos y respondiendo.
       tags:
         - Sistema
       responses:
         '200':
-          description: Servicio activo y saludable
+          description: Servicio saludable
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  message:
+                    type: string
+                    example: Pong! API is alive and kicking.
+                  timestamp:
+                    type: integer
+                    example: 1792025744
 
+  /teapot:
+    get:
+      summary: Verificación RFC 2324 (I'm a teapot)
+      description: Endpoint de verificación lúdica y conformidad de estándares RFC 2324 / Hyper Text Coffee Pot Control Protocol.
+      tags:
+        - Sistema
+      responses:
+        '418':
+          description: I'm a teapot
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: fail
+                  code:
+                    type: integer
+                    example: 418
+                  message:
+                    type: string
+                    example: I'm a teapot
+
+  # ==========================================
+  # AUTENTICACIÓN
+  # ==========================================
   /login:
     post:
-      summary: Autenticación de Usuario (FR-02)
-      description: Valida credenciales con hash Bcrypt y emite un JWT firmado. Sujeto a Rate Limiting de 5 req/min (NFR-11).
+      summary: Iniciar Sesión (FR-02)
+      description: |
+        Valida las credenciales de un usuario activo con hash Bcrypt.
+        Retorna un JWT stateless (`access_token`, 15 min de vigencia) y un token opaco criptográfico (`refresh_token`, 30 días de vigencia) almacenado en MariaDB.
+        Sujeto a Rate Limiting de 5 intentos por minuto vía Redis (NFR-11).
       tags:
         - Autenticación
       requestBody:
@@ -47,11 +286,11 @@ paths:
                 email:
                   type: string
                   format: email
-                  example: cliente@ubikgo.com
+                  example: cliente@ubikgo.test
                 password:
                   type: string
                   format: password
-                  example: MiClaveSegura123!
+                  example: Password123!
       responses:
         '200':
           description: Inicio de sesión exitoso
@@ -63,6 +302,9 @@ paths:
                   status:
                     type: string
                     example: success
+                  code:
+                    type: integer
+                    example: 200
                   message:
                     type: string
                     example: Inicio de sesión exitoso.
@@ -71,33 +313,126 @@ paths:
                     properties:
                       token:
                         type: string
-                        example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                        example: eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...
+                      refresh_token:
+                        type: string
+                        example: 97b7bb0f66739299316279f763abf1ee2b35563694bcfee4e14f5fae9dfc2daf
                       user:
+                        $ref: '#/components/schemas/UserDto'
+        '400':
+          description: Correo o contraseña no suministrados
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Credenciales inválidas o usuario inactivo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Límite de peticiones excedido (Throttle activado por Redis)
+
+  /scan-identity:
+    post:
+      summary: Pre-escaneo de Cédula de Identidad con OCR (FR-07)
+      description: |
+        Procesa la fotografía o PDF de una Cédula de Identidad venezolana mediante el microservicio OCR Docker.
+        Devuelve los patronímicos extraídos (`identification_card`, `names`, `surnames`, `birth_date`, `confidence`) y guarda temporalmente el archivo en disco (`file_path`).
+        Permite al frontend mostrar una vista previa interactiva para que el usuario verifique y corrija manualmente posibles errores de lectura antes de llamar a `/register`.
+      tags:
+        - Autenticación
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                document:
+                  type: string
+                  format: binary
+                  description: Imagen nítida (JPG/PNG) o PDF de la Cédula de Identidad venezolana.
+                file_path:
+                  type: string
+                  description: Opcional. Ruta absoluta en el servidor si el archivo ya fue subido previamente.
+      responses:
+        '200':
+          description: Cédula escaneada y procesada exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: Cédula procesada exitosamente.
+                  data:
+                    type: object
+                    properties:
+                      suggested_identity:
                         type: object
                         properties:
-                          uuid:
+                          identification_card:
                             type: string
-                            example: 019273c5-9b2f-7601-8ef2-482a0dcb3621
-                          name:
+                            example: V-80123456
+                          names:
                             type: string
-                            example: Juan Pérez
-                          email:
+                            example: ANDREÍNA SOFÍA
+                          surnames:
                             type: string
-                            example: cliente@ubikgo.com
-                          role:
+                            example: QUINTERO BASTIDAS
+                          birth_date:
                             type: string
-                            example: client
-        '401':
-          description: Credenciales incorrectas
-        '429':
-          description: Demasiados intentos (Throttle activado por Redis/Memurai)
+                            format: date
+                            example: 1990-04-17
+                          confidence:
+                            type: number
+                            format: float
+                            example: 0.95
+                      file_path:
+                        type: string
+                        example: storage/documents/cedula_scan_a1b2c3d4.jpg
+                      warnings:
+                        type: array
+                        items:
+                          type: string
+                        example: []
+                      message:
+                        type: string
+                        example: Cédula procesada exitosamente. Por favor verifique y corrija los datos si es necesario antes de confirmar el registro.
+        '400':
+          description: No se adjuntó el archivo o excedió el límite de subida PHP (upload_max_filesize)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Documento ilegible, formato incompatible o error de extracción OCR
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: El microservicio de OCR no se encuentra disponible
 
   /register:
     post:
-      summary: Registro Multi-perfil con Validación KYC/OCR (FR-01, FR-03, FR-07)
+      summary: Registro Multi-perfil con Validación KYC y Corrección Manual (FR-01, FR-03, FR-07)
       description: |
-        Registra nuevos usuarios bajo los roles 'client', 'driver' o 'seller'.
-        Requiere consentimiento legal obligatorio y fotografía de la Cédula de Identidad para extracción desatendida mediante IA/OCR.
+        Registra nuevos usuarios con rol `client`, `driver` o `seller`. Prohíbe registro público de `admin` (403).
+        Acepta la subida directa de la Cédula (`document`) o la ruta temporal devuelta por `/scan-identity` (`file_path`).
+        Soporta **corrección manual de patronímicos** (`identification_card`, `names`, `surnames`, `birth_date`).
+        - Si el usuario suministra correcciones manuales, el documento se registra como `PENDING` para auditoría manual.
+        - Si los datos provienen del OCR sin modificaciones, se marca automáticamente como `VERIFIED`.
+        - Valida unicidad global de **correo electrónico** y de **cédula de identidad** (1 persona física = 1 sola cuenta).
       tags:
         - Autenticación
       requestBody:
@@ -111,35 +446,57 @@ paths:
                 - password
                 - phone
                 - role
-                - consent
-                - document
               properties:
                 email:
                   type: string
                   format: email
-                  example: conductor@ubikgo.com
+                  example: cliente@ubikgo.test
                 password:
                   type: string
                   format: password
-                  example: MiClaveSegura123!
+                  example: Password123!
                 phone:
                   type: string
                   example: +584121234567
                 role:
                   type: string
                   enum: [client, driver, seller]
-                  example: driver
+                  example: client
+                terms_accepted:
+                  type: boolean
+                  description: Consentimiento obligatorio de términos y privacidad (FR-03). Puede enviarse también como `consent`.
+                  example: true
                 consent:
                   type: boolean
-                  description: Aceptación obligatoria de términos y condiciones (FR-03 / NFR-21)
+                  description: Alias de `terms_accepted`.
                   example: true
                 document:
                   type: string
                   format: binary
-                  description: Fotografía nítida de la Cédula de Identidad en formato JPG/PNG
+                  description: Archivo JPG/PNG/PDF de la Cédula (obligatorio si no se envía `file_path` ni patronímicos manuales completos).
+                file_path:
+                  type: string
+                  description: Ruta temporal del archivo devuelta por `/scan-identity`.
+                identification_card:
+                  type: string
+                  description: Cédula venezolana corregida o manual (ej. V-12345678, E-87654321).
+                  example: V-80123456
+                names:
+                  type: string
+                  description: Nombres corregidos o manuales.
+                  example: ANDREÍNA SOFÍA
+                surnames:
+                  type: string
+                  description: Apellidos corregidos o manuales.
+                  example: QUINTERO BASTIDAS
+                birth_date:
+                  type: string
+                  format: date
+                  description: Fecha de nacimiento corregida o manual (YYYY-MM-DD).
+                  example: 1990-04-17
       responses:
         '201':
-          description: Usuario registrado, verificado y autenticado exitosamente
+          description: Usuario registrado y verificado exitosamente
           content:
             application/json:
               schema:
@@ -148,69 +505,88 @@ paths:
                   status:
                     type: string
                     example: success
+                  code:
+                    type: integer
+                    example: 201
                   message:
                     type: string
                     example: Usuario registrado y verificado exitosamente.
                   data:
                     type: object
                     properties:
+                      user:
+                        $ref: '#/components/schemas/UserDto'
                       token:
                         type: string
-                        example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-                      user:
-                        type: object
-                        properties:
-                          uuid:
-                            type: string
-                            example: 019283f4-1234-7abc-9def-0123456789ab
-                          names:
-                            type: string
-                            example: ANDREÍNA SOFÍA
-                          surnames:
-                            type: string
-                            example: QUINTERO BASTIDAS
-                          identification_card:
-                            type: string
-                            example: V-80123456
-                          birth_date:
-                            type: string
-                            example: 1990-04-17
-                          email:
-                            type: string
-                            example: conductor@ubikgo.com
-                          phone:
-                            type: string
-                            example: +584121234567
-                          role:
-                            type: string
-                            example: driver
+                        example: eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...
+                      refresh_token:
+                        type: string
+                        example: 178e820d7fdf6af7f83ff18fa5988aa919c723d1e872642b73872e031fb3fd3b
         '400':
-          description: Faltan campos requeridos, formato inválido o términos no aceptados
+          description: Faltan campos requeridos, términos no aceptados o archivo excede límites
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '403':
-          description: Intento de registro no autorizado (ej. rol admin)
+          description: Intento de registro no permitido (ej. solicitar rol admin)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '409':
-          description: El correo electrónico ya está registrado
+          description: Conflicto - El correo electrónico o la Cédula de Identidad ya están registrados en el sistema
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '422':
-          description: Error en extracción o validación del documento por parte del OCR
+          description: Error en extracción del documento y no se suministraron patronímicos manuales completos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
   /me:
     get:
-      summary: Obtener perfil del usuario autenticado
-      description: Requiere cabecera Bearer Token para validar la identidad apátrida del usuario.
+      summary: Consultar Perfil del Usuario Autenticado
+      description: Devuelve el DTO del usuario autenticado con su saldo en billetera (VES), roles y permisos.
       tags:
         - Autenticación
       security:
         - BearerAuth: []
       responses:
         '200':
-          description: Datos del usuario autenticado
+          description: Datos del perfil del usuario
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: Usuario autenticado.
+                  data:
+                    $ref: '#/components/schemas/UserDto'
         '401':
-          description: Token no proporcionado o inválido
+          description: Token JWT no proporcionado o inválido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
   /refresh-token:
     post:
-      summary: Renovar Access Token JWT (FR-02 / NFR-15)
-      description: Envía un Refresh Token válido para recibir un nuevo JWT sin reingresar credenciales. Implementa rotación de tokens.
+      summary: Renovar Token de Acceso JWT (FR-02 / NFR-15)
+      description: |
+        Envía un Refresh Token válido para recibir un nuevo Access Token JWT y rotar el Refresh Token.
+        Invalida automáticamente el Refresh Token anterior en MariaDB.
       tags:
         - Autenticación
       requestBody:
@@ -224,7 +600,7 @@ paths:
               properties:
                 refresh_token:
                   type: string
-                  example: 4a2b9f8e... (64 caracteres hex)
+                  example: 178e820d7fdf6af7f83ff18fa5988aa919c723d1e872642b73872e031fb3fd3b
       responses:
         '200':
           description: Token renovado exitosamente
@@ -236,22 +612,42 @@ paths:
                   status:
                     type: string
                     example: success
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: Token renovado exitosamente.
                   data:
                     type: object
                     properties:
                       token:
                         type: string
+                        example: eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...
                       refresh_token:
                         type: string
+                        example: d9a4b3c2...
+        '400':
+          description: Campo refresh_token no enviado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '401':
-          description: Refresh token inválido, revocado o expirado
+          description: Refresh token revocado, expirado o inexistente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
   /logout:
     post:
-      summary: Cierre de Sesión / Revocación de Token
-      description: Invalida el Refresh Token del dispositivo para revocar el acceso permanente.
+      summary: Cerrar Sesión / Revocación de Token
+      description: Revoca de forma inmediata el Refresh Token en MariaDB impidiendo su uso posterior.
       tags:
         - Autenticación
+      security:
+        - BearerAuth: []
       requestBody:
         required: true
         content:
@@ -263,14 +659,47 @@ paths:
               properties:
                 refresh_token:
                   type: string
+                  example: 178e820d7fdf6af7f83ff18fa5988aa919c723d1e872642b73872e031fb3fd3b
       responses:
         '200':
           description: Sesión cerrada exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: Sesión cerrada exitosamente.
+                  data:
+                    type: array
+                    items: {}
+                    example: []
+        '400':
+          description: Campo refresh_token no enviado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: No autorizado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
   /forgot-password:
     post:
-      summary: Solicitar código OTP de recuperación de contraseña (FR-06)
-      description: Envía un código OTP de 6 dígitos al correo electrónico registrado con expiración de 15 minutos.
+      summary: Solicitar Código OTP de Recuperación de Contraseña (FR-06)
+      description: |
+        Genera un código numérico criptográfico de 6 dígitos con vigencia de 15 minutos en Redis.
+        Despacha un correo electrónico con plantilla HTML mediante servidor SMTP real.
       tags:
         - Autenticación
       requestBody:
@@ -285,15 +714,47 @@ paths:
                 email:
                   type: string
                   format: email
-                  example: usuario@ubikgo.com
+                  example: cliente@ubikgo.test
       responses:
         '200':
-          description: Correo de recuperación despachado o respuesta neutra anti-enumeración
+          description: Correo despachado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: Código de recuperación enviado a su correo electrónico.
+                  data:
+                    type: array
+                    items: {}
+                    example: []
+        '400':
+          description: Correo electrónico inválido o no suministrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: No existe una cuenta registrada con ese correo electrónico
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
   /reset-password:
     post:
-      summary: Restablecer contraseña con código OTP (FR-06)
-      description: Valida el código OTP, actualiza la contraseña en Bcrypt y revoca todas las sesiones anteriores.
+      summary: Restablecer Contraseña con Código OTP (FR-06)
+      description: |
+        Verifica el código OTP de 6 dígitos en Redis.
+        Actualiza el hash Bcrypt de la contraseña y revoca todos los tokens activos del usuario.
       tags:
         - Autenticación
       requestBody:
@@ -311,21 +772,839 @@ paths:
                 email:
                   type: string
                   format: email
-                  example: usuario@ubikgo.com
+                  example: cliente@ubikgo.test
                 code:
                   type: string
                   example: "123456"
                 password:
                   type: string
                   format: password
-                  example: "NuevaClave123!"
+                  example: NewSecurePassword123!
                 password_confirmation:
                   type: string
                   format: password
-                  example: "NuevaClave123!"
+                  example: NewSecurePassword123!
       responses:
         '200':
           description: Contraseña restablecida con éxito
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: Contraseña actualizada exitosamente.
+                  data:
+                    type: array
+                    items: {}
+                    example: []
         '400':
-          description: Código incorrecto, expirado o contraseñas no coinciden
+          description: Código incorrecto, expirado o confirmación de contraseña no coincide
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
+  # ==========================================
+  # DOCUMENTOS KYC
+  # ==========================================
+  /documents/upload:
+    post:
+      summary: Cargar o Reenviar Documentos KYC (FR-07, FR-09, FR-10, FR-33)
+      description: |
+        Permite adjuntar documentos de identidad (cédula, pasaporte, licencia) o documentos vehiculares (carnet de circulación, certificado NIV).
+        Si el documento fue rechazado anteriormente, reinicia el estado a `PENDING` para nueva revisión por auditores.
+      tags:
+        - Documentos KYC
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - document_type
+              properties:
+                document_type:
+                  type: string
+                  enum: [identity_card, passport, vehicle_registration, niv_certificate, driving_license]
+                  example: vehicle_registration
+                vehicle_id:
+                  type: integer
+                  description: ID interno del vehículo si el documento corresponde a uno (obligatorio para documentos vehiculares).
+                  example: 1
+                document:
+                  type: string
+                  format: binary
+                  description: Archivo JPG/PNG/PDF del documento a subir.
+                file_path:
+                  type: string
+                  description: Opcional. Ruta en servidor si el archivo ya fue subido previamente.
+      responses:
+        '201':
+          description: Documento cargado exitosamente en estado PENDING
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  code:
+                    type: integer
+                    example: 201
+                  message:
+                    type: string
+                    example: Documento procesado con éxito.
+                  data:
+                    type: object
+                    properties:
+                      document_id:
+                        type: integer
+                        example: 12
+                      document_type:
+                        type: string
+                        example: vehicle_registration
+                      status:
+                        type: string
+                        example: pending
+                      file_path:
+                        type: string
+                        example: storage/documents/doc_1_vehicle_registration_abcdef1234.jpg
+        '400':
+          description: Parámetros inválidos o error en el archivo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: No autenticado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: El documento ya se encuentra verificado y aprobado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Falta document_type o archivo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /documents/kyc-status:
+    get:
+      summary: Consultar Estado Global KYC del Usuario (FR-10)
+      description: Retorna el estado consolidado de validación KYC (cédula, pasaporte, licencia y documentos vehiculares).
+      tags:
+        - Documentos KYC
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Estado KYC consultado con éxito
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: Estado KYC consultado con éxito.
+                  data:
+                    type: object
+                    properties:
+                      user_id:
+                        type: integer
+                        example: 1
+                      is_identity_verified:
+                        type: boolean
+                        example: true
+                      has_verified_vehicle:
+                        type: boolean
+                        example: false
+                      is_fully_kyc_passed:
+                        type: boolean
+                        example: false
+                      documents:
+                        type: object
+                        properties:
+                          identity_card:
+                            type: object
+                            nullable: true
+                            properties:
+                              status:
+                                type: string
+                                example: verified
+                              file_path:
+                                type: string
+                                example: storage/documents/cedula_1_a1b2c3.jpg
+                          passport:
+                            type: object
+                            nullable: true
+                          driving_license:
+                            type: object
+                            nullable: true
+        '401':
+          description: No autenticado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # ==========================================
+  # DIRECCIONES GUARDADAS (FR-19)
+  # ==========================================
+  /addresses:
+    get:
+      summary: Listar Direcciones Guardadas del Usuario (FR-19)
+      description: Retorna la libreta de direcciones favoritas con coordenadas GPS para solicitudes rápidas de grúa.
+      tags:
+        - Direcciones Guardadas
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Listado de direcciones guardadas
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: Direcciones consultadas con éxito.
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SavedAddressDto'
+        '401':
+          description: No autenticado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    post:
+      summary: Guardar Nueva Dirección con Coordenadas GPS (FR-19)
+      description: Registra una nueva dirección favorita validando que la latitud (-90..90) y longitud (-180..180) pertenezcan a rangos válidos.
+      tags:
+        - Direcciones Guardadas
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - label
+                - address_line
+                - latitude
+                - longitude
+              properties:
+                label:
+                  type: string
+                  example: Mi Casa
+                address_line:
+                  type: string
+                  example: Calle Los Pinos, Quinta María, Caracas
+                latitude:
+                  type: number
+                  format: float
+                  example: 10.488012
+                longitude:
+                  type: number
+                  format: float
+                  example: -66.862145
+                is_favorite:
+                  type: boolean
+                  example: true
+      responses:
+        '201':
+          description: Dirección guardada con éxito
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  code:
+                    type: integer
+                    example: 201
+                  message:
+                    type: string
+                    example: Dirección guardada con éxito.
+                  data:
+                    $ref: '#/components/schemas/SavedAddressDto'
+        '400':
+          description: Coordenadas GPS fuera del rango geométrico válido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: No autenticado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Campos obligatorios faltantes
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /addresses/{id}:
+    delete:
+      summary: Eliminar Dirección Guardada por UUID
+      description: Elimina de la libreta una dirección guardada verificando que pertenezca al usuario autenticado.
+      tags:
+        - Direcciones Guardadas
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: UUID v7 de la dirección guardada
+          schema:
+            type: string
+            format: uuid
+            example: 01a13e2f-5b6c-7f8a-9012-3456789abcde
+      responses:
+        '200':
+          description: Dirección eliminada correctamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: Dirección eliminada con éxito.
+                  data:
+                    type: array
+                    items: {}
+                    example: []
+        '401':
+          description: No autenticado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Dirección no encontrada o no pertenece al usuario autenticado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # ==========================================
+  # CATÁLOGO DE VEHÍCULOS
+  # ==========================================
+  /vehicles/catalog/classes:
+    get:
+      summary: Consultar Catálogo Maestro de Clases de Vehículos
+      description: Retorna la lista oficial de clases vehiculares (Automóvil, Camioneta, Camión, Moto, etc.). Almacenado en Redis.
+      tags:
+        - Catálogo de Vehículos
+      responses:
+        '200':
+          description: Clases de vehículos consultadas
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: Clases de vehículos consultadas.
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: integer
+                          example: 1
+                        code:
+                          type: string
+                          example: AUTOMOVIL
+                        name:
+                          type: string
+                          example: Automovil
+                        description:
+                          type: string
+                          example: Vehículos de pasajeros de 4 ruedas estándar
+
+  /vehicles/catalog/brands:
+    get:
+      summary: Consultar Catálogo Maestro de Marcas de Vehículos
+      description: Retorna las marcas automotrices disponibles con soporte de búsqueda en tiempo real mediante parámetro `q`.
+      tags:
+        - Catálogo de Vehículos
+      parameters:
+        - name: q
+          in: query
+          required: false
+          description: Filtro de búsqueda textual por prefijo o coincidencia de marca (ej. `toy`)
+          schema:
+            type: string
+            example: toy
+      responses:
+        '200':
+          description: Marcas consultadas
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: Marcas consultadas.
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: integer
+                          example: 531
+                        name:
+                          type: string
+                          example: Toyota
+
+  /vehicles/catalog/models:
+    get:
+      summary: Consultar Catálogo Maestro de Modelos por Marca
+      description: Retorna los modelos asociados a una marca específica con soporte de búsqueda por `q`. Cacheado en Redis con TTL de 24 horas.
+      tags:
+        - Catálogo de Vehículos
+      parameters:
+        - name: brand_id
+          in: query
+          required: true
+          description: ID numérico de la marca
+          schema:
+            type: integer
+            example: 531
+        - name: q
+          in: query
+          required: false
+          description: Filtro de búsqueda textual de modelo (ej. `cor`)
+          schema:
+            type: string
+            example: cor
+      responses:
+        '200':
+          description: Modelos consultados
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: Modelos consultados.
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: integer
+                          example: 1
+                        brand_id:
+                          type: integer
+                          example: 531
+                        vehicle_class_id:
+                          type: integer
+                          example: 1
+                        name:
+                          type: string
+                          example: Corolla
+        '422':
+          description: Parámetro brand_id no proporcionado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # ==========================================
+  # GESTIÓN DE VEHÍCULOS (FR-18)
+  # ==========================================
+  /vehicles/scan:
+    post:
+      summary: Escaneo OCR de Documento Vehicular (Carnet o Título)
+      description: |
+        Procesa mediante OCR una imagen de **Carnet de Circulación** (`vehicle_registration`) o de **Título de Propiedad / NIV** (`vehicle_title`).
+        Extrae y normaliza placa, NIV, serial de motor, año, color, marca y modelo, cruzándolos contra el catálogo maestro en MariaDB y Redis.
+        Retorna la coincidencia sugerida (`suggested_vehicle`), la ruta temporal del archivo (`file_path`) y las advertencias (`warnings`) en caso de campos ambiguos.
+      tags:
+        - Vehículos
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                document:
+                  type: string
+                  format: binary
+                  description: Fotografía nítida del Carnet de Circulación o Título de Propiedad.
+                document_type:
+                  type: string
+                  enum: [vehicle_registration, vehicle_title]
+                  default: vehicle_registration
+                  description: Tipo de documento vehicular a procesar.
+                file_path:
+                  type: string
+                  description: Opcional. Ruta de archivo en servidor si ya fue subido previamente.
+      responses:
+        '200':
+          description: Documento vehicular procesado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: Documento vehicular procesado exitosamente.
+                  data:
+                    type: object
+                    properties:
+                      suggested_vehicle:
+                        type: object
+                        properties:
+                          plate_number:
+                            type: string
+                            example: AB123CD
+                          niv:
+                            type: string
+                            example: 8X123456789012345
+                          engine_serial:
+                            type: string
+                            example: ENG998877
+                          year:
+                            type: integer
+                            example: 2018
+                          color:
+                            type: string
+                            example: Gris Plata
+                          brand_name:
+                            type: string
+                            example: Toyota
+                          model_name:
+                            type: string
+                            example: Corolla
+                          vehicle_class_name:
+                            type: string
+                            example: Automovil
+                          matched_catalog:
+                            type: object
+                            properties:
+                              brand_id:
+                                type: integer
+                                example: 531
+                              model_id:
+                                type: integer
+                                example: 1
+                              vehicle_class_id:
+                                type: integer
+                                example: 1
+                              vehicle_subclass_id:
+                                type: integer
+                                nullable: true
+                                example: null
+                      document_type:
+                        type: string
+                        example: vehicle_registration
+                      warnings:
+                        type: array
+                        items:
+                          type: string
+                        example: []
+                      raw_ocr:
+                        type: object
+                      file_path:
+                        type: string
+                        example: storage/documents/carnet_1_a1b2c3d4.jpg
+                      message:
+                        type: string
+                        example: Documento escaneado. Por favor verifique los campos sugeridos antes de confirmar.
+        '401':
+          description: No autenticado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Archivo no enviado o corrupto
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /vehicles:
+    get:
+      summary: Listar Vehículos Propios del Usuario (FR-18)
+      description: Retorna la lista de vehículos activos asociados al usuario autenticado, con sus estados de verificación y UUIDs v7.
+      tags:
+        - Vehículos
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Lista de vehículos consultada con éxito
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: Vehículos consultados con éxito.
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/VehicleDto'
+        '401':
+          description: No autenticado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    post:
+      summary: Registrar Nuevo Vehículo Propio (FR-18)
+      description: |
+        Registra un vehículo propio vinculándolo a la cuenta del usuario. Requiere permiso `register_vehicle` (otorgado al rol `client`).
+        Acepta los IDs normalizados del catálogo maestro (`brand_id`, `model_id`, `vehicle_class_id`) o nombres libres (`brand_name`, `model_name`).
+        Si se envía `carnet_file_path`, asocia automáticamente el archivo como documento KYC vehicular en estado `PENDING`.
+        Valida que la Placa y el N.I.V no se encuentren duplicados en el sistema.
+      tags:
+        - Vehículos
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - plate_number
+                - niv
+                - year
+                - color
+              properties:
+                plate_number:
+                  type: string
+                  example: AB123CD
+                niv:
+                  type: string
+                  example: 8X123456789012345
+                year:
+                  type: integer
+                  example: 2018
+                color:
+                  type: string
+                  example: Gris Plata
+                engine_serial:
+                  type: string
+                  example: ENG998877
+                brand_id:
+                  type: integer
+                  example: 531
+                model_id:
+                  type: integer
+                  example: 1
+                vehicle_class_id:
+                  type: integer
+                  example: 1
+                vehicle_subclass_id:
+                  type: integer
+                  nullable: true
+                  example: null
+                brand_name:
+                  type: string
+                  example: Toyota
+                model_name:
+                  type: string
+                  example: Corolla
+                carnet_file_path:
+                  type: string
+                  description: Ruta temporal devuelta por `/vehicles/scan` para asociar el comprobante KYC del vehículo.
+                  example: storage/documents/carnet_1_a1b2c3d4.jpg
+                document_type:
+                  type: string
+                  enum: [vehicle_registration, vehicle_title]
+                  default: vehicle_registration
+                  example: vehicle_registration
+      responses:
+        '201':
+          description: Vehículo registrado exitosamente en estado PENDING
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  code:
+                    type: integer
+                    example: 201
+                  message:
+                    type: string
+                    example: Vehículo registrado exitosamente.
+                  data:
+                    $ref: '#/components/schemas/VehicleDto'
+        '401':
+          description: No autenticado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: No tienes los permisos necesarios para realizar esta acción (falta register_vehicle)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Conflicto - La placa o el N.I.V ya están registrados en el sistema
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Datos de vehículo incompletos o inválidos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /vehicles/{id}:
+    delete:
+      summary: Desactivar Vehículo Propio (Soft Delete)
+      description: |
+        Marca el vehículo como inactivo (`is_active = 0` / soft delete) asegurando que no se pueda utilizar en nuevos servicios.
+        Preserva la trazabilidad histórica de servicios anteriores.
+      tags:
+        - Vehículos
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: UUID v7 público del vehículo
+          schema:
+            type: string
+            format: uuid
+            example: 01a13dc7-d5ab-7a6c-941c-34747ebaf549
+      responses:
+        '200':
+          description: Vehículo eliminado con éxito
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: Vehículo eliminado con éxito.
+                  data:
+                    type: array
+                    items: {}
+                    example: []
+        '401':
+          description: No autenticado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Vehículo no encontrado o no pertenece al usuario autenticado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'

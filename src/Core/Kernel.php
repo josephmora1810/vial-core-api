@@ -19,11 +19,20 @@ class Kernel
             $params = $match['params'] ?? [];
             $routePipes = $match['middlewares'] ?? [];
 
-            // Resolvemos los middlewares de la ruta (ejecutando el closure si es lazy)
+            // Resolvemos los middlewares de la ruta (ejecutando el closure si es lazy, con soporte para parámetros como role:client)
             $resolvedPipes = array_map(function ($pipe) {
                 $map = $this->config['route_middlewares'] ?? [];
-                if (\is_string($pipe) && isset($map[$pipe])) {
-                    return is_callable($map[$pipe]) ? $map[$pipe]() : $map[$pipe];
+                if (\is_string($pipe)) {
+                    if (isset($map[$pipe])) {
+                        return is_callable($map[$pipe]) ? $map[$pipe]() : $map[$pipe];
+                    }
+                    if (str_contains($pipe, ':')) {
+                        [$alias, $argument] = explode(':', $pipe, 2);
+                        if (isset($map[$alias])) {
+                            $factory = $map[$alias];
+                            return is_callable($factory) ? $factory($argument) : $factory;
+                        }
+                    }
                 }
                 return $pipe;
             }, $routePipes);

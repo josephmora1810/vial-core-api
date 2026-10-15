@@ -97,4 +97,65 @@ class LaVenezolanaDocumentExtractor implements DocumentExtractorInterface
             rawPayload: $data
         );
     }
+
+    public function extractVehicleRegistration(string $filePath, ?string $documentType = null): array
+    {
+        $url = rtrim($this->baseUrl, '/') . '/extractions';
+
+        $headers = [];
+        if (!empty($this->apiKey)) {
+            $headers['Authorization'] = 'Bearer ' . $this->apiKey;
+        }
+
+        // Si el cliente solicita 'vehicle_title' o 'niv_certificate', se envía 'vehicle_title'
+        $ocrDocType = match (strtolower(trim((string)$documentType))) {
+            'vehicle_title', 'niv_certificate', 'niv', 'title' => 'vehicle_title',
+            default => 'vehicle_registration'
+        };
+
+        try {
+            $response = $this->httpClient->postMultipart(
+                url: $url,
+                fields: ['document_type' => $ocrDocType],
+                files: ['document' => $filePath],
+                headers: $headers
+            );
+        } catch (Throwable $e) {
+            throw new DocumentExtractionException(
+                "No se pudo establecer comunicación con el microservicio OCR: {$e->getMessage()}",
+                503,
+                $e
+            );
+        }
+
+        if (!$response->isSuccessful()) {
+            $json = $response->json();
+            $detail = $json['detail'] ?? 'El documento vehicular no pudo ser procesado o no es válido.';
+            throw new DocumentExtractionException("Error en extracción vehicular: {$detail}", 422);
+        }
+
+        $data = $response->json();
+
+        if (($data['status'] ?? '') !== 'success') {
+            throw new DocumentExtractionException("La imagen no corresponde a un documento vehicular legible.", 422);
+        }
+
+        $fields = $data['fields'] ?? [];
+        $returnedDocType = $data['document_type'] ?? $ocrDocType;
+
+        return [
+            'document_type' => $returnedDocType,
+            'plate_number'  => $fields['license_plate']['value'] ?? $fields['plate_number']['value'] ?? null,
+            'brand'         => $fields['make']['value'] ?? $fields['brand']['value'] ?? null,
+            'model'         => $fields['model']['value'] ?? null,
+            'year'          => !empty($fields['year']['value']) ? (int)$fields['year']['value'] : null,
+            'color'         => $fields['color']['value'] ?? null,
+            'engine_serial' => $fields['engine_serial']['value'] ?? null,
+            'niv'           => $fields['vin']['value'] ?? $fields['niv']['value'] ?? null,
+            'vehicle_class' => $fields['vehicle_type']['value'] ?? $fields['vehicle_class']['value'] ?? null,
+            'confidence'    => (float)($fields['license_plate']['confidence'] ?? $fields['vin']['confidence'] ?? 0.0),
+            'warnings'      => $data['warnings'] ?? [],
+            'raw_payload'   => $data,
+        ];
+    }
 }

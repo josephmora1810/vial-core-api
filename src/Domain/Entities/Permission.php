@@ -8,7 +8,7 @@ class Permission {
 	public function __construct(
 		private ?int $id,
 		private string $name,
-		private string $guardName,
+		private string $guardName = 'api',
         private array $roles = [],
         private array $users = []
 	) {}

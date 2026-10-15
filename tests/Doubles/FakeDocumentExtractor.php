@@ -37,4 +37,27 @@ class FakeDocumentExtractor implements DocumentExtractorInterface
             rawPayload: ['mocked' => true]
         );
     }
+
+    public function extractVehicleRegistration(string $filePath, ?string $documentType = null): array
+    {
+        if ($this->shouldFail) {
+            throw new DocumentExtractionException("El carnet no es legible.", 422);
+        }
+
+        $type = ($documentType === 'vehicle_title' || $documentType === 'niv_certificate') ? 'vehicle_title' : 'vehicle_registration';
+
+        return [
+            'document_type' => $type,
+            'plate_number'  => $type === 'vehicle_title' ? 'ZZ111WW' : 'AB123CD',
+            'brand'         => $type === 'vehicle_title' ? 'Chevrolet' : 'Toyota',
+            'model'         => $type === 'vehicle_title' ? 'Aveo' : 'Corolla',
+            'year'          => $type === 'vehicle_title' ? 2008 : 2018,
+            'color'         => 'Gris',
+            'engine_serial' => 'ENG123456',
+            'niv'           => $type === 'vehicle_title' ? '0ZZ0Z0000ZZ000000' : '8X123456789012345',
+            'vehicle_class' => $type === 'vehicle_title' ? 'Camioneta' : 'Automovil',
+            'confidence'    => 0.95,
+            'warnings'      => [],
+        ];
+    }
 }

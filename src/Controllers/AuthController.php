@@ -8,6 +8,7 @@ use App\Application\UseCases\LogoutUser;
 use App\Application\UseCases\RefreshToken;
 use App\Application\UseCases\RegisterUser;
 use App\Application\UseCases\ResetPassword;
+use App\Application\UseCases\ScanIdentityCard;
 use App\Application\UseCases\SendPasswordResetCode;
 use App\Core\Request;
 use App\Core\Response;
@@ -21,7 +22,8 @@ class AuthController
         private RefreshToken $refreshTokenUseCase,
         private LogoutUser $logoutUseCase,
         private SendPasswordResetCode $sendPasswordResetCode,
-        private ResetPassword $resetPassword
+        private ResetPassword $resetPassword,
+        private ?ScanIdentityCard $scanIdentityCard = null
     ) {}
 
     public function login(Request $request): void
@@ -45,6 +47,51 @@ class AuthController
         }
     }
 
+    /**
+     * POST /api/v1/scan-identity
+     * Escanea la cédula con el OCR y devuelve los datos patronímicos para pre-llenado y revisión
+     */
+    public function scanIdentity(Request $request): void
+    {
+        $filePath = null;
+        if ($request->hasFile('document')) {
+            $uploaded = $_FILES['document'];
+            $ext = pathinfo($uploaded['name'], PATHINFO_EXTENSION);
+            $uploadsDir = dirname(__DIR__, 2) . '/storage/documents';
+            if (!is_dir($uploadsDir)) {
+                mkdir($uploadsDir, 0755, true);
+            }
+            $targetPath = sprintf('%s/cedula_scan_%s.%s', $uploadsDir, bin2hex(random_bytes(8)), $ext ?: 'jpg');
+            if (move_uploaded_file($uploaded['tmp_name'], $targetPath)) {
+                $filePath = $targetPath;
+            } else {
+                $filePath = $uploaded['tmp_name'];
+            }
+        } elseif (!empty($request->input('file_path'))) {
+            $filePath = (string)$request->input('file_path');
+        }
+
+        if (empty($filePath)) {
+            $errorMsg = $request->fileErrorMessage('document') ?? 'Debe adjuntar la imagen de la cédula de identidad.';
+            Response::json([], 400, 'fail', $errorMsg);
+            return;
+        }
+
+        if ($this->scanIdentityCard === null) {
+            Response::json([], 500, 'fail', 'Servicio de escaneo de cédula no configurado.');
+            return;
+        }
+
+        try {
+            $result = $this->scanIdentityCard->execute($filePath);
+            Response::json($result, 200, 'success', 'Cédula procesada exitosamente.');
+        } catch (Exception $e) {
+            $rawCode = $e->getCode();
+            $code = (is_int($rawCode) && $rawCode >= 400 && $rawCode < 500) ? $rawCode : 422;
+            Response::json([], $code, 'fail', $e->getMessage());
+        }
+    }
+
     public function register(Request $request): void
     {
         $body = $request->body();
@@ -64,14 +111,36 @@ class AuthController
             return;
         }
 
+        // Datos manuales opcionales de patronímicos (para corregir errores del OCR o ingreso manual)
+        $rawNationalId = !empty($body['identification_card']) ? trim($body['identification_card']) : null;
+        $rawNames = !empty($body['names']) ? trim($body['names']) : null;
+        $rawSurnames = !empty($body['surnames']) ? trim($body['surnames']) : null;
+        $rawBirthDate = !empty($body['birth_date']) ? trim($body['birth_date']) : null;
+
         // Comprobar archivo del documento de identidad para KYC (FR-07)
-        if (!$request->hasFile('document')) {
-            Response::json([], 400, 'fail', 'Debe adjuntar la imagen del documento de identidad (campo "document").');
-            return;
+        $filePath = null;
+        if ($request->hasFile('document')) {
+            $uploaded = $_FILES['document'];
+            $ext = pathinfo($uploaded['name'], PATHINFO_EXTENSION);
+            $uploadsDir = dirname(__DIR__, 2) . '/storage/documents';
+            if (!is_dir($uploadsDir)) {
+                mkdir($uploadsDir, 0755, true);
+            }
+            $targetPath = sprintf('%s/cedula_%s.%s', $uploadsDir, bin2hex(random_bytes(8)), $ext ?: 'jpg');
+            if (move_uploaded_file($uploaded['tmp_name'], $targetPath)) {
+                $filePath = $targetPath;
+            } else {
+                $filePath = $uploaded['tmp_name'];
+            }
+        } elseif (!empty($body['file_path'])) {
+            $filePath = (string)$body['file_path'];
         }
 
-        $documentFile = $request->file('document');
-        $filePath = $documentFile['tmp_name'];
+        if (empty($filePath) && empty($rawNationalId)) {
+            $errorMsg = $request->fileErrorMessage('document') ?? 'Debe adjuntar la imagen del documento de identidad o ingresar los patronímicos.';
+            Response::json([], 400, 'fail', $errorMsg);
+            return;
+        }
 
         try {
             $result = $this->registerUseCase->execute(
@@ -80,7 +149,11 @@ class AuthController
                 rawPhone: $phone,
                 rawRole: $role,
                 termsAccepted: $consent,
-                documentFilePath: $filePath
+                documentFilePath: $filePath,
+                rawNationalId: $rawNationalId,
+                rawNames: $rawNames,
+                rawSurnames: $rawSurnames,
+                rawBirthDate: $rawBirthDate
             );
 
             Response::json($result, 201, 'success', 'Usuario registrado y verificado exitosamente.');

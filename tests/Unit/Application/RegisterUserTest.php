@@ -174,4 +174,50 @@ class RegisterUserTest extends TestCase
             documentFilePath: $this->dummyFile
         );
     }
+
+    public function test_registration_allows_manual_correction_of_patronymics(): void
+    {
+        $result = $this->useCase->execute(
+            rawEmail: 'corregido@ubikgo.com',
+            rawPassword: 'Password123!',
+            rawPhone: '+584121234567',
+            rawRole: 'client',
+            termsAccepted: true,
+            documentFilePath: $this->dummyFile,
+            rawNationalId: 'V-12999998',
+            rawNames: 'PEDRO JOSE',
+            rawSurnames: 'PEREZ GONZALEZ'
+        );
+
+        $user = $result['user'];
+        $this->assertSame('V-12999998', $user['identification_card']);
+        $this->assertSame('PEDRO JOSE', $user['names']);
+        $this->assertSame('PEREZ GONZALEZ', $user['surnames']);
+    }
+
+    public function test_registration_fails_if_identification_card_already_exists(): void
+    {
+        // 1. Primer registro con cédula V-80123456 (del OCR simulado)
+        $this->useCase->execute(
+            rawEmail: 'usuario1@ubikgo.com',
+            rawPassword: 'Password123!',
+            rawPhone: '+584121234567',
+            rawRole: 'client',
+            termsAccepted: true,
+            documentFilePath: $this->dummyFile
+        );
+
+        // 2. Segundo registro con otro email pero misma cédula
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessage("Ya existe una cuenta registrada con la cédula Ingresada");
+
+        $this->useCase->execute(
+            rawEmail: 'usuario2@ubikgo.com',
+            rawPassword: 'Password123!',
+            rawPhone: '+584149876543',
+            rawRole: 'driver',
+            termsAccepted: true,
+            documentFilePath: $this->dummyFile
+        );
+    }
 }

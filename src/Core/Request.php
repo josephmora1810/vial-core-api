@@ -70,6 +70,32 @@ class Request {
 		return isset($_FILES[$key]) && (int)($_FILES[$key]['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_OK;
 	}
 
+	/**
+	 * Obtiene el mensaje de error correspondiente si la subida falló
+	 */
+	public function fileErrorMessage(string $key): ?string
+	{
+		if (!isset($_FILES[$key])) {
+			return "No se recibió ningún archivo en el campo \"{$key}\".";
+		}
+
+		$error = (int)($_FILES[$key]['error'] ?? UPLOAD_ERR_NO_FILE);
+		return match ($error) {
+			UPLOAD_ERR_OK => null,
+			UPLOAD_ERR_INI_SIZE => sprintf(
+				'El archivo adjunto supera el tamaño máximo permitido por el servidor (upload_max_filesize: %s).',
+				ini_get('upload_max_filesize') ?: '2M'
+			),
+			UPLOAD_ERR_FORM_SIZE => 'El archivo supera el tamaño máximo permitido en el formulario.',
+			UPLOAD_ERR_PARTIAL   => 'El archivo se subió solo parcialmente.',
+			UPLOAD_ERR_NO_FILE   => "No se adjuntó ningún archivo en el campo \"{$key}\".",
+			UPLOAD_ERR_NO_TMP_DIR => 'Falta el directorio temporal en el servidor.',
+			UPLOAD_ERR_CANT_WRITE => 'No se pudo guardar el archivo en el disco.',
+			UPLOAD_ERR_EXTENSION  => 'Una extensión de PHP detuvo la carga del archivo.',
+			default => "Error en la subida del archivo (código de error {$error})."
+		};
+	}
+
 	public function setUser(User $user): self
 	{
 		$this->user = $user;
@@ -102,5 +128,44 @@ class Request {
 		}
 
 		return null;
+	}
+
+	public function header(string $key, ?string $default = null): ?string
+	{
+		$formattedKey = 'HTTP_' . strtoupper(str_replace('-', '_', $key));
+		if (isset($_SERVER[$formattedKey])) {
+			return $_SERVER[$formattedKey];
+		}
+
+		if (strcasecmp($key, 'Content-Type') === 0 && isset($_SERVER['CONTENT_TYPE'])) {
+			return $_SERVER['CONTENT_TYPE'];
+		}
+
+		if (strcasecmp($key, 'Content-Length') === 0 && isset($_SERVER['CONTENT_LENGTH'])) {
+			return $_SERVER['CONTENT_LENGTH'];
+		}
+
+		if (function_exists('apache_request_headers')) {
+			$headers = apache_request_headers();
+			foreach ($headers as $k => $v) {
+				if (strcasecmp($k, $key) === 0) {
+					return $v;
+				}
+			}
+		}
+
+		return $default;
+	}
+
+	public function isJson(): bool
+	{
+		$contentType = $this->header('Content-Type', '');
+		return str_contains($contentType, 'application/json');
+	}
+
+	public function wantsJson(): bool
+	{
+		$accept = $this->header('Accept', '');
+		return empty($accept) || str_contains($accept, 'application/json') || str_contains($accept, '*/*');
 	}
 }

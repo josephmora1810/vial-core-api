@@ -5,6 +5,7 @@ namespace Tests\Doubles;
 use App\Domain\Entities\User;
 use App\Domain\Repositories\UserRepositoryInterface;
 use App\Domain\ValueObjects\Email;
+use App\Domain\ValueObjects\NationalId;
 use App\Domain\ValueObjects\Uuid;
 
 /**
@@ -19,6 +20,8 @@ class InMemoryUserRepository implements UserRepositoryInterface
     private array $usersByUuid = [];
     /** @var array<int, User> */
     private array $usersById = [];
+    /** @var array<string, User> */
+    private array $usersByIdCard = [];
     private int $nextId = 1;
 
     public function save(User $user): void
@@ -30,6 +33,9 @@ class InMemoryUserRepository implements UserRepositoryInterface
         $this->usersByEmail[$user->getEmail()->getValue()] = $user;
         $this->usersByUuid[$user->getUuid()->getValue()] = $user;
         $this->usersById[$user->getId()] = $user;
+        if ($user->getIdentificationCard() !== null) {
+            $this->usersByIdCard[$user->getIdentificationCard()->getValue()] = $user;
+        }
     }
 
     public function findByEmail(Email $email): ?User
@@ -42,8 +48,18 @@ class InMemoryUserRepository implements UserRepositoryInterface
         return $this->usersByUuid[$uuid->getValue()] ?? null;
     }
 
-    public function findByIdInternal(int $id): ?User
+    public function findById(int $id): ?User
     {
         return $this->usersById[$id] ?? null;
+    }
+
+    public function findByIdentificationCard(NationalId $nationalId): ?User
+    {
+        return $this->usersByIdCard[$nationalId->getValue()] ?? null;
+    }
+
+    public function findByIdInternal(int $id): ?User
+    {
+        return $this->findById($id);
     }
 }

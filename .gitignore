@@ -14,3 +14,7 @@ scripts/*.png
 
 # Ignorar carpeta de visual studio code
 .vscode/
+
+# Almacenamiento local de archivos y evidencias KYC
+storage/documents/*
+!storage/documents/.gitkeep

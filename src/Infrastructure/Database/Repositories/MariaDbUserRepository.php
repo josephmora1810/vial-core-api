@@ -205,10 +205,24 @@ class MariaDbUserRepository implements UserRepositoryInterface
         return $this->hydrateUser($row);
     }
 
-    /**
-     * Helper interno para relaciones foráneas de la base de datos (no expuesto en UserRepositoryInterface)
-     */
-    private function findById(int $id): ?User
+    public function findByIdentificationCard(NationalId $nationalId): ?User
+    {
+        $stmt = $this->connection->prepare('
+            SELECT * FROM users
+            WHERE identification_card = :id_card AND deleted_at IS NULL
+            LIMIT 1
+        ');
+        $stmt->execute([':id_card' => $nationalId->getValue()]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$row) {
+            return null;
+        }
+
+        return $this->hydrateUser($row);
+    }
+
+    public function findById(int $id): ?User
     {
         $stmt = $this->connection->prepare('
             SELECT * FROM users
@@ -228,20 +242,45 @@ class MariaDbUserRepository implements UserRepositoryInterface
     private function loadRoles(int $userId): array
     {
         $stmt = $this->connection->prepare('
-            SELECT r.id, r.name, r.guard_name
+            SELECT r.id AS role_id, r.name AS role_name, r.guard_name AS role_guard,
+                   p.id AS perm_id, p.name AS perm_name, p.guard_name AS perm_guard
             FROM roles r
             INNER JOIN role_user ru ON r.id = ru.role_id
+            LEFT JOIN role_permission rp ON r.id = rp.role_id
+            LEFT JOIN permissions p ON rp.permission_id = p.id
             WHERE ru.user_id = :user_id
         ');
         $stmt->execute([':user_id' => $userId]);
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-        $roles = [];
+        $rolesById = [];
         foreach ($rows as $row) {
+            $roleId = (int) $row['role_id'];
+            if (!isset($rolesById[$roleId])) {
+                $rolesById[$roleId] = [
+                    'id'          => $roleId,
+                    'name'        => $row['role_name'],
+                    'guard_name'  => $row['role_guard'],
+                    'permissions' => []
+                ];
+            }
+
+            if (!empty($row['perm_id'])) {
+                $rolesById[$roleId]['permissions'][] = new Permission(
+                    id: (int) $row['perm_id'],
+                    name: $row['perm_name'],
+                    guardName: $row['perm_guard']
+                );
+            }
+        }
+
+        $roles = [];
+        foreach ($rolesById as $data) {
             $roles[] = new Role(
-                id: (int) $row['id'],
-                name: $row['name'],
-                guardName: $row['guard_name']
+                id: $data['id'],
+                name: $data['name'],
+                guardName: $data['guard_name'],
+                permissions: $data['permissions']
             );
         }
 

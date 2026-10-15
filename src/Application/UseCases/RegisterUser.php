@@ -8,14 +8,22 @@ use App\Domain\Entities\PersonalAccessToken;
 use App\Domain\Entities\Role;
 use App\Domain\Entities\User;
 use App\Domain\Enums\UserRole;
+use App\Domain\Entities\Document;
+use App\Domain\Enums\DocumentStatus;
+use App\Domain\Enums\DocumentType;
 use App\Domain\Exceptions\DocumentExtractionException;
+use App\Domain\Repositories\DocumentRepositoryInterface;
 use App\Domain\Repositories\PersonalAccessTokenRepositoryInterface;
 use App\Domain\Repositories\UserRepositoryInterface;
 use App\Domain\Services\DocumentExtractorInterface;
+use App\Domain\ValueObjects\BirthDate;
 use App\Domain\ValueObjects\Email;
 use App\Domain\ValueObjects\Money;
+use App\Domain\ValueObjects\Names;
+use App\Domain\ValueObjects\NationalId;
 use App\Domain\ValueObjects\Password;
 use App\Domain\ValueObjects\Phone;
+use App\Domain\ValueObjects\Surnames;
 use App\Domain\ValueObjects\Uuid;
 use DateTimeImmutable;
 use Exception;
@@ -26,7 +34,8 @@ class RegisterUser
         private UserRepositoryInterface $userRepository,
         private DocumentExtractorInterface $documentExtractor,
         private JwtService $jwtService,
-        private PersonalAccessTokenRepositoryInterface $tokenRepository
+        private PersonalAccessTokenRepositoryInterface $tokenRepository,
+        private ?DocumentRepositoryInterface $documentRepository = null
     ) {}
 
     /**
@@ -36,6 +45,10 @@ class RegisterUser
      * @param string $rawRole ('client', 'driver', 'seller')
      * @param bool   $termsAccepted Checkbox de consentimiento obligatorio (FR-03)
      * @param string $documentFilePath Ruta temporal de la imagen de la cédula (FR-07)
+     * @param string|null $rawNationalId Corrección manual de cédula (si el OCR erró)
+     * @param string|null $rawNames Corrección manual de nombres
+     * @param string|null $rawSurnames Corrección manual de apellidos
+     * @param string|null $rawBirthDate Corrección manual de fecha de nacimiento (Y-m-d)
      * @return array Datos del usuario creado, access token y refresh token
      */
     public function execute(
@@ -44,7 +57,11 @@ class RegisterUser
         string $rawPhone,
         string $rawRole,
         bool $termsAccepted,
-        string $documentFilePath
+        ?string $documentFilePath = null,
+        ?string $rawNationalId = null,
+        ?string $rawNames = null,
+        ?string $rawSurnames = null,
+        ?string $rawBirthDate = null
     ): array {
         // 1. Consentimiento legal obligatorio (FR-03)
         if (!$termsAccepted) {
@@ -67,11 +84,52 @@ class RegisterUser
         }
 
         // 5. Extraer y validar datos patronímicos con el OCR (FR-07)
-        if (!file_exists($documentFilePath)) {
-            throw new DocumentExtractionException("El archivo del documento de identidad no fue recibido.", 400);
+        $extractedIdentity = null;
+        if (!empty($documentFilePath)) {
+            if (!file_exists($documentFilePath)) {
+                throw new DocumentExtractionException("El archivo del documento de identidad no fue recibido.", 400);
+            }
+
+            try {
+                $extractedIdentity = $this->documentExtractor->extractIdentityCard($documentFilePath);
+            } catch (DocumentExtractionException $e) {
+                // Si el OCR falló y el usuario no suministró datos manuales, propagar error
+                if (empty($rawNationalId) || empty($rawNames) || empty($rawSurnames)) {
+                    throw $e;
+                }
+            }
+        } elseif (empty($rawNationalId) || empty($rawNames) || empty($rawSurnames)) {
+            throw new Exception("Debe adjuntar la imagen del documento de identidad o ingresar los datos patronímicos requeridos.", 400);
         }
 
-        $extractedIdentity = $this->documentExtractor->extractIdentityCard($documentFilePath);
+        $hasDocFile = !empty($documentFilePath) && file_exists($documentFilePath);
+
+        // 5.1 Resolver patronímicos: Prioridad a datos manuales si fueron provistos (corrección de OCR), sino tomar los del OCR
+        $nationalId = !empty($rawNationalId)
+            ? new NationalId($rawNationalId)
+            : ($extractedIdentity ? $extractedIdentity->getNationalId() : null);
+
+        $names = !empty($rawNames)
+            ? new Names($rawNames)
+            : ($extractedIdentity ? $extractedIdentity->getNames() : null);
+
+        $surnames = !empty($rawSurnames)
+            ? new Surnames($rawSurnames)
+            : ($extractedIdentity ? $extractedIdentity->getSurnames() : null);
+
+        $birthDate = !empty($rawBirthDate)
+            ? new BirthDate($rawBirthDate)
+            : ($extractedIdentity ? $extractedIdentity->getBirthDate() : null);
+
+        if ($nationalId === null || $names === null || $surnames === null) {
+            throw new Exception("Los datos patronímicos (cédula, nombres y apellidos) son obligatorios.", 422);
+        }
+
+        // 5.2 Comprobar unicidad de Cédula de Identidad en el sistema (1 persona física = 1 cuenta)
+        $existingByIdCard = $this->userRepository->findByIdentificationCard($nationalId);
+        if ($existingByIdCard !== null) {
+            throw new Exception("Ya existe una cuenta registrada con la cédula Ingresada", 409);
+        }
 
         // 6. Hashear la contraseña con Bcrypt mediante su Value Object
         $password = Password::fromPlainText($rawPassword);
@@ -82,14 +140,14 @@ class RegisterUser
         $user = new User(
             id: null,
             uuid: $uuid,
-            names: $extractedIdentity->getNames(),
-            surnames: $extractedIdentity->getSurnames(),
+            names: $names,
+            surnames: $surnames,
             email: $email,
             password: $password,
             phone: $phone,
             walletBalance: new Money(0.00, 'VES'),
-            identificationCard: $extractedIdentity->getNationalId(),
-            birthDate: $extractedIdentity->getBirthDate(),
+            identificationCard: $nationalId,
+            birthDate: $birthDate,
             createdAt: new DateTimeImmutable(),
             updatedAt: null,
             consentAt: new DateTimeImmutable(), // Registra fecha exacta de aceptación (NFR-21)
@@ -101,6 +159,36 @@ class RegisterUser
 
         // 8. Persistir en MariaDB (inserta usuario y sincroniza rol)
         $this->userRepository->save($user);
+
+        // 8.1 Persistir documento de identidad inicial para auditoría y flujo KYC (FR-07, FR-10, FR-33)
+        if ($this->documentRepository !== null && $user->getId() !== null && $hasDocFile) {
+            // Si el usuario modificó manualmente los datos leídos por el OCR, queda PENDING para revisión humana
+            // Si coincidió exactamente con el OCR, se aprueba automáticamente VERIFIED
+            $isExactMatch = $extractedIdentity !== null
+                && $extractedIdentity->getNationalId()->getValue() === $nationalId->getValue()
+                && $extractedIdentity->getNames()->getValue() === $names->getValue()
+                && $extractedIdentity->getSurnames()->getValue() === $surnames->getValue();
+
+            $docStatus = $isExactMatch ? DocumentStatus::Verified : DocumentStatus::Pending;
+
+            $extractedData = [
+                'names'                 => $names->getValue(),
+                'surnames'              => $surnames->getValue(),
+                'national_id'           => $nationalId->getValue(),
+                'birth_date'            => $birthDate?->format('Y-m-d'),
+                'was_manual_correction' => !$isExactMatch
+            ];
+
+            $doc = Document::create(
+                documentableType: 'user',
+                documentableId: (int)$user->getId(),
+                documentType: DocumentType::IdentityCard,
+                filePath: $documentFilePath,
+                extractedData: $extractedData,
+                status: $docStatus
+            );
+            $this->documentRepository->save($doc);
+        }
 
         // 9. Emitir Access Token JWT (stateless) para inicio de sesión inmediato (FR-02)
         $token = $this->jwtService->generateToken([
