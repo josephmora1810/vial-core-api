@@ -72,6 +72,7 @@ $vehicle = Vehicle::create(
 
 $fakeAddress = 'AV. FRANCISCO DE MIRANDA, RES. PARQUE CRISTAL, CHACAO, CARACAS';
 $fakeClassLabel = 'AUTOMÓVIL / SEDAN';
+$secretKey = $_ENV['APP_KEY'] ?? 'ubikgo-secret-contract-key';
 
 // =========================================================================
 // 1. CONTRATO PENDIENTE DE PAGO (Marca de agua diagonal "NO PAGADO")
@@ -86,6 +87,9 @@ $contractPending = new ServiceContract(
     expiresAt: null,
     id: 101
 );
+$codePending = $contractPending->generateVerificationCode();
+$contractPending->setIntegrityHash($contractPending->calculateIntegrityHash($secretKey, $vehicle->getPlateNumber()->getValue()));
+$urlPending = "https://ubikgo.com/verificar?code={$codePending}&plate=" . $vehicle->getPlateNumber()->getValue();
 
 $filePending = $outputDir . '/contrato_1_pendiente_pago.pdf';
 file_put_contents(
@@ -95,14 +99,14 @@ file_put_contents(
         plan: $plan,
         client: $client,
         vehicle: $vehicle,
-        downloadUrl: 'http://localhost:8088/api/v1/contracts/' . $contractPending->getUuid()->getValue() . '/pdf',
+        downloadUrl: $urlPending,
         clientAddress: $fakeAddress,
         vehicleClassLabel: $fakeClassLabel,
         branchName: 'PRINCIPAL - CARACAS',
         sellerName: 'EJECUTIVO VENTAS UBIKGO'
     )
 );
-echo "[OK] Generado (PENDING_PAYMENT): " . realpath($filePending) . PHP_EOL;
+echo "[OK] Generado (PENDING_PAYMENT): " . realpath($filePending) . " [Código: {$codePending}]" . PHP_EOL;
 
 // =========================================================================
 // 2. CONTRATO ACTIVO / PAGADO (Sin marca de agua, con sello "PAGADO" y fechas)
@@ -118,6 +122,9 @@ $contractActive = new ServiceContract(
     id: 102
 );
 $contractActive->activate(12);
+$codeActive = $contractActive->generateVerificationCode();
+$contractActive->setIntegrityHash($contractActive->calculateIntegrityHash($secretKey, $vehicle->getPlateNumber()->getValue()));
+$urlActive = "https://ubikgo.com/verificar?code={$codeActive}&plate=" . $vehicle->getPlateNumber()->getValue();
 
 $fileActive = $outputDir . '/contrato_2_activo_pagado.pdf';
 file_put_contents(
@@ -127,14 +134,14 @@ file_put_contents(
         plan: $plan,
         client: $client,
         vehicle: $vehicle,
-        downloadUrl: 'http://localhost:8088/api/v1/contracts/' . $contractActive->getUuid()->getValue() . '/pdf',
+        downloadUrl: $urlActive,
         clientAddress: $fakeAddress,
         vehicleClassLabel: $fakeClassLabel,
         branchName: 'PRINCIPAL - CARACAS',
         sellerName: 'EJECUTIVO VENTAS UBIKGO'
     )
 );
-echo "[OK] Generado (ACTIVE):          " . realpath($fileActive) . PHP_EOL;
+echo "[OK] Generado (ACTIVE):          " . realpath($fileActive) . " [Código: {$codeActive}]" . PHP_EOL;
 
 // =========================================================================
 // 3. CONTRATO CANCELADO / VENCIDO (Marca de agua "CANCELADO" + sello "PAGADO")
@@ -151,6 +158,9 @@ $contractCancelled = new ServiceContract(
 );
 $contractCancelled->activate(12);
 $contractCancelled->cancel();
+$codeCancelled = $contractCancelled->generateVerificationCode();
+$contractCancelled->setIntegrityHash($contractCancelled->calculateIntegrityHash($secretKey, $vehicle->getPlateNumber()->getValue()));
+$urlCancelled = "https://ubikgo.com/verificar?code={$codeCancelled}&plate=" . $vehicle->getPlateNumber()->getValue();
 
 $fileCancelled = $outputDir . '/contrato_3_cancelado_vencido.pdf';
 file_put_contents(
@@ -160,11 +170,11 @@ file_put_contents(
         plan: $plan,
         client: $client,
         vehicle: $vehicle,
-        downloadUrl: 'http://localhost:8088/api/v1/contracts/' . $contractCancelled->getUuid()->getValue() . '/pdf',
+        downloadUrl: $urlCancelled,
         clientAddress: $fakeAddress,
         vehicleClassLabel: $fakeClassLabel,
         branchName: 'PRINCIPAL - CARACAS',
         sellerName: 'EJECUTIVO VENTAS UBIKGO'
     )
 );
-echo "[OK] Generado (CANCELLED):       " . realpath($fileCancelled) . PHP_EOL;
+echo "[OK] Generado (CANCELLED):       " . realpath($fileCancelled) . " [Código: {$codeCancelled}]" . PHP_EOL;
