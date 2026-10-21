@@ -2,7 +2,7 @@
 
 namespace Tests\Unit\Domain\ValueObjects;
 
-use App\Domain\ValueObjects\BirthDate;
+use App\Domain\Users\ValueObjects\BirthDate;
 use DateTimeImmutable;
 use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;

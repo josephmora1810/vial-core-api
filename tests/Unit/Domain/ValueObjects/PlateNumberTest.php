@@ -2,7 +2,7 @@
 
 namespace Tests\Unit\Domain\ValueObjects;
 
-use App\Domain\ValueObjects\PlateNumber;
+use App\Domain\Vehicles\ValueObjects\PlateNumber;
 use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;
 

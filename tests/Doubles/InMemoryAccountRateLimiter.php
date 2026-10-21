@@ -2,7 +2,7 @@
 
 namespace Tests\Doubles;
 
-use App\Domain\Services\AccountRateLimiterInterface;
+use App\Domain\Auth\Services\AccountRateLimiterInterface;
 
 class InMemoryAccountRateLimiter implements AccountRateLimiterInterface
 {

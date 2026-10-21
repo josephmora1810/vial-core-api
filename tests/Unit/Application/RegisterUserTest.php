@@ -2,10 +2,10 @@
 
 namespace Tests\Unit\Application;
 
-use App\Application\UseCases\RegisterUser;
+use App\Application\Auth\UseCases\RegisterUser;
 use App\Core\JwtService;
-use App\Domain\Exceptions\DocumentExtractionException;
-use App\Domain\ValueObjects\Email;
+use App\Domain\Auth\Exceptions\DocumentExtractionException;
+use App\Domain\Users\ValueObjects\Email;
 use Exception;
 use PHPUnit\Framework\TestCase;
 use Tests\Doubles\FakeDocumentExtractor;

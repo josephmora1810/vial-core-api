@@ -2,7 +2,7 @@
 
 namespace Tests\Unit\Domain\ValueObjects;
 
-use App\Domain\ValueObjects\Uuid;
+use App\Domain\Shared\ValueObjects\Uuid;
 use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;
 

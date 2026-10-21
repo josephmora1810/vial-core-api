@@ -2,6 +2,7 @@
 
 namespace App\Infrastructure\Http;
 
+use App\Infrastructure\Logging\IntegrationLogger;
 use CURLFile;
 
 /**
@@ -9,14 +10,19 @@ use CURLFile;
  */
 class CurlHttpClient implements HttpClientInterface
 {
+    private IntegrationLogger $logger;
+
     /**
      * @param int $timeout        Segundos máximos para TODA la petición (el OCR con IA puede tardar)
      * @param int $connectTimeout Segundos máximos solo para ESTABLECER la conexión
      */
     public function __construct(
         private int $timeout = 30,
-        private int $connectTimeout = 5
-    ) {}
+        private int $connectTimeout = 5,
+        ?IntegrationLogger $logger = null
+    ) {
+        $this->logger = $logger ?? new IntegrationLogger();
+    }
 
     public function get(string $url, array $query = [], array $headers = []): HttpResponse
     {
@@ -67,6 +73,8 @@ class CurlHttpClient implements HttpClientInterface
      */
     private function send(string $method, string $url, array $headers, string|array|null $body = null): HttpResponse
     {
+        $startTime = microtime(true);
+        $serviceName = IntegrationLogger::detectServiceFromUrl($url);
         $ch = curl_init();
 
         if ($ch === false) {
@@ -108,15 +116,36 @@ class CurlHttpClient implements HttpClientInterface
         }
 
         $responseBody = curl_exec($ch);
+        $durationMs = (microtime(true) - $startTime) * 1000;
 
         // curl_errno != 0 significa que NO hubo respuesta (timeout, DNS, conexión rechazada)
         if ($responseBody === false || curl_errno($ch) !== 0) {
             $error = curl_error($ch);
             $errno = curl_errno($ch);
+            $this->logger->log(
+                service: $serviceName,
+                operation: "{$method} {$url}",
+                url: $url,
+                statusCode: 0,
+                durationMs: $durationMs,
+                requestPayload: $body,
+                responsePayload: null,
+                error: "cURL #{$errno}: {$error}"
+            );
             throw new HttpClientException("Error de red hacia {$method} {$url}: {$error} (cURL #{$errno})", $errno);
         }
 
         $status = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+
+        $this->logger->log(
+            service: $serviceName,
+            operation: "{$method} {$url}",
+            url: $url,
+            statusCode: $status,
+            durationMs: $durationMs,
+            requestPayload: $body,
+            responsePayload: (string) $responseBody
+        );
 
         // Nota: NO llamamos a curl_close(). Desde PHP 8.0 no hace nada y en PHP 8.5 está
         // deprecado. El handle se libera solo cuando $ch sale de alcance.

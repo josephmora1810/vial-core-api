@@ -2,7 +2,7 @@
 
 namespace App\Infrastructure\Services;
 
-use App\Domain\Services\AccountRateLimiterInterface;
+use App\Domain\Auth\Services\AccountRateLimiterInterface;
 use App\Infrastructure\Database\Redis;
 
 /**

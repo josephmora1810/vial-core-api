@@ -2,9 +2,9 @@
 
 namespace Tests\Doubles;
 
-use App\Domain\Entities\SavedAddress;
-use App\Domain\Repositories\SavedAddressRepositoryInterface;
-use App\Domain\ValueObjects\Uuid;
+use App\Domain\Users\Entities\SavedAddress;
+use App\Domain\Users\Repositories\SavedAddressRepositoryInterface;
+use App\Domain\Shared\ValueObjects\Uuid;
 
 class InMemorySavedAddressRepository implements SavedAddressRepositoryInterface
 {

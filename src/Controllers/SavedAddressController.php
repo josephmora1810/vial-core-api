@@ -2,12 +2,12 @@
 
 namespace App\Controllers;
 
-use App\Application\UseCases\CreateSavedAddress;
-use App\Application\UseCases\DeleteSavedAddress;
-use App\Application\UseCases\ListSavedAddresses;
+use App\Application\Users\UseCases\CreateSavedAddress;
+use App\Application\Users\UseCases\DeleteSavedAddress;
+use App\Application\Users\UseCases\ListSavedAddresses;
 use App\Core\Request;
 use App\Core\Response;
-use App\Domain\Entities\User;
+use App\Domain\Users\Entities\User;
 use Exception;
 
 class SavedAddressController

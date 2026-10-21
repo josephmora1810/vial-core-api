@@ -1,0 +1,30 @@
+<?php
+
+/**
+ * Ejecutor Maestro de Cronjobs del Servidor (UbikGo Core API)
+ *
+ * Ejecuta en secuencia las 3 tareas programadas exclusivas del servidor:
+ *   1. sync_bank_token.php     -> Renueva el token OAuth2 de Bancaribe en MariaDB y Redis
+ *   2. sync_exchange_rates.php -> Sincroniza tasas oficiales BCV (USD/EUR) en MariaDB y Redis
+ *   3. expire_contracts.php    -> Pasa a EXPIRED los contratos cuya fecha/hora expires_at ya venció
+ *
+ * Uso:
+ *   php scripts/run_cronjobs.php
+ */
+
+$scripts = [
+    __DIR__ . '/sync_bank_token.php',
+    __DIR__ . '/sync_exchange_rates.php',
+    __DIR__ . '/expire_contracts.php',
+];
+
+$exitCode = 0;
+foreach ($scripts as $script) {
+    $cmd = escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg($script);
+    passthru($cmd, $code);
+    if ($code !== 0) {
+        $exitCode = $code;
+    }
+}
+
+exit($exitCode);

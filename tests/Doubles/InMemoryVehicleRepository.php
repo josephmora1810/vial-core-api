@@ -2,11 +2,11 @@
 
 namespace Tests\Doubles;
 
-use App\Domain\Entities\Vehicle;
-use App\Domain\Repositories\VehicleRepositoryInterface;
-use App\Domain\ValueObjects\Niv;
-use App\Domain\ValueObjects\PlateNumber;
-use App\Domain\ValueObjects\Uuid;
+use App\Domain\Vehicles\Entities\Vehicle;
+use App\Domain\Vehicles\Repositories\VehicleRepositoryInterface;
+use App\Domain\Vehicles\ValueObjects\Niv;
+use App\Domain\Vehicles\ValueObjects\PlateNumber;
+use App\Domain\Shared\ValueObjects\Uuid;
 
 class InMemoryVehicleRepository implements VehicleRepositoryInterface
 {

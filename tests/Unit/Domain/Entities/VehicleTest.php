@@ -2,12 +2,12 @@
 
 namespace Tests\Unit\Domain\Entities;
 
-use App\Domain\Entities\Vehicle;
-use App\Domain\Enums\VehicleStatus;
-use App\Domain\ValueObjects\EngineSerial;
-use App\Domain\ValueObjects\Niv;
-use App\Domain\ValueObjects\PlateNumber;
-use App\Domain\ValueObjects\Uuid;
+use App\Domain\Vehicles\Entities\Vehicle;
+use App\Domain\Vehicles\Enums\VehicleStatus;
+use App\Domain\Vehicles\ValueObjects\EngineSerial;
+use App\Domain\Vehicles\ValueObjects\Niv;
+use App\Domain\Vehicles\ValueObjects\PlateNumber;
+use App\Domain\Shared\ValueObjects\Uuid;
 use PHPUnit\Framework\TestCase;
 
 class VehicleTest extends TestCase

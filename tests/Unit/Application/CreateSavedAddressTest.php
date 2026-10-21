@@ -2,17 +2,17 @@
 
 namespace Tests\Unit\Application;
 
-use App\Application\UseCases\CreateSavedAddress;
-use App\Domain\Entities\User;
-use App\Domain\ValueObjects\BirthDate;
-use App\Domain\ValueObjects\Email;
-use App\Domain\ValueObjects\Money;
-use App\Domain\ValueObjects\Names;
-use App\Domain\ValueObjects\NationalId;
-use App\Domain\ValueObjects\Password;
-use App\Domain\ValueObjects\Phone;
-use App\Domain\ValueObjects\Surnames;
-use App\Domain\ValueObjects\Uuid;
+use App\Application\Users\UseCases\CreateSavedAddress;
+use App\Domain\Users\Entities\User;
+use App\Domain\Users\ValueObjects\BirthDate;
+use App\Domain\Users\ValueObjects\Email;
+use App\Domain\Shared\ValueObjects\Money;
+use App\Domain\Users\ValueObjects\Names;
+use App\Domain\Users\ValueObjects\NationalId;
+use App\Domain\Auth\ValueObjects\Password;
+use App\Domain\Users\ValueObjects\Phone;
+use App\Domain\Users\ValueObjects\Surnames;
+use App\Domain\Shared\ValueObjects\Uuid;
 use Exception;
 use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;

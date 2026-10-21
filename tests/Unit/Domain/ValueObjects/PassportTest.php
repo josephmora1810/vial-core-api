@@ -2,7 +2,7 @@
 
 namespace Tests\Unit\Domain\ValueObjects;
 
-use App\Domain\ValueObjects\Passport;
+use App\Domain\Users\ValueObjects\Passport;
 use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;
 

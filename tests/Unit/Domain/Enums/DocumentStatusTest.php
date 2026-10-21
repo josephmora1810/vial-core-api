@@ -2,7 +2,7 @@
 
 namespace Tests\Unit\Domain\Enums;
 
-use App\Domain\Enums\DocumentStatus;
+use App\Domain\Auth\Enums\DocumentStatus;
 use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;
 

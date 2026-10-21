@@ -17,4 +17,6 @@ scripts/*.png
 
 # Almacenamiento local de archivos y evidencias KYC
 storage/documents/*
+storage/contracts/*
 !storage/documents/.gitkeep
+!storage/contracts/.gitkeep

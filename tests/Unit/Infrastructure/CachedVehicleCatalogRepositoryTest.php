@@ -3,7 +3,7 @@
 namespace Tests\Unit\Infrastructure;
 
 use App\Infrastructure\Database\Redis;
-use App\Infrastructure\Database\Repositories\CachedVehicleCatalogRepository;
+use App\Infrastructure\Database\Repositories\Vehicles\CachedVehicleCatalogRepository;
 use Exception;
 use PHPUnit\Framework\TestCase;
 use Tests\Doubles\InMemoryVehicleCatalogRepository;

@@ -2,14 +2,14 @@
 
 namespace App\Infrastructure\Services;
 
-use App\Domain\Exceptions\DocumentExtractionException;
-use App\Domain\Services\DocumentExtractorInterface;
-use App\Domain\ValueObjects\BirthDate;
-use App\Domain\ValueObjects\ExtractedIdentity;
+use App\Domain\Auth\Exceptions\DocumentExtractionException;
+use App\Domain\Auth\Services\DocumentExtractorInterface;
+use App\Domain\Users\ValueObjects\BirthDate;
+use App\Domain\Auth\ValueObjects\ExtractedIdentity;
 use App\Domain\ValueObjects\LastNames;
-use App\Domain\ValueObjects\Names;
-use App\Domain\ValueObjects\NationalId;
-use App\Domain\ValueObjects\Surnames;
+use App\Domain\Users\ValueObjects\Names;
+use App\Domain\Users\ValueObjects\NationalId;
+use App\Domain\Users\ValueObjects\Surnames;
 use App\Infrastructure\Http\HttpClientInterface;
 use DateTimeImmutable;
 use Throwable;

@@ -4,7 +4,7 @@ namespace App\Middlewares;
 
 use App\Core\MiddlewareInterface;
 use App\Core\Request;
-use App\Domain\Entities\User;
+use App\Domain\Users\Entities\User;
 use Closure;
 use Exception;
 

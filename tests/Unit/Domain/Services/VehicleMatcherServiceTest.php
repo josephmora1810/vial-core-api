@@ -2,7 +2,7 @@
 
 namespace Tests\Unit\Domain\Services;
 
-use App\Domain\Services\VehicleMatcherService;
+use App\Domain\Vehicles\Services\VehicleMatcherService;
 use PHPUnit\Framework\TestCase;
 use Tests\Doubles\InMemoryVehicleCatalogRepository;
 

@@ -2,10 +2,10 @@
 
 namespace Tests\Doubles;
 
-use App\Domain\Entities\Document;
-use App\Domain\Enums\DocumentStatus;
-use App\Domain\Enums\DocumentType;
-use App\Domain\Repositories\DocumentRepositoryInterface;
+use App\Domain\Auth\Entities\Document;
+use App\Domain\Auth\Enums\DocumentStatus;
+use App\Domain\Auth\Enums\DocumentType;
+use App\Domain\Auth\Repositories\DocumentRepositoryInterface;
 
 class InMemoryDocumentRepository implements DocumentRepositoryInterface
 {
@@ -53,6 +53,17 @@ class InMemoryDocumentRepository implements DocumentRepositoryInterface
         foreach ($this->documents as $doc) {
             if ($doc->getDocumentableType() === $documentableType
                 && $doc->getDocumentableId() === $documentableId) {
+                $matches[] = $doc;
+            }
+        }
+        return array_reverse($matches);
+    }
+
+    public function findByStatus(?string $status = 'PENDING'): array
+    {
+        $matches = [];
+        foreach ($this->documents as $doc) {
+            if ($status === null || trim($status) === '' || $doc->getStatus()->getValue() === strtoupper(trim($status))) {
                 $matches[] = $doc;
             }
         }

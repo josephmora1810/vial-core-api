@@ -2,7 +2,7 @@
 
 namespace Tests\Unit\Domain\Enums;
 
-use App\Domain\Enums\Currency;
+use App\Domain\Shared\Enums\Currency;
 use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;
 

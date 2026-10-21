@@ -2,7 +2,7 @@
 
 namespace Tests\Doubles;
 
-use App\Domain\Repositories\VehicleCatalogRepositoryInterface;
+use App\Domain\Vehicles\Repositories\VehicleCatalogRepositoryInterface;
 
 class InMemoryVehicleCatalogRepository implements VehicleCatalogRepositoryInterface
 {

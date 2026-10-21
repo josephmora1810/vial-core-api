@@ -2,11 +2,11 @@
 
 namespace Tests\Doubles;
 
-use App\Domain\Entities\User;
-use App\Domain\Repositories\UserRepositoryInterface;
-use App\Domain\ValueObjects\Email;
-use App\Domain\ValueObjects\NationalId;
-use App\Domain\ValueObjects\Uuid;
+use App\Domain\Users\Entities\User;
+use App\Domain\Users\Repositories\UserRepositoryInterface;
+use App\Domain\Users\ValueObjects\Email;
+use App\Domain\Users\ValueObjects\NationalId;
+use App\Domain\Shared\ValueObjects\Uuid;
 
 /**
  * Repositorio en memoria para tests unitarios rápidos y deterministas (DDD).

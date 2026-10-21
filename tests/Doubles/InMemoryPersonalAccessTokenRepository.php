@@ -2,9 +2,9 @@
 
 namespace Tests\Doubles;
 
-use App\Domain\Entities\PersonalAccessToken;
-use App\Domain\Repositories\PersonalAccessTokenRepositoryInterface;
-use App\Domain\ValueObjects\Uuid;
+use App\Domain\Auth\Entities\PersonalAccessToken;
+use App\Domain\Auth\Repositories\PersonalAccessTokenRepositoryInterface;
+use App\Domain\Shared\ValueObjects\Uuid;
 
 class InMemoryPersonalAccessTokenRepository implements PersonalAccessTokenRepositoryInterface
 {

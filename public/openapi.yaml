@@ -23,6 +23,14 @@ tags:
     description: Maestros normalizados de clases, marcas y modelos de vehículos con caché en Redis.
   - name: Vehículos
     description: Escaneo OCR de carnet/título, registro de vehículos propios (FR-18), listado y desactivación lógica (Soft Delete).
+  - name: Planes y Membresías
+    description: Catálogo de planes anuales en USD con conversión dinámica a VES según tasa oficial BCV (FR-11, FR-31) y caché en Redis.
+  - name: Tasas BCV y Bancos
+    description: Consulta y sincronización de tasas multimoneda BCV (USD/EUR) con Bancaribe en Redis y listado de bancos nacionales Sudeban (FR-13).
+  - name: Contratos y Checkout
+    description: Creación de contratos de servicio anual y órdenes de pago polimórficas con congelamiento de tasa BCV (FR-12).
+  - name: Pagos Bancaribe
+    description: Pasarela bancaria Bancaribe OAuth2 para cobro directo C2P, conciliación Pago Móvil (Operaciones Plus), Webhook de notificación y consulta administrativa de saldos (FR-14, FR-28, FR-29, FR-30).
 
 components:
   securitySchemes:
@@ -208,6 +216,158 @@ components:
         created_at:
           type: string
           example: 2026-10-15T01:45:00+00:00
+
+    PlanDto:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        uuid:
+          type: string
+          format: uuid
+          example: 01a14a10-2b3c-7d4e-8f90-123456789abc
+        name:
+          type: string
+          example: Plan Básico Vial 2026
+        description:
+          type: string
+          example: Cobertura esencial de asistencia vial en la Gran Caracas. Incluye 2 servicios de grúa al año y hasta 50 km de remolque.
+        price_usd:
+          type: number
+          format: float
+          example: 35.00
+        price_ves:
+          type: number
+          format: float
+          example: 1594.25
+        exchange_rate:
+          type: number
+          format: float
+          example: 45.55
+        duration_months:
+          type: integer
+          example: 12
+        max_services:
+          type: integer
+          example: 2
+        max_km:
+          type: number
+          format: float
+          example: 50.00
+        is_active:
+          type: boolean
+          example: true
+        created_at:
+          type: string
+          example: 2026-10-20 18:20:00
+
+    ServiceContractDto:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        uuid:
+          type: string
+          format: uuid
+          example: 01a14a22-9a8b-7c6d-8e5f-112233445566
+        client_id:
+          type: integer
+          example: 5
+        plan_id:
+          type: integer
+          example: 1
+        plan_name:
+          type: string
+          nullable: true
+          example: Plan Básico Vial 2026
+        vehicle_id:
+          type: integer
+          nullable: true
+          example: 1
+        vehicle_plate:
+          type: string
+          nullable: true
+          example: AB123CD
+        remaining_services:
+          type: integer
+          example: 2
+        remaining_km:
+          type: number
+          format: float
+          example: 50.00
+        status:
+          type: string
+          enum: [PENDING_PAYMENT, ACTIVE, EXPIRED, CANCELLED]
+          example: ACTIVE
+        is_active:
+          type: boolean
+          example: true
+        starts_at:
+          type: string
+          nullable: true
+          description: Fecha y hora exacta (timestamp con segundo) del momento de activación/pago del contrato.
+          example: 2026-10-20 18:25:14
+        expires_at:
+          type: string
+          nullable: true
+          description: Fecha y hora exacta (timestamp con segundo) de vencimiento del contrato.
+          example: 2027-10-20 18:25:14
+        created_at:
+          type: string
+          example: 2026-10-20 18:22:00
+
+    OrderDto:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        uuid:
+          type: string
+          format: uuid
+          example: 01a14a30-1122-7334-8556-778899aabbcc
+        order_number:
+          type: string
+          example: ORD-2026-8F4A2B
+        user_id:
+          type: integer
+          example: 5
+        orderable_type:
+          type: string
+          enum: [service_contract, tow_service]
+          example: service_contract
+        orderable_id:
+          type: integer
+          example: 1
+        amount_usd:
+          type: number
+          format: float
+          example: 35.00
+        exchange_rate:
+          type: number
+          format: float
+          example: 45.55
+        amount_ves:
+          type: number
+          format: float
+          example: 1594.25
+        status:
+          type: string
+          enum: [PENDING, PAID, FAILED, CANCELLED]
+          example: PENDING
+        bancaribe_ref:
+          type: string
+          nullable: true
+          example: "98765432"
+        paid_at:
+          type: string
+          nullable: true
+          example: 2026-10-20 18:25:00
+        created_at:
+          type: string
+          example: 2026-10-20 18:22:00
 
 paths:
   # ==========================================
@@ -1608,3 +1768,1065 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+
+  # ==========================================
+  # PLANES Y MEMBRESÍAS (FR-11, FR-31)
+  # ==========================================
+  /plans:
+    get:
+      summary: Consultar Catálogo de Planes Anuales en USD y VES (FR-11)
+      description: |
+        Retorna el catálogo de planes de membresía anual con su precio en USD y su conversión dinámica a Bolívares (VES) calculada con la tasa oficial BCV cacheada en Redis (`CachedPlanRepository`).
+      tags:
+        - Planes y Membresías
+      parameters:
+        - name: all
+          in: query
+          required: false
+          description: Si se envía `all=1`, incluye planes inactivos (útil para administración).
+          schema:
+            type: integer
+            enum: [0, 1]
+            example: 0
+      responses:
+        '200':
+          description: Catálogo de planes consultado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: Catálogo de planes consultado exitosamente.
+                  data:
+                    type: object
+                    properties:
+                      exchange_rate_usd_ves:
+                        type: number
+                        format: float
+                        example: 45.55
+                      plans:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/PlanDto'
+
+    post:
+      summary: Crear Nuevo Plan de Membresía (Admin - FR-31)
+      description: Crea un nuevo plan en USD e invalida automáticamente la caché en Redis. Requiere permiso `manage_plans`.
+      tags:
+        - Planes y Membresías
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - price_usd
+              properties:
+                name:
+                  type: string
+                  example: Plan Diamante Corporativo 2026
+                description:
+                  type: string
+                  example: Cobertura ilimitada de asistencia vial corporativa.
+                price_usd:
+                  type: number
+                  format: float
+                  example: 150.00
+                duration_months:
+                  type: integer
+                  default: 12
+                  example: 12
+                max_services:
+                  type: integer
+                  default: 2
+                  example: 12
+                max_km:
+                  type: number
+                  format: float
+                  default: 100.00
+                  example: 500.00
+      responses:
+        '201':
+          description: Plan creado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  code:
+                    type: integer
+                    example: 201
+                  message:
+                    type: string
+                    example: Plan creado exitosamente.
+                  data:
+                    $ref: '#/components/schemas/PlanDto'
+
+  /plans/{id}:
+    put:
+      summary: Actualizar Plan de Membresía (Admin - FR-31)
+      description: Modifica tarifas en USD, vigencias o límites de un plan por su UUID e invalida la caché en Redis. Requiere permiso `manage_plans`.
+      tags:
+        - Planes y Membresías
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: UUID v7 del plan
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - price_usd
+              properties:
+                name:
+                  type: string
+                  example: Plan Básico Vial 2026
+                description:
+                  type: string
+                  example: Cobertura esencial actualizada.
+                price_usd:
+                  type: number
+                  format: float
+                  example: 40.00
+                duration_months:
+                  type: integer
+                  example: 12
+                max_services:
+                  type: integer
+                  example: 3
+                max_km:
+                  type: number
+                  format: float
+                  example: 60.00
+                is_active:
+                  type: boolean
+                  example: true
+      responses:
+        '200':
+          description: Plan actualizado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: Plan actualizado exitosamente.
+                  data:
+                    $ref: '#/components/schemas/PlanDto'
+
+    delete:
+      summary: Desactivar Plan de Membresía (Admin - FR-31)
+      description: Desactiva un plan para nuevas compras sin afectar contratos activos previos. Requiere permiso `manage_plans`.
+      tags:
+        - Planes y Membresías
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: UUID v7 del plan
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Plan desactivado exitosamente
+
+  # ==========================================
+  # TASAS BCV Y BANCOS (FR-13)
+  # ==========================================
+  /banks:
+    get:
+      summary: Listar y Buscar Bancos Nacionales Sudeban en Redis
+      description: Retorna el catálogo de los 23 bancos nacionales (código de 4 dígitos Sudeban y nombre) habilitados para pagos C2P y Pago Móvil. Cacheado en Redis por 24 horas y filtrable en memoria mediante `?q=` (ej. `?q=venez` o `?q=0102`) sin consultar MariaDB.
+      tags:
+        - Tasas BCV y Bancos
+      parameters:
+        - name: q
+          in: query
+          required: false
+          description: Búsqueda por nombre de banco o código Sudeban (ej. `venez`, `venezuel`, `0102`)
+          schema:
+            type: string
+            example: venez
+      responses:
+        '200':
+          description: Catálogo de bancos nacionales
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: Catálogo de bancos nacionales.
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: integer
+                          example: 1
+                        code:
+                          type: string
+                          example: "0114"
+                        name:
+                          type: string
+                          example: Bancaribe
+                        is_active:
+                          type: boolean
+                          example: true
+
+  /exchange-rates:
+    get:
+      summary: Consultar Tasas Oficiales BCV (USD y EUR en Redis) (FR-13)
+      description: Retorna las tasas oficiales de compra y venta del BCV (USD y EUR) consultadas desde Bancaribe y almacenadas en Redis + MariaDB.
+      tags:
+        - Tasas BCV y Bancos
+      responses:
+        '200':
+          description: Tasas de cambio BCV consultadas exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: Tasas de cambio BCV consultadas exitosamente.
+                  data:
+                    type: object
+                    properties:
+                      USD:
+                        type: object
+                        properties:
+                          compra:
+                            type: number
+                            example: 45.45
+                          venta:
+                            type: number
+                            example: 45.55
+                          date:
+                            type: string
+                            example: "2026-10-20"
+                      EUR:
+                        type: object
+                        properties:
+                          compra:
+                            type: number
+                            example: 49.10
+                          venta:
+                            type: number
+                            example: 49.25
+                          date:
+                            type: string
+                            example: "2026-10-20"
+
+  /exchange-rates/sync:
+    post:
+      summary: Forzar Sincronización de Tasas BCV con Bancaribe (Admin)
+      description: Consulta el endpoint `BCVMicro/1.0.0/consultaTasa/tasa` de Bancaribe, actualiza Redis y persiste el histórico diario en `exchange_rates`. Requiere permiso `manage_plans`.
+      tags:
+        - Tasas BCV y Bancos
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Tasas de cambio sincronizadas con Bancaribe exitosamente
+
+  # ==========================================
+  # CONTRATOS Y CHECKOUT (FR-12)
+  # ==========================================
+  /checkout:
+    post:
+      summary: Iniciar Checkout de Contrato de Servicio Anual (FR-12)
+      description: |
+        Crea un Contrato de Servicio en estado `PENDING_PAYMENT` y genera una Orden de Pago polimórfica (`service_contract`) con la tasa BCV del día (`amount_ves`).
+        Si el cliente o vendedor deja la orden pendiente para otro día y la tasa BCV sube, la orden recalcula automáticamente su monto en VES a la tasa vigente del día del pago.
+      tags:
+        - Contratos y Checkout
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - plan_id
+              properties:
+                plan_id:
+                  type: string
+                  description: ID numérico o UUID v7 del plan seleccionado
+                  example: "1"
+                vehicle_id:
+                  type: string
+                  nullable: true
+                  description: Opcional. ID numérico o UUID v7 del vehículo del cliente a amparar bajo el contrato
+                  example: 01a13dc7-d5ab-7a6c-941c-34747ebaf549
+      responses:
+        '201':
+          description: Orden de pago y contrato preliminar generados exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  code:
+                    type: integer
+                    example: 201
+                  message:
+                    type: string
+                    example: Orden de pago generada. Proceda a realizar el pago mediante C2P o Pago Móvil.
+                  data:
+                    type: object
+                    properties:
+                      contract:
+                        $ref: '#/components/schemas/ServiceContractDto'
+                      order:
+                        $ref: '#/components/schemas/OrderDto'
+                      payment_instructions:
+                        type: object
+                        properties:
+                          commerce_name:
+                            type: string
+                            example: UbikGo
+                          commerce_rif:
+                            type: string
+                            example: J502098500
+                          commerce_phone:
+                            type: string
+                            example: "04267536320"
+                          commerce_bank_code:
+                            type: string
+                            example: "0114"
+                          commerce_bank_name:
+                            type: string
+                            example: Bancaribe
+                          supported_methods:
+                            type: array
+                            items:
+                              type: string
+                            example: [c2p, pago_movil]
+                          amount_ves:
+                            type: number
+                            example: 1594.25
+                          amount_usd:
+                            type: number
+                            example: 35.00
+                          exchange_rate:
+                            type: number
+                            example: 45.55
+
+  /contracts:
+    get:
+      summary: Listar Contratos de Servicio del Usuario Autenticado
+      description: Retorna todos los contratos de servicio del cliente con sus cupos disponibles (`remaining_services`, `remaining_km`), timestamps exactos (`starts_at`, `expires_at`) y estado de vigencia.
+      tags:
+        - Contratos y Checkout
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Contratos de servicio consultados exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: Contratos de servicio consultados exitosamente.
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ServiceContractDto'
+
+  /contracts/{id}/pdf:
+    get:
+      summary: Descargar o Visualizar Contrato de Servicio en PDF (2 páginas con QR y Marca de Agua dinámica)
+      description: |
+        Genera en tiempo real el **Contrato de Adhesión del Plan de Grúa UbikGo** en formato PDF (2 páginas tamaño Carta) usando FPDF 1.9 y PHPQRCode:
+        - **Encabezado:** Nuevo logo oficial UbikGo, pastilla `@UBIKGO / #SomosUBIK` con íconos sociales y código QR vectorial que redirige a la descarga del propio contrato.
+        - **Estado `PENDING_PAYMENT`:** Incluye marca de agua diagonal semitransparente **"NO PAGADO"** de extremo a extremo en ambas páginas, sin sello ni vigencia activa.
+        - **Estado `ACTIVE`:** Sin marca de agua, muestra el **Sello Oficial PAGADO** entre las firmas y los timestamps exactos (`DESDE dd/mm/yyyy hh:mm:ss a HASTA dd/mm/yyyy hh:mm:ss a`).
+        - **Estado `EXPIRED` o `CANCELLED`:** Conserva el **Sello Oficial PAGADO** y los timestamps históricos de vigencia, superponiendo la marca de agua diagonal **"CANCELADO"**.
+        - **Acceso:** Puede descargarse directamente desde el navegador escaneando el QR (público por UUID v7 no adivinable) o autenticado vía Bearer JWT.
+      tags:
+        - Contratos y Checkout
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: UUID v7 o ID numérico del contrato de servicio
+          schema:
+            type: string
+            example: 01a14a22-9a8b-7c6d-8e5f-112233445566
+        - name: download
+          in: query
+          required: false
+          description: Enviar `download=1` para forzar descarga (`Content-Disposition: attachment`); por defecto se visualiza inline en el navegador.
+          schema:
+            type: integer
+            enum: [0, 1]
+            example: 0
+      responses:
+        '200':
+          description: Documento PDF generado exitosamente
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        '403':
+          description: No tienes permiso para descargar este contrato
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Contrato no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /contracts/{id}/cancel:
+    post:
+      summary: Cancelar Contrato de Servicio
+      description: |
+        Cambia el estado del contrato a `CANCELLED`. Al descargarse nuevamente en `/contracts/{id}/pdf`, el documento mostrará la marca de agua diagonal **"CANCELADO"** manteniendo el sello de pago histórico si ya había sido pagado.
+      tags:
+        - Contratos y Checkout
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: UUID v7 o ID numérico del contrato
+          schema:
+            type: string
+            example: 01a14a22-9a8b-7c6d-8e5f-112233445566
+      responses:
+        '200':
+          description: Contrato cancelado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: Contrato cancelado exitosamente.
+                  data:
+                    $ref: '#/components/schemas/ServiceContractDto'
+        '403':
+          description: No tienes permiso para cancelar este contrato
+        '404':
+          description: Contrato no encontrado
+
+  /admin/contracts/expire-overdue:
+    post:
+      summary: Ejecutar Barrido Manual de Expiración de Contratos Vencidos (Admin / Cron)
+      description: |
+        Busca todos los contratos en estado `ACTIVE` cuyo timestamp `expires_at` sea menor o igual al instante actual (`NOW()`) y los transiciona en bloque a `EXPIRED`.
+        Equivalente a ejecutar por CLI el cronjob `php scripts/expire_contracts.php`. Requiere permiso `manage_plans`.
+      tags:
+        - Contratos y Checkout
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Barrido de expiración ejecutado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: Se actualizaron 3 contratos vencidos a estado EXPIRED.
+                  data:
+                    type: object
+                    properties:
+                      expired_count:
+                        type: integer
+                        example: 3
+                      executed_at:
+                        type: string
+                        example: 2026-10-20 21:05:00
+
+  /orders:
+    get:
+      summary: Listar Órdenes de Pago del Usuario Autenticado
+      description: Retorna el historial de órdenes de pago (`service_contract` y `tow_service`) del usuario autenticado, actualizando automáticamente las órdenes `PENDING` si cambió la tasa BCV del día.
+      tags:
+        - Contratos y Checkout
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Órdenes de pago consultadas exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: Órdenes de pago consultadas exitosamente.
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/OrderDto'
+
+  # ==========================================
+  # PAGOS BANCARIBE (FR-14, FR-28, FR-29, FR-30)
+  # ==========================================
+  /payments/process:
+    post:
+      summary: Procesar Pago C2P o Conciliar Pago Móvil (Operaciones Plus) con Bancaribe
+      description: |
+        Ejecuta el cobro o conciliación de una orden pendiente contra la API de **Bancaribe**:
+        - **Actualización de Tasa BCV:** Si la orden permaneció `PENDING` desde un día anterior y la tasa BCV cambió, actualiza automáticamente `exchange_rate` y `amount_ves` a la tasa vigente antes de cobrar.
+        - **Método `c2p` (Cobro Directo):** Invoca `C2P/1.0.0/registrarPagoC2pApi` enviando el código del banco pagador (`bancoPagador`), cédula (`documentType`, `documentNumber`), teléfono (`telefonoPersona`) y clave dinámica (`otp`).
+        - **Método `pago_movil` (Operaciones Plus):** Invoca `COP/1.0.0/consulta-operacion` verificando en firme la referencia bancaria (`reference`), fecha (`date`), monto exacto en VES (`amount`) y cédula del pagador (`identificadorPersona`).
+        - **Anti-Replay:** Impide reutilizar una misma referencia o secuencial bancario en más de una orden (`409 Conflict`).
+        - **Auditoría de Fallos (FR-30):** Si el banco declina la operación, registra el intento fallido en `payments` con los payloads y retorna `422` sin activar el servicio.
+        - **Activación Automática (FR-12):** Al aprobarse el pago, marca la orden como `PAID` y activa inmediatamente el `ServiceContract` por los meses del plan contratado.
+      tags:
+        - Pagos Bancaribe
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - order_id
+                - payment_method
+              properties:
+                order_id:
+                  type: string
+                  description: ID numérico, UUID v7 o número de orden (`ORD-2026-XXXXXX`)
+                  example: ORD-2026-8F4A2B
+                payment_method:
+                  type: string
+                  enum: [c2p, pago_movil]
+                  example: c2p
+                bancoPagador:
+                  type: string
+                  description: Obligatorio para `c2p`. Código Sudeban de 4 dígitos del banco del cliente.
+                  example: "0102"
+                documentType:
+                  type: string
+                  description: Obligatorio para `c2p` (V, E, J, P).
+                  example: V
+                documentNumber:
+                  type: string
+                  description: Obligatorio para `c2p`. Número de cédula/RIF sin guiones.
+                  example: "12345678"
+                telefonoPersona:
+                  type: string
+                  description: Obligatorio para `c2p`. Teléfono afiliado a Pago Móvil.
+                  example: "04141234567"
+                otp:
+                  type: string
+                  description: Obligatorio para `c2p`. Clave dinámica C2P suministrada por el banco del cliente (en modo Sandbox use `000000` para simular rechazo o cualquier otro código como `12345678` para aprobar).
+                  example: "12345678"
+                reference:
+                  type: string
+                  description: Obligatorio para `pago_movil`. Número de referencia del Pago Móvil realizado.
+                  example: "88776655"
+                date:
+                  type: string
+                  format: date
+                  description: Obligatorio para `pago_movil`. Fecha del pago en formato `YYYY-MM-DD`.
+                  example: "2026-10-20"
+                amount:
+                  type: number
+                  format: float
+                  description: Obligatorio para `pago_movil`. Monto exacto transferido en VES.
+                  example: 1594.25
+                identificadorPersona:
+                  type: string
+                  description: Obligatorio para `pago_movil`. Cédula del pagador en formato `V12345678`.
+                  example: V12345678
+      responses:
+        '200':
+          description: Pago verificado con Bancaribe y contrato activado exitosamente
+        '409':
+          description: Orden ya pagada o referencia bancaria duplicada (Anti-Replay)
+        '422':
+          description: Transacción declinada por el banco o datos incompletos
+
+  /webhooks/bancaribe:
+    post:
+      summary: Webhook de Notificación Bancaria Asíncrona Bancaribe (FR-14)
+      description: |
+        Recibe notificaciones de confirmación o rechazo de transacciones desde la pasarela de Bancaribe.
+        Valida la firma `X-Bancaribe-Signature` (si `BANCARIBE_WEBHOOK_SECRET` está configurado), registra el pago de forma idempotente y activa el contrato de servicio asociado.
+      tags:
+        - Pagos Bancaribe
+      parameters:
+        - name: X-Bancaribe-Signature
+          in: header
+          required: false
+          description: Secreto o firma HMAC del webhook bancario
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - order_number
+                - reference
+                - status
+              properties:
+                order_number:
+                  type: string
+                  example: ORD-2026-8F4A2B
+                reference:
+                  type: string
+                  example: "99887766"
+                status:
+                  type: string
+                  enum: [APPROVED, REJECTED]
+                  example: APPROVED
+                payment_method:
+                  type: string
+                  enum: [c2p, pago_movil]
+                  example: pago_movil
+      responses:
+        '200':
+          description: Webhook procesado exitosamente
+
+  /admin/bank/balances:
+    get:
+      summary: Consultar Saldos de Cuentas Recaudadoras Bancaribe (Admin)
+      description: |
+        Consulta los saldos disponibles y bloqueados de las cuentas recaudadoras de la empresa en Bancaribe (`Cuentas/ConsultaSaldo/1.0.0/ctasConsultaSaldos`).
+        Cacheado en Redis por 30 minutos (admite `?refresh=1` para forzar consulta en vivo). Requiere rol `admin` con permiso `view_bank_balance`.
+      tags:
+        - Pagos Bancaribe
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: refresh
+          in: query
+          required: false
+          description: Enviar `refresh=1` para omitir la caché de Redis y consultar en tiempo real a Bancaribe.
+          schema:
+            type: integer
+            enum: [0, 1]
+            example: 0
+      responses:
+        '200':
+          description: Saldos bancarios consultados exitosamente
+        '403':
+          description: No posee el permiso view_bank_balance
+
+  /admin/integrations/logs:
+    get:
+      summary: Consultar Logs de Servicios de Terceros (OCR, Bancaribe, Mapbox, Pusher, S3)
+      description: |
+        Retorna los registros más recientes de llamadas a integraciones externas almacenados en `storage/logs/integrations.jsonl`, incluyendo servicio, operación, URL, código HTTP, tiempo de respuesta (`duration_ms`), payload sanitizado y respuesta.
+      tags:
+        - Sistema
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: service
+          in: query
+          required: false
+          description: Filtrar por nombre de servicio (`bancaribe`, `ocr`, `mapbox`, `pusher`, `s3`)
+          schema:
+            type: string
+            example: bancaribe
+        - name: limit
+          in: query
+          required: false
+          description: Cantidad máxima de registros a devolver (por defecto 50, máx 200)
+          schema:
+            type: integer
+            default: 50
+            example: 50
+      responses:
+        '200':
+          description: Logs de integraciones consultados exitosamente
+
+  /contracts/{id}/renew:
+    post:
+      summary: Renovar Contrato de Servicio Anual (Genera Nueva Orden por Año)
+      description: |
+        Genera una **nueva Orden de Pago (`Order`)** para renovar un contrato de servicio vencido (`EXPIRED`) o activo.
+        Al pagarse esta orden mediante `/payments/process`, el contrato extiende su vigencia por un año más (`+12 months`) y **restaura los kilómetros (`remaining_km`) y la cantidad de servicios (`remaining_services`)** incluidos en el plan.
+      tags:
+        - Contratos y Checkout
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: UUID v7 o ID numérico del contrato a renovar
+          schema:
+            type: string
+      responses:
+        '201':
+          description: Orden de renovación anual generada exitosamente
+
+  /contracts/{id}/redeem:
+    post:
+      summary: Canjear Servicio de Grúa de un Contrato Activo
+      description: |
+        Consume un (1) servicio disponible (`remaining_services`) y descuenta los kilómetros recorridos (`distance_km`) de un contrato en estado `ACTIVE`.
+      tags:
+        - Contratos y Checkout
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: UUID v7 o ID numérico del contrato
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                distance_km:
+                  type: number
+                  format: float
+                  example: 25.5
+      responses:
+        '200':
+          description: Servicio de contrato canjeado exitosamente
+
+  # ==========================================
+  # MÓDULO COMERCIAL DE VENDEDORAS (SELLER)
+  # ==========================================
+  /seller/clients/search:
+    get:
+      summary: Buscar Cliente por Cédula (Redis + Índice Único MariaDB)
+      description: |
+        Exclusivo para el rol `seller` (`permission:sell_service_contract`).
+        Busca un cliente por su número de cédula (`identification_card`) utilizando caché en Redis y el índice único en MariaDB.
+        Retorna el perfil del cliente, sus vehículos registrados y sus contratos (indicando cuáles están `EXPIRED` y listos para renovar).
+      tags:
+        - Contratos y Checkout
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: identification_card
+          in: query
+          required: true
+          description: Número de cédula del cliente (ej. `V-12345678`)
+          schema:
+            type: string
+            example: V-18456789
+      responses:
+        '200':
+          description: Resultado de búsqueda de cliente, vehículos y contratos
+
+  /seller/clients:
+    post:
+      summary: Registrar Cliente Verificado desde Oficina Comercial / WhatsApp (Seller)
+      description: |
+        Permite a una vendedora registrar un nuevo cliente (mediante foto de cédula con OCR o formulario).
+        - Marca automáticamente la cédula del cliente como **`VERIFIED`** sin requerir revisión de un administrador.
+        - Genera una contraseña aleatoria segura que cumple con el `Password` Value Object.
+        - Envía un correo de bienvenida con identidad visual corporativa UbikGo (`#4E4293` y `#F38218`) con sus credenciales de acceso (con manejo silencioso de errores SMTP para no interrumpir el registro).
+      tags:
+        - Contratos y Checkout
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - email
+                - phone
+              properties:
+                email:
+                  type: string
+                  format: email
+                phone:
+                  type: string
+                identification_card:
+                  type: string
+                names:
+                  type: string
+                surnames:
+                  type: string
+                birth_date:
+                  type: string
+                  format: date
+                document:
+                  type: string
+                  format: binary
+      responses:
+        '201':
+          description: Cliente registrado y verificado exitosamente
+
+  /seller/vehicles:
+    post:
+      summary: Registrar Vehículo Verificado para un Cliente (Seller)
+      description: |
+        Permite a la vendedora registrar un vehículo para un cliente (`client_id`), marcando el vehículo (`is_verified = true`, `status = active`) y su documento (`vehicle_registration` / `niv_certificate`) directamente como **`VERIFIED`** sin requerir aprobación de un administrador.
+      tags:
+        - Vehículos
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - client_id
+                - plate_number
+                - niv
+                - year
+                - color
+              properties:
+                client_id:
+                  type: string
+                  description: ID numérico o UUID v7 del cliente titular
+                plate_number:
+                  type: string
+                niv:
+                  type: string
+                year:
+                  type: integer
+                color:
+                  type: string
+                engine_serial:
+                  type: string
+                brand_id:
+                  type: integer
+                model_id:
+                  type: integer
+                vehicle_class_id:
+                  type: integer
+                carnet_file_path:
+                  type: string
+      responses:
+        '201':
+          description: Vehículo registrado y verificado exitosamente
+
+  /seller/contracts:
+    get:
+      summary: Listar Contratos Vendidos y Vencidos de la Vendedora
+      description: |
+        Retorna el listado de contratos gestionados por la vendedora autenticada (`seller_id`), permitiendo filtrar por `?status=EXPIRED` (para gestionar renovaciones), `?status=ACTIVE` (para control de comisiones) o `?status=PENDING_PAYMENT`.
+      tags:
+        - Contratos y Checkout
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [PENDING_PAYMENT, ACTIVE, EXPIRED, CANCELLED]
+      responses:
+        '200':
+          description: Listado de contratos de la vendedora
+
+    post:
+      summary: Crear Contrato Preliminar (NO PAGADO) y Orden para Cliente (Seller)
+      description: |
+        Asigna un plan al vehículo del cliente, genera el contrato en `PENDING_PAYMENT` vinculado a la vendedora (`seller_id`) y retorna la URL del PDF con marca de agua diagonal **"NO PAGADO"**.
+        La vendedora concilia luego el pago del cliente exclusivamente mediante `pago_movil` (Operaciones Plus) en `/payments/process`.
+      tags:
+        - Contratos y Checkout
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - client_id
+                - plan_id
+              properties:
+                client_id:
+                  type: string
+                plan_id:
+                  type: string
+                vehicle_id:
+                  type: string
+      responses:
+        '201':
+          description: Contrato preliminar y orden generados exitosamente
+
+  /seller/contracts/{id}/renew:
+    post:
+      summary: Renovar Contrato Vencido de un Cliente (Seller)
+      description: Genera una nueva Orden de Pago anual para renovar un contrato vencido y asocia la renovación a la vendedora (`seller_id`).
+      tags:
+        - Contratos y Checkout
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '201':
+          description: Orden de renovación anual generada exitosamente
+
+  # ==========================================
+  # AUDITORÍA KYC ADMINISTRADOR
+  # ==========================================
+  /admin/documents:
+    get:
+      summary: Listar Documentos KYC Pendientes de Revisión (Admin)
+      description: Retorna los documentos subidos por usuarios autogestionados filtrados por `?status=PENDING|VERIFIED|REJECTED|ALL`. Requiere permiso `audit_kyc`.
+      tags:
+        - Documentos KYC
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            default: PENDING
+      responses:
+        '200':
+          description: Documentos KYC consultados exitosamente
+
+  /admin/documents/{id}/review:
+    post:
+      summary: Aprobar (VERIFIED) o Rechazar (REJECTED) Documento KYC (Admin)
+      description: |
+        Permite a un administrador aprobar o denegar la imagen de un documento KYC (`identity_card`, `vehicle_registration`, `niv_certificate`).
+        Si se aprueba (`VERIFIED`) el documento de un vehículo, el vehículo pasa automáticamente a `is_verified = true` y `status = active`.
+      tags:
+        - Documentos KYC
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - status
+              properties:
+                status:
+                  type: string
+                  enum: [VERIFIED, REJECTED]
+                  example: VERIFIED
+                reason:
+                  type: string
+                  example: Documento legible y verificado correctamente.
+      responses:
+        '200':
+          description: Documento KYC revisado exitosamente
+
+
+

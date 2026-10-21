@@ -2,14 +2,14 @@
 
 namespace App\Controllers;
 
-use App\Application\UseCases\DeleteVehicle;
-use App\Application\UseCases\ListUserVehicles;
-use App\Application\UseCases\RegisterVehicle;
-use App\Application\UseCases\ScanVehicleRegistration;
+use App\Application\Vehicles\UseCases\DeleteVehicle;
+use App\Application\Vehicles\UseCases\ListUserVehicles;
+use App\Application\Vehicles\UseCases\RegisterVehicle;
+use App\Application\Vehicles\UseCases\ScanVehicleRegistration;
 use App\Core\Request;
 use App\Core\Response;
-use App\Domain\Entities\User;
-use App\Domain\Repositories\VehicleCatalogRepositoryInterface;
+use App\Domain\Users\Entities\User;
+use App\Domain\Vehicles\Repositories\VehicleCatalogRepositoryInterface;
 use Exception;
 
 class VehicleController

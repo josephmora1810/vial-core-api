@@ -2,8 +2,8 @@
 
 namespace Tests\Unit\Application;
 
-use App\Application\UseCases\LogoutUser;
-use App\Domain\Entities\PersonalAccessToken;
+use App\Application\Auth\UseCases\LogoutUser;
+use App\Domain\Auth\Entities\PersonalAccessToken;
 use DateTimeImmutable;
 use Exception;
 use PHPUnit\Framework\TestCase;

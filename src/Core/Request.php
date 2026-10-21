@@ -1,7 +1,7 @@
 <?php
 
 namespace App\Core;
-use App\Domain\Entities\User;
+use App\Domain\Users\Entities\User;
 
 class Request {
 

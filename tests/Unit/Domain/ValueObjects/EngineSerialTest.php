@@ -2,7 +2,7 @@
 
 namespace Tests\Unit\Domain\ValueObjects;
 
-use App\Domain\ValueObjects\EngineSerial;
+use App\Domain\Vehicles\ValueObjects\EngineSerial;
 use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;
 

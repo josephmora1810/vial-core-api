@@ -2,7 +2,7 @@
 
 namespace App\Infrastructure\Database\Seeders;
 
-use App\Domain\Enums\UserRole;
+use App\Domain\Users\Enums\UserRole;
 use PDO;
 
 class s000001_roles_and_permissions_seeder
@@ -54,6 +54,7 @@ class s000001_roles_and_permissions_seeder
             'audit_kyc'              => 'Permite auditar extracciones OCR y aprobar/rechazar documentos KYC',
             'manage_catalog'         => 'Permite crear o modificar planes de servicio y clases de vehículos',
             'view_reports'           => 'Permite descargar reportes consolidados financieros y de servicio',
+            'view_bank_balance'      => 'Permite consultar los saldos de las cuentas bancarias en Bancaribe',
         ];
 
         $insertPermStmt = $db->prepare("

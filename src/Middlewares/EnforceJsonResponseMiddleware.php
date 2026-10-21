@@ -16,12 +16,16 @@ class EnforceJsonResponseMiddleware implements MiddlewareInterface
 {
     public function handle(Request $request, Closure $next)
     {
-        // 1. Inyectar siempre el encabezado de respuesta JSON
-        header('Content-Type: application/json; charset=utf-8');
+        $isPdfRoute = str_ends_with(rtrim($request->uri(), '/'), '/pdf');
 
-        // 2. Si el cliente especifica Accept, verificar que acepte application/json
+        // 1. Inyectar el encabezado de respuesta JSON por defecto (salvo rutas de descarga de PDF)
+        if (!$isPdfRoute) {
+            header('Content-Type: application/json; charset=utf-8');
+        }
+
+        // 2. Si el cliente especifica Accept, verificar que acepte application/json (o application/pdf en rutas PDF)
         $accept = $request->header('Accept');
-        if (!empty($accept) && !$request->wantsJson()) {
+        if (!$isPdfRoute && !empty($accept) && !$request->wantsJson()) {
             throw new Exception("Encabezado Accept no compatible. Esta API solo genera respuestas en formato application/json.", 406);
         }
 

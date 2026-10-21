@@ -2,7 +2,7 @@
 
 namespace Tests\Unit\Domain\Enums;
 
-use App\Domain\Enums\UserRole;
+use App\Domain\Users\Enums\UserRole;
 use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;
 

@@ -2,7 +2,7 @@
 
 namespace Tests\Doubles;
 
-use App\Domain\Services\MailerInterface;
+use App\Domain\Shared\Services\MailerInterface;
 
 class InMemoryMailer implements MailerInterface
 {

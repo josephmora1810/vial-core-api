@@ -4,9 +4,9 @@ namespace App\Middlewares;
 
 use App\Core\MiddlewareInterface;
 use App\Core\Request;
-use App\Domain\Entities\User;
-use App\Domain\Enums\DocumentType;
-use App\Domain\Repositories\DocumentRepositoryInterface;
+use App\Domain\Users\Entities\User;
+use App\Domain\Auth\Enums\DocumentType;
+use App\Domain\Auth\Repositories\DocumentRepositoryInterface;
 use Closure;
 use Exception;
 

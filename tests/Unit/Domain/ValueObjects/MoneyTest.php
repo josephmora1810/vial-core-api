@@ -2,8 +2,8 @@
 
 namespace Tests\Unit\Domain\ValueObjects;
 
-use App\Domain\Enums\Currency;
-use App\Domain\ValueObjects\Money;
+use App\Domain\Shared\Enums\Currency;
+use App\Domain\Shared\ValueObjects\Money;
 use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;
 

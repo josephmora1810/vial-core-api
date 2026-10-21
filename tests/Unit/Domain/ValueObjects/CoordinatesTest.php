@@ -2,7 +2,7 @@
 
 namespace Tests\Unit\Domain\ValueObjects;
 
-use App\Domain\ValueObjects\Coordinates;
+use App\Domain\Shared\ValueObjects\Coordinates;
 use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;
 

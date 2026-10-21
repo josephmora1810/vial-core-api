@@ -2,11 +2,11 @@
 
 namespace Tests\Unit\Domain\ValueObjects;
 
-use App\Domain\ValueObjects\BirthDate;
-use App\Domain\ValueObjects\ExtractedIdentity;
-use App\Domain\ValueObjects\Names;
-use App\Domain\ValueObjects\NationalId;
-use App\Domain\ValueObjects\Surnames;
+use App\Domain\Users\ValueObjects\BirthDate;
+use App\Domain\Auth\ValueObjects\ExtractedIdentity;
+use App\Domain\Users\ValueObjects\Names;
+use App\Domain\Users\ValueObjects\NationalId;
+use App\Domain\Users\ValueObjects\Surnames;
 use PHPUnit\Framework\TestCase;
 
 class ExtractedIdentityTest extends TestCase

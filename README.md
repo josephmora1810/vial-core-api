@@ -21,25 +21,32 @@ vial-core-api/
 │   ├── migrate.php             # Ejecutor de migraciones de base de datos
 │   └── seed.php                # Seeder de clases, marcas y modelos de vehículos
 ├── src/
-│   ├── Application/            # Casos de uso (Use Cases) y DTOs de transferencia
-│   │   ├── DTOs/
-│   │   └── UseCases/
+│   ├── Application/            # Casos de uso (Use Cases) y DTOs organizados por Subdominio
+│   │   ├── Auth/               # Login, Registro, Tokens, Recuperación, KYC & OCR
+│   │   ├── Users/              # Perfil y Libreta de Direcciones Guardadas
+│   │   ├── Vehicles/           # Registro, Escaneo OCR y Catálogo de Vehículos
+│   │   ├── Contracts/          # Planes, Membresías y Checkout de Contratos Anuales
+│   │   └── Payments/           # Procesamiento C2P, Pago Móvil Plus y Webhooks Bancaribe
 │   ├── Controllers/            # Adaptadores primarios HTTP (REST Controllers)
 │   ├── Core/                   # Micro-framework nativo (Kernel, Router, Request, Response)
-│   ├── Domain/                 # Núcleo del negocio (Entidades, Value Objects, Enums, Interfaces)
-│   │   ├── Entities/
-│   │   ├── Enums/
-│   │   ├── Exceptions/
-│   │   ├── Repositories/       # Puertos de salida (Interfaces)
-│   │   ├── Services/           # Servicios de dominio y matching
-│   │   └── ValueObjects/       # Value Objects inmutables con validación estricta
-│   ├── Infrastructure/         # Adaptadores secundarios (MariaDB, Redis, Microservicio OCR)
+│   ├── Domain/                 # Núcleo del negocio organizado por Subdominios (Bounded Contexts)
+│   │   ├── Shared/             # Primitivas transversales (Uuid, Money, Coordinates, Currency)
+│   │   ├── Auth/               # Autenticación, RBAC (Roles/Permissions), Tokens y Documentos KYC
+│   │   ├── Users/              # Usuario, Direcciones y Value Objects de Identidad
+│   │   ├── Vehicles/           # Vehículos, Catálogo Maestro y Servicio de Matching OCR
+│   │   ├── Contracts/          # Planes y Contratos de Servicio Anual
+│   │   └── Payments/           # Órdenes Polimórficas, Pagos, Tasas BCV y Puertos Bancaribe
+│   ├── Infrastructure/         # Adaptadores secundarios (MariaDB, Redis, Bancaribe, OCR)
 │   │   ├── Database/
+│   │   │   ├── Migrations/     # Migraciones transaccionales (m000001 - m000023)
+│   │   │   ├── Repositories/   # Repositorios MariaDB/Redis por Subdominio (Auth, Users, Vehicles, Contracts, Payments)
+│   │   │   └── Seeders/        # Seeders de roles, catálogo automotriz, bancos y planes
 │   │   ├── Http/
+│   │   ├── Logging/            # IntegrationLogger para auditoría de servicios de terceros
 │   │   └── Services/
 │   ├── Middlewares/            # Filtros de petición (JWT Auth, RBAC, KYC verification)
 │   └── Routes/                 # Definición de rutas (/api/v1)
-├── storage/                    # Archivos subidos y temporales de documentos KYC
+├── storage/                    # Archivos subidos KYC y logs de integraciones (integrations.jsonl)
 └── tests/                      # Suite de pruebas automatizadas PHPUnit
     ├── Doubles/                # Fakes y repositorios en memoria (InMemory)
     └── Unit/                   # Pruebas unitarias de Dominio, Aplicación y Middlewares
@@ -120,11 +127,13 @@ La documentación interactiva completa con Swagger UI está disponible directame
 | `POST` | `/api/v1/forgot-password` | No | Envío de código OTP de 6 dígitos vía SMTP (TTL: 15 min en Redis) |
 | `POST` | `/api/v1/reset-password` | No | Restablecimiento de contraseña con OTP y revocación de sesiones |
 
-### 3. Documentos KYC
+### 3. Documentos KYC y Auditoría Admin
 | Método | Endpoint | Auth | Descripción |
 |---|---|---|---|
 | `POST` | `/api/v1/documents/upload` | Bearer | Carga o reenvío de documentos de identidad o vehiculares |
 | `GET`  | `/api/v1/documents/kyc-status` | Bearer | Estado consolidado de verificación KYC del usuario |
+| `GET`  | `/api/v1/admin/documents?status=PENDING` | Bearer (`audit_kyc`) | Listado de documentos KYC pendientes de revisión por un administrador |
+| `POST` | `/api/v1/admin/documents/{id}/review` | Bearer (`audit_kyc`) | Aprueba (`VERIFIED`) o rechaza (`REJECTED`) un documento (activa el vehículo automáticamente) |
 
 ### 4. Direcciones Guardadas (FR-19)
 | Método | Endpoint | Auth | Descripción |
@@ -148,6 +157,69 @@ La documentación interactiva completa con Swagger UI está disponible directame
 | `POST`   | `/api/v1/vehicles` | Bearer (RBAC) | Registro de vehículo propio (requiere permiso `register_vehicle`) |
 | `DELETE` | `/api/v1/vehicles/{id}` | Bearer | Desactivación lógica (Soft Delete) de vehículo por UUID v7 |
 
+### 7. Planes, Membresías y Tasas BCV (FR-11, FR-13, FR-31)
+| Método | Endpoint | Auth | Descripción |
+|---|---|---|---|
+| `GET`    | `/api/v1/plans` | No | Catálogo de planes anuales en USD con conversión dinámica a VES (Redis Cache) |
+| `POST`   | `/api/v1/plans` | Bearer (`manage_catalog`) | Crear nuevo plan en USD e invalidar caché |
+| `PUT`    | `/api/v1/plans/{id}` | Bearer (`manage_catalog`) | Actualizar plan existente por UUID v7 |
+| `DELETE` | `/api/v1/plans/{id}` | Bearer (`manage_catalog`) | Desactivar plan de membresía |
+| `GET`    | `/api/v1/banks` | No | Catálogo de 23 bancos nacionales Sudeban (código de 4 dígitos) |
+| `GET`    | `/api/v1/exchange-rates` | No | Tasas oficiales de compra/venta BCV (USD y EUR) cacheadas en Redis |
+| `POST`   | `/api/v1/exchange-rates/sync` | Bearer (`admin`) | Forzar sincronización de tasas BCV con el API de Bancaribe |
+
+### 8. Contratos, Renovación, Canje y Pasarela Bancaribe (FR-12, FR-14, FR-28, FR-29, FR-30)
+| Método | Endpoint | Auth | Descripción |
+|---|---|---|---|
+| `POST` | `/api/v1/checkout` | Bearer | Genera contrato en `PENDING_PAYMENT` y orden polimórfica con tasa BCV |
+| `GET`  | `/api/v1/contracts` | Bearer | Listado de contratos del usuario con timestamps exactos (`starts_at`, `expires_at`) y cupos disponibles |
+| `GET`  | `/api/v1/contracts/{id}/pdf` | Público (UUID) / Bearer | Descarga o visualiza el Contrato en PDF (2 páginas con QR y marca de agua dinámica según estado) |
+| `POST` | `/api/v1/contracts/{id}/renew` | Bearer | Genera una nueva Orden de Pago anual para renovar un contrato (extiende 1 año y restaura km/viajes) |
+| `POST` | `/api/v1/contracts/{id}/redeem` | Bearer | Canjea 1 servicio de grúa y descuenta los kilómetros recorridos sobre un contrato activo |
+| `POST` | `/api/v1/contracts/{id}/cancel` | Bearer | Cancela un contrato de servicio (aplica marca de agua `CANCELADO` conservando el sello de pago) |
+| `POST` | `/api/v1/admin/contracts/expire-overdue` | Bearer (`admin`) | Ejecuta barrido manual de expiración de contratos cuyo timestamp `expires_at` haya vencido |
+| `GET`  | `/api/v1/orders` | Bearer | Historial de órdenes de pago del usuario |
+| `POST` | `/api/v1/payments/process` | Bearer | Procesa cobro `c2p` (solo cliente) o `pago_movil` (cliente y vendedora vía Operaciones Plus) y activa/renueva el contrato |
+| `POST` | `/api/v1/webhooks/bancaribe` | Firma HMAC | Webhook asíncrono de Bancaribe para confirmación/rechazo de pagos |
+| `GET`  | `/api/v1/admin/bank/balances` | Bearer (`admin`) | Consulta de saldos disponibles/bloqueados de las cuentas recaudadoras en Bancaribe |
+| `GET`  | `/api/v1/admin/integrations/logs` | Bearer | Visor de logs de integraciones de terceros (`bancaribe`, `ocr`, `mapbox`, `pusher`, `s3`) |
+
+### 9. Módulo Comercial de Vendedoras (`role:seller`)
+| Método | Endpoint | Auth | Descripción |
+|---|---|---|---|
+| `GET`  | `/api/v1/seller/clients/search?identification_card=V-...` | Bearer (`sell_service_contract`) | Busca cliente por cédula (Redis + Índice Único MariaDB) y retorna sus vehículos y contratos |
+| `POST` | `/api/v1/seller/clients` | Bearer (`sell_service_contract`) | Registra cliente (OCR o manual), aprueba su cédula (`VERIFIED`) y envía correo con clave aleatoria |
+| `POST` | `/api/v1/seller/vehicles` | Bearer (`sell_service_contract`) | Registra vehículo para el cliente y lo aprueba automáticamente (`VERIFIED`) sin revisión de admin |
+| `POST` | `/api/v1/seller/contracts` | Bearer (`sell_service_contract`) | Genera contrato preliminar (`NO PAGADO`) y orden anual vinculada a la vendedora (`seller_id`) |
+| `GET`  | `/api/v1/seller/contracts?status=EXPIRED` | Bearer (`sell_service_contract`) | Lista contratos vendidos por la vendedora (y contratos vencidos para gestionar renovaciones) |
+| `POST` | `/api/v1/seller/contracts/{id}/renew` | Bearer (`sell_service_contract`) | Genera nueva orden anual de renovación para un contrato vencido |
+
+---
+
+## ⏰ Cronjobs Obligatorios del Servidor
+
+> [!IMPORTANT]
+> **Requisitos Operativos Indispensables:** El servidor centraliza en segundo plano mediante cronjobs las 3 tareas críticas de sincronización y vigencia para que ninguna petición de usuario sufra bloqueos:
+> 1. **`php scripts/sync_bank_token.php`**: Renueva proactivamente el token OAuth2 de Bancaribe en MariaDB (`bank_tokens`) y Redis (`bancaribe:access_token`).
+> 2. **`php scripts/sync_exchange_rates.php`**: Sincroniza las tasas oficiales BCV (USD y EUR) con Bancaribe en MariaDB y Redis e invalida la caché de planes.
+> 3. **`php scripts/expire_contracts.php`**: Transiciona automáticamente de `ACTIVE` a `EXPIRED` los contratos cuyo timestamp exacto `expires_at` (`YYYY-MM-DD HH:MM:SS`) haya vencido.
+
+### Ejecución manual conjunta o individual por CLI:
+```bash
+php scripts/run_cronjobs.php
+# O individualmente:
+php scripts/sync_bank_token.php
+php scripts/sync_exchange_rates.php
+php scripts/expire_contracts.php
+```
+
+### Configuración en Linux (`crontab -e`):
+```cron
+*/25 * * * * /usr/bin/php /ruta/al/proyecto/vial-core-api/scripts/sync_bank_token.php >> /ruta/al/proyecto/vial-core-api/storage/logs/cron.log 2>&1
+0 * * * * /usr/bin/php /ruta/al/proyecto/vial-core-api/scripts/sync_exchange_rates.php >> /ruta/al/proyecto/vial-core-api/storage/logs/cron.log 2>&1
+*/5 * * * * /usr/bin/php /ruta/al/proyecto/vial-core-api/scripts/expire_contracts.php >> /ruta/al/proyecto/vial-core-api/storage/logs/cron.log 2>&1
+```
+
 ---
 
 ## 🧪 Pruebas Automatizadas
@@ -160,5 +232,8 @@ El proyecto cuenta con una cobertura exhaustiva de pruebas unitarias y de arquit
 
 **Resultado actual:**
 ```
-OK (148 tests, 422 assertions) - 100% Passing
+OK (168 tests, 513 assertions) - 100% Passing
 ```
+
+
+

@@ -2,7 +2,7 @@
 
 namespace App\Infrastructure\Mail;
 
-use App\Domain\Services\MailerInterface;
+use App\Domain\Shared\Services\MailerInterface;
 use Exception;
 
 class SmtpMailer implements MailerInterface

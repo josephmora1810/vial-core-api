@@ -2,7 +2,7 @@
 
 namespace Tests\Unit\Domain\ValueObjects;
 
-use App\Domain\ValueObjects\Password;
+use App\Domain\Auth\ValueObjects\Password;
 use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;
 

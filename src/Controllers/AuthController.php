@@ -2,14 +2,14 @@
 
 namespace App\Controllers;
 
-use App\Application\DTOs\UserResponseDto;
-use App\Application\UseCases\LoginUser;
-use App\Application\UseCases\LogoutUser;
-use App\Application\UseCases\RefreshToken;
-use App\Application\UseCases\RegisterUser;
-use App\Application\UseCases\ResetPassword;
-use App\Application\UseCases\ScanIdentityCard;
-use App\Application\UseCases\SendPasswordResetCode;
+use App\Application\Users\DTOs\UserResponseDto;
+use App\Application\Auth\UseCases\LoginUser;
+use App\Application\Auth\UseCases\LogoutUser;
+use App\Application\Auth\UseCases\RefreshToken;
+use App\Application\Auth\UseCases\RegisterUser;
+use App\Application\Auth\UseCases\ResetPassword;
+use App\Application\Auth\UseCases\ScanIdentityCard;
+use App\Application\Auth\UseCases\SendPasswordResetCode;
 use App\Core\Request;
 use App\Core\Response;
 use Exception;

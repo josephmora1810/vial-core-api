@@ -2,9 +2,9 @@
 
 namespace Tests\Unit\Domain\Entities;
 
-use App\Domain\Entities\SavedAddress;
-use App\Domain\ValueObjects\Coordinates;
-use App\Domain\ValueObjects\Uuid;
+use App\Domain\Users\Entities\SavedAddress;
+use App\Domain\Shared\ValueObjects\Coordinates;
+use App\Domain\Shared\ValueObjects\Uuid;
 use PHPUnit\Framework\TestCase;
 
 class SavedAddressTest extends TestCase

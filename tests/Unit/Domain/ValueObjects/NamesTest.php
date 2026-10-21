@@ -2,7 +2,7 @@
 
 namespace Tests\Unit\Domain\ValueObjects;
 
-use App\Domain\ValueObjects\Names;
+use App\Domain\Users\ValueObjects\Names;
 use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;
 
