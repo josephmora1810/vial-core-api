@@ -4,6 +4,9 @@
 use App\Application\Contracts\UseCases\CheckoutServiceContract;
 use App\Application\Documents\UseCases\EnqueueDocumentS3Upload;
 use App\Application\Documents\UseCases\ProcessDocumentS3UploadJob;
+use App\Application\Driver\UseCases\GetDriverFleetStatus;
+use App\Application\Driver\UseCases\RegisterDriverCrane;
+use App\Application\Driver\UseCases\UploadDriverLicense;
 use App\Application\Users\UseCases\CreateSavedAddress;
 use App\Application\Users\UseCases\DeleteSavedAddress;
 use App\Application\Vehicles\UseCases\DeleteVehicle;
@@ -28,6 +31,7 @@ use App\Application\Auth\UseCases\SendPasswordResetCode;
 use App\Application\Auth\UseCases\UploadKycDocument;
 use App\Controllers\AuthController;
 use App\Controllers\DocumentController;
+use App\Controllers\DriverController;
 use App\Controllers\HomeController;
 use App\Controllers\PaymentController;
 use App\Controllers\PlanController;
@@ -353,6 +357,27 @@ return [
                 $_ENV['APP_NAME'] ?? 'UbikGo'
             ),
             $getUserRepo()
+        ),
+        DriverController::class => fn() => new DriverController(
+            new RegisterDriverCrane(
+                $getVehicleRepo(),
+                $getUserRepo(),
+                $getDocumentRepo(),
+                $documentExtractor,
+                $getCatalogRepo(),
+                $getEnqueueS3()
+            ),
+            new UploadDriverLicense(
+                $getDocumentRepo(),
+                $getUserRepo(),
+                $getEnqueueS3()
+            ),
+            new GetDriverFleetStatus(
+                $getUserRepo(),
+                $getDocumentRepo(),
+                $getVehicleRepo()
+            ),
+            $getVehicleRepo()
         ),
     ],
     'services' => [

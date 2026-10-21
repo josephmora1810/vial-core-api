@@ -4,6 +4,7 @@ namespace App\Infrastructure\Database\Repositories\Vehicles;
 
 use App\Domain\Vehicles\Entities\Vehicle;
 use App\Domain\Vehicles\Enums\VehicleStatus;
+use App\Domain\Vehicles\Enums\VehicleType;
 use App\Domain\Vehicles\Repositories\VehicleRepositoryInterface;
 use App\Domain\Vehicles\ValueObjects\EngineSerial;
 use App\Domain\Vehicles\ValueObjects\Niv;
@@ -29,6 +30,7 @@ class MariaDbVehicleRepository implements VehicleRepositoryInterface
                     model_id,
                     brand_name,
                     model_name,
+                    type,
                     plate_number,
                     niv,
                     engine_serial,
@@ -48,6 +50,7 @@ class MariaDbVehicleRepository implements VehicleRepositoryInterface
                     :model_id,
                     :brand_name,
                     :model_name,
+                    :type,
                     :plate_number,
                     :niv,
                     :engine_serial,
@@ -71,6 +74,7 @@ class MariaDbVehicleRepository implements VehicleRepositoryInterface
                 'model_id'            => $vehicle->getModelId(),
                 'brand_name'          => $vehicle->getBrandName(),
                 'model_name'          => $vehicle->getModelName(),
+                'type'                => $vehicle->getType()->getValue(),
                 'plate_number'        => $vehicle->getPlateNumber()->getValue(),
                 'niv'                 => $vehicle->getNiv()->getValue(),
                 'engine_serial'       => $vehicle->getEngineSerial()?->getValue(),
@@ -93,6 +97,7 @@ class MariaDbVehicleRepository implements VehicleRepositoryInterface
                     model_id            = :model_id,
                     brand_name          = :brand_name,
                     model_name          = :model_name,
+                    type                = :type,
                     plate_number        = :plate_number,
                     niv                 = :niv,
                     engine_serial       = :engine_serial,
@@ -115,6 +120,7 @@ class MariaDbVehicleRepository implements VehicleRepositoryInterface
                 'model_id'            => $vehicle->getModelId(),
                 'brand_name'          => $vehicle->getBrandName(),
                 'model_name'          => $vehicle->getModelName(),
+                'type'                => $vehicle->getType()->getValue(),
                 'plate_number'        => $vehicle->getPlateNumber()->getValue(),
                 'niv'                 => $vehicle->getNiv()->getValue(),
                 'engine_serial'       => $vehicle->getEngineSerial()?->getValue(),
@@ -183,6 +189,25 @@ class MariaDbVehicleRepository implements VehicleRepositoryInterface
         return $vehicles;
     }
 
+    public function findCranesByUserId(int $userId): array
+    {
+        $sql = "
+            SELECT * FROM vehicles 
+            WHERE user_id = :user_id AND type = 'CRANE' AND deleted_at IS NULL 
+            ORDER BY created_at DESC
+        ";
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute(['user_id' => $userId]);
+
+        $cranes = [];
+        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+            $cranes[] = $this->hydrate($row);
+        }
+
+        return $cranes;
+    }
+
     public function softDeleteByUuid(Uuid $uuid, int $userId): bool
     {
         $stmt = $this->db->prepare("
@@ -212,6 +237,7 @@ class MariaDbVehicleRepository implements VehicleRepositoryInterface
             modelId: $row['model_id'] !== null ? (int)$row['model_id'] : null,
             brandName: $row['brand_name'] ?? null,
             modelName: $row['model_name'] ?? null,
+            type: VehicleType::fromString($row['type'] ?? 'CAR'),
             status: VehicleStatus::fromString($row['status']),
             isVerified: (bool)$row['is_verified'],
             createdAt: !empty($row['created_at']) ? new DateTimeImmutable($row['created_at']) : null,

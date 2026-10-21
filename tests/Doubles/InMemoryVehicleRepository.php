@@ -69,6 +69,17 @@ class InMemoryVehicleRepository implements VehicleRepositoryInterface
         return $result;
     }
 
+    public function findCranesByUserId(int $userId): array
+    {
+        $result = [];
+        foreach ($this->vehicles as $vehicle) {
+            if ($vehicle->getUserId() === $userId && $vehicle->isCrane() && !$vehicle->isDeleted()) {
+                $result[] = $vehicle;
+            }
+        }
+        return $result;
+    }
+
     public function softDeleteByUuid(Uuid $uuid, int $userId): bool
     {
         foreach ($this->vehicles as $vehicle) {

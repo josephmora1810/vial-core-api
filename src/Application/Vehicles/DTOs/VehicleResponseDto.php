@@ -17,6 +17,7 @@ class VehicleResponseDto
         public readonly ?string $model,
         public readonly ?string $vehicle_class,
         public readonly ?string $vehicle_subclass,
+        public readonly string $type,
         public readonly string $status,
         public readonly bool $is_verified,
         public readonly string $created_at
@@ -40,6 +41,7 @@ class VehicleResponseDto
             model: $resolvedModelName ?? $vehicle->getModelName(),
             vehicle_class: $resolvedClassName,
             vehicle_subclass: $resolvedSubclassName,
+            type: $vehicle->getType()->getValue(),
             status: $vehicle->getStatus()->getValue(),
             is_verified: $vehicle->isVerified(),
             created_at: $vehicle->getCreatedAt()->format('c')
@@ -59,6 +61,7 @@ class VehicleResponseDto
             'model'            => $this->model,
             'vehicle_class'    => $this->vehicle_class,
             'vehicle_subclass' => $this->vehicle_subclass,
+            'type'             => $this->type,
             'status'           => $this->status,
             'is_verified'      => $this->is_verified,
             'created_at'       => $this->created_at,

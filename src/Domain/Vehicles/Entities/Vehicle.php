@@ -3,6 +3,7 @@
 namespace App\Domain\Vehicles\Entities;
 
 use App\Domain\Vehicles\Enums\VehicleStatus;
+use App\Domain\Vehicles\Enums\VehicleType;
 use App\Domain\Vehicles\ValueObjects\EngineSerial;
 use App\Domain\Vehicles\ValueObjects\Niv;
 use App\Domain\Vehicles\ValueObjects\PlateNumber;
@@ -26,6 +27,7 @@ class Vehicle
         private ?int $modelId = null,
         private ?string $brandName = null,
         private ?string $modelName = null,
+        private VehicleType $type = VehicleType::Car,
         private VehicleStatus $status = VehicleStatus::Pending,
         private bool $isVerified = false,
         private ?DateTimeImmutable $createdAt = null,
@@ -50,7 +52,8 @@ class Vehicle
         ?string $modelName = null,
         bool $isVerified = false,
         ?VehicleStatus $status = null,
-        ?Uuid $uuid = null
+        ?Uuid $uuid = null,
+        ?VehicleType $type = null
     ): self {
         return new self(
             id: null,
@@ -67,6 +70,7 @@ class Vehicle
             modelId: $modelId,
             brandName: $brandName ? trim($brandName) : null,
             modelName: $modelName ? trim($modelName) : null,
+            type: $type ?? VehicleType::Car,
             status: $status ?? ($isVerified ? VehicleStatus::Active : VehicleStatus::Pending),
             isVerified: $isVerified,
             createdAt: new DateTimeImmutable()
@@ -263,6 +267,23 @@ class Vehicle
     public function isDeleted(): bool
     {
         return $this->deletedAt !== null;
+    }
+
+    public function getType(): VehicleType
+    {
+        return $this->type;
+    }
+
+    public function setType(VehicleType $type): self
+    {
+        $this->type = $type;
+        $this->touch();
+        return $this;
+    }
+
+    public function isCrane(): bool
+    {
+        return $this->type->isCrane();
     }
 
     public function getCreatedAt(): DateTimeImmutable

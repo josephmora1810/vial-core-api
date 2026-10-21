@@ -193,6 +193,10 @@ La documentación interactiva completa con Swagger UI está disponible directame
 | `POST` | `/api/v1/seller/contracts` | Bearer (`sell_service_contract`) | Genera contrato preliminar (`NO PAGADO`) y orden anual vinculada a la vendedora (`seller_id`) |
 | `GET`  | `/api/v1/seller/contracts?status=EXPIRED` | Bearer (`sell_service_contract`) | Lista contratos vendidos por la vendedora (y contratos vencidos para gestionar renovaciones) |
 | `POST` | `/api/v1/seller/contracts/{id}/renew` | Bearer (`sell_service_contract`) | Genera nueva orden anual de renovación para un contrato vencido |
+| `POST` | `/api/v1/driver/cranes` | Bearer (`role:driver`) | Registra unidad de grúa (`type: CRANE`) con Carnet INTT vía OCR y encola a AWS S3 (FR-09) |
+| `GET`  | `/api/v1/driver/cranes` | Bearer (`role:driver`) | Lista las unidades de grúa registradas para el operador |
+| `POST` | `/api/v1/driver/license` | Bearer (`role:driver`) | Carga o actualiza Licencia de Conducir profesional del chofer y encola a AWS S3 (FR-09) |
+| `GET`  | `/api/v1/driver/status` | Bearer (`role:driver`) | Consulta estado integral de flota y habilitación (`can_operate`) para despacho SOS (FR-09, FR-10) |
 
 ---
 

@@ -73,6 +73,12 @@ $router->post(API_V1 . 'seller/contracts', 'SellerController@createContract', ['
 $router->get(API_V1 . 'seller/contracts', 'SellerController@myContracts', ['auth', 'permission:sell_service_contract']);
 $router->post(API_V1 . 'seller/contracts/{id}/renew', 'SellerController@renewContract', ['auth', 'permission:sell_service_contract']);
 
+// Módulo de Operadores de Grúas y Validación de Flota (FR-09, FR-10)
+$router->post(API_V1 . 'driver/cranes', 'DriverController@registerCrane', ['auth', 'role:driver']);
+$router->get(API_V1 . 'driver/cranes', 'DriverController@listCranes', ['auth', 'role:driver']);
+$router->post(API_V1 . 'driver/license', 'DriverController@uploadLicense', ['auth', 'role:driver']);
+$router->get(API_V1 . 'driver/status', 'DriverController@status', ['auth', 'role:driver']);
+
 // Administración de Planes, Auditoría KYC y Finanzas Bancaribe (Solo Admin / Permisos de Gestión)
 $router->get(API_V1 . 'admin/documents', 'DocumentController@adminIndex', ['auth', 'permission:audit_kyc']);
 $router->post(API_V1 . 'admin/documents/{id}/review', 'DocumentController@adminReview', ['auth', 'permission:audit_kyc']);

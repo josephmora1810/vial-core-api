@@ -31,6 +31,8 @@ tags:
     description: Creación de contratos de servicio anual y órdenes de pago polimórficas con congelamiento de tasa BCV (FR-12).
   - name: Pagos Bancaribe
     description: Pasarela bancaria Bancaribe OAuth2 para cobro directo C2P, conciliación Pago Móvil (Operaciones Plus), Webhook de notificación y consulta administrativa de saldos (FR-14, FR-28, FR-29, FR-30).
+  - name: Operadores de Grúa (Flotas)
+    description: Enrolamiento de unidades de grúa (CRANE), validación obligatoria dual de Carnet INTT y Licencia de Conducir profesional (FR-09, FR-10).
 
 components:
   securitySchemes:
@@ -2829,6 +2831,128 @@ paths:
       responses:
         '200':
           description: Documento KYC revisado exitosamente
+
+  # ==========================================
+  # OPERADORES DE GRÚA Y VALIDACIÓN DE FLOTA (FR-09, FR-10)
+  # ==========================================
+  /driver/cranes:
+    get:
+      summary: Listar Grúas del Conductor Autenticado
+      description: Retorna el listado de unidades de grúa (`type: CRANE`) registradas para el operador autenticado.
+      tags:
+        - Operadores de Grúa (Flotas)
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Grúas del operador consultadas con éxito
+
+    post:
+      summary: Registrar Unidad de Grúa con Carnet INTT (FR-09)
+      description: |
+        Registra una grúa en la flota del conductor (`type: CRANE`). Procesa la imagen del Carnet de Circulación o Título INTT mediante OCR,
+        encola automáticamente la subida a AWS S3 (`queue:s3_document_uploads`) y deja la grúa en estado `PENDING` para validación administrativa.
+        Opcionalmente permite adjuntar la Licencia de Conducir del chofer en la misma petición.
+      tags:
+        - Operadores de Grúa (Flotas)
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - plate_number
+                - niv
+                - year
+              properties:
+                plate_number:
+                  type: string
+                  example: AB123CD
+                niv:
+                  type: string
+                  example: 8Z1GRUA9988776655
+                year:
+                  type: integer
+                  example: 2021
+                color:
+                  type: string
+                  example: BLANCO
+                brand:
+                  type: string
+                  example: CHEVROLET
+                model:
+                  type: string
+                  example: F-350
+                engine_serial:
+                  type: string
+                  example: MOTOR-F350-99
+                carnet:
+                  type: string
+                  format: binary
+                  description: Imagen o PDF del Carnet de Circulación de la grúa.
+                license:
+                  type: string
+                  format: binary
+                  description: Imagen de la Licencia de Conducir del chofer (opcional).
+                license_grade:
+                  type: string
+                  example: 5TO GRADO
+      responses:
+        '201':
+          description: Grúa registrada y documentos encolados exitosamente
+
+  /driver/license:
+    post:
+      summary: Cargar o Actualizar Licencia de Conducir del Chofer (FR-09)
+      description: Permite al gruero subir o renovar su Licencia de Conducir (4to o 5to grado). Se encola a AWS S3 y queda en estado `PENDING` para revisión administrativa.
+      tags:
+        - Operadores de Grúa (Flotas)
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - license
+              properties:
+                license:
+                  type: string
+                  format: binary
+                  description: Fotografía legible de la Licencia de Conducir.
+                grade:
+                  type: string
+                  example: 5TO GRADO
+                expiration_date:
+                  type: string
+                  format: date
+                  example: 2029-12-31
+      responses:
+        '201':
+          description: Licencia de conducir cargada exitosamente
+
+  /driver/status:
+    get:
+      summary: Consultar Estado de Verificación de Flota y Habilitación para Despacho SOS (FR-09, FR-10)
+      description: |
+        Retorna el estado de verificación dual del conductor:
+        - Estado de Cédula de Identidad (`identity_card`).
+        - Estado de Licencia de Conducir (`driving_license`).
+        - Grúas registradas y estado de sus Carnets INTT (`vehicle_registration`).
+        - Bandera `can_operate` / `is_fleet_ready`: `true` únicamente si Cédula y Licencia están `VERIFIED` y el chofer tiene al menos una Grúa activa y verificada.
+      tags:
+        - Operadores de Grúa (Flotas)
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Estado de flota y documentación consultado con éxito
+
 
 
 

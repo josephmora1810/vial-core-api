@@ -24,5 +24,10 @@ interface VehicleRepositoryInterface
      */
     public function findAllByUserId(int $userId): array;
 
+    /**
+     * @return Vehicle[]
+     */
+    public function findCranesByUserId(int $userId): array;
+
     public function softDeleteByUuid(Uuid $uuid, int $userId): bool;
 }
