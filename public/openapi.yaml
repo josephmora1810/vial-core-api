@@ -2223,7 +2223,7 @@ paths:
         - name: download
           in: query
           required: false
-          description: Enviar `download=1` para forzar descarga (`Content-Disposition: attachment`); por defecto se visualiza inline en el navegador.
+          description: "Enviar `download=1` para forzar descarga (`Content-Disposition: attachment`); por defecto se visualiza inline en el navegador."
           schema:
             type: integer
             enum: [0, 1]
