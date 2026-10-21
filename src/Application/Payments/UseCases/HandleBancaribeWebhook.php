@@ -23,20 +23,35 @@ class HandleBancaribeWebhook
         private ServiceContractRepositoryInterface $contractRepository,
         private PlanRepositoryInterface $planRepository,
         private ?string $webhookSecret = null
-    ) {}
+    ) {
+        if (empty($this->webhookSecret) && !empty($_ENV['BANCARIBE_WEBHOOK_SECRET'])) {
+            $this->webhookSecret = (string)$_ENV['BANCARIBE_WEBHOOK_SECRET'];
+        }
+    }
 
     /**
      * @param array<string, mixed> $payload
+     * @param string|null $signatureHeader
+     * @param string|null $rawPayloadJson
      * @return array<string, mixed>
      */
-    public function execute(array $payload, ?string $signatureHeader = null): array
+    public function execute(array $payload, ?string $signatureHeader = null, ?string $rawPayloadJson = null): array
     {
-        // 1. Verificar firma del webhook si está configurada
-        if (!empty($this->webhookSecret)) {
-            $providedSecret = $signatureHeader ?? (string)($payload['hash'] ?? $payload['webhook_secret'] ?? '');
-            if (!hash_equals($this->webhookSecret, $providedSecret)) {
-                throw new Exception('Firma de webhook inválida.', 401);
-            }
+        // 1. Exigir obligatoriamente el secreto del webhook (OWASP API8:2023)
+        if (empty($this->webhookSecret)) {
+            throw new Exception('El secreto del webhook no está configurado en el servidor.', 500);
+        }
+
+        $rawBody = $rawPayloadJson ?? json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        $calculatedSignature = hash_hmac('sha256', $rawBody, $this->webhookSecret);
+        $providedSignature = $signatureHeader ?? (string)($payload['signature'] ?? $payload['hash'] ?? $payload['webhook_secret'] ?? '');
+
+        // Validar firma criptográfica HMAC-SHA256 o token secreto compartido
+        $isValidHmac = hash_equals($calculatedSignature, $providedSignature);
+        $isValidSecret = hash_equals($this->webhookSecret, $providedSignature);
+
+        if (!$isValidHmac && !$isValidSecret) {
+            throw new Exception('Firma no autorizada.', 401);
         }
 
         $orderIdentifier = (string)($payload['order_number'] ?? $payload['order_id'] ?? $payload['factura'] ?? '');

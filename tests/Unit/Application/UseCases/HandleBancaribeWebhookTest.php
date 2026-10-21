@@ -88,4 +88,75 @@ class HandleBancaribeWebhookTest extends TestCase
             'status'       => 'APPROVED',
         ], 'wrong-secret');
     }
+
+    public function testWebhookFailsWhenSecretNotConfigured(): void
+    {
+        $prevEnv = $_ENV['BANCARIBE_WEBHOOK_SECRET'] ?? null;
+        unset($_ENV['BANCARIBE_WEBHOOK_SECRET']);
+
+        $webhookUseCase = new HandleBancaribeWebhook(
+            $this->orderRepo,
+            $this->paymentRepo,
+            $this->contractRepo,
+            $this->planRepo,
+            null
+        );
+
+        $this->expectException(Exception::class);
+        $this->expectExceptionCode(500);
+
+        try {
+            $webhookUseCase->execute([
+                'order_number' => 'ORD-2026-ABCDEF',
+                'reference'    => '99887766',
+                'status'       => 'APPROVED',
+            ]);
+        } finally {
+            if ($prevEnv !== null) {
+                $_ENV['BANCARIBE_WEBHOOK_SECRET'] = $prevEnv;
+            }
+        }
+    }
+
+    public function testWebhookApprovesWithHmacSha256Signature(): void
+    {
+        $plan = $this->planRepo->save(new Plan(name: 'Plan Oro', priceUsd: 100.00));
+        $contract = $this->contractRepo->save(new ServiceContract(
+            clientId: 12,
+            planId: $plan->getId(),
+            remainingServices: 5,
+            remainingKm: 150.00,
+            status: ContractStatus::PendingPayment
+        ));
+        $order = $this->orderRepo->save(new \App\Domain\Payments\Entities\Order(
+            userId: 12,
+            orderableType: \App\Domain\Payments\Enums\OrderableType::ServiceContract,
+            orderableId: $contract->getId(),
+            amountUsd: 100.00,
+            exchangeRate: 45.00,
+            status: \App\Domain\Payments\Enums\OrderStatus::Pending
+        ));
+
+        $secret = 'super-secret-hmac-key';
+        $webhookUseCase = new HandleBancaribeWebhook(
+            $this->orderRepo,
+            $this->paymentRepo,
+            $this->contractRepo,
+            $this->planRepo,
+            $secret
+        );
+
+        $payload = [
+            'order_number' => $order->getOrderNumber(),
+            'reference'    => '11223344',
+            'status'       => 'APPROVED',
+        ];
+        $rawJson = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        $hmac = hash_hmac('sha256', $rawJson, $secret);
+
+        $result = $webhookUseCase->execute($payload, $hmac, $rawJson);
+        $this->assertSame('paid', $result['status']);
+        $this->assertSame('PAID', $result['order']['status']);
+        $this->assertSame('ACTIVE', $result['contract']['status']);
+    }
 }

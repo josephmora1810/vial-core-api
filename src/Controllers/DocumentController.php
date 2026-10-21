@@ -39,29 +39,49 @@ class DocumentController
 
         $vehicleId = $request->input('vehicle_id') !== null ? (int)$request->input('vehicle_id') : null;
 
-        // Soporte para carga de archivo multipart o ruta/base64
-        $filePath = null;
-        if (!empty($_FILES['document']['tmp_name'])) {
-            $uploaded = $_FILES['document'];
-            $ext = pathinfo($uploaded['name'], PATHINFO_EXTENSION);
-            $uploadsDir = dirname(__DIR__, 2) . '/storage/documents';
-            if (!is_dir($uploadsDir)) {
-                mkdir($uploadsDir, 0755, true);
-            }
-            $targetName = sprintf('doc_%d_%s_%s.%s', $user->getId(), $documentType, bin2hex(random_bytes(8)), $ext ?: 'jpg');
-            $targetPath = $uploadsDir . '/' . $targetName;
-            if (move_uploaded_file($uploaded['tmp_name'], $targetPath)) {
-                $filePath = $targetPath;
-            }
-        } elseif (!empty($request->input('file_path'))) {
-            $filePath = (string)$request->input('file_path');
-        }
-
-        if (empty($filePath)) {
-            $msg = $request->fileErrorMessage('document') ?? 'Debe adjuntar el archivo o comprobante del documento.';
+        // CWE-73 / CWE-59: Rechazar rutas de archivos locales. Solo permitir subidas vía $_FILES
+        if (empty($_FILES['document']['tmp_name'])) {
+            $msg = $request->fileErrorMessage('document') ?? 'Debe adjuntar el archivo o comprobante del documento mediante subida de archivo (multipart/form-data).';
             Response::json(['document' => $msg], 422, 'fail', $msg);
             return;
         }
+
+        $uploaded = $_FILES['document'];
+        $ext = strtolower(pathinfo($uploaded['name'], PATHINFO_EXTENSION));
+        $allowedExtensions = ['jpg', 'jpeg', 'png', 'pdf'];
+        if (!in_array($ext, $allowedExtensions, true)) {
+            Response::json(['document' => 'Extensión de archivo no permitida. Formatos aceptados: JPG, JPEG, PNG, PDF.'], 422, 'fail', 'Formato no permitido.');
+            return;
+        }
+
+        // CWE-434: Validación estricta del tipo MIME real del binario
+        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+        $mime = finfo_file($finfo, $uploaded['tmp_name']);
+        finfo_close($finfo);
+
+        $allowedMimes = ['image/jpeg', 'image/png', 'application/pdf'];
+        if (!in_array($mime, $allowedMimes, true)) {
+            Response::json(['document' => 'El archivo adjunto no posee un formato permitido (JPEG, PNG o PDF).'], 422, 'fail', 'MIME type no permitido.');
+            return;
+        }
+
+        $uploadsDir = dirname(__DIR__, 2) . '/storage/documents';
+        if (!is_dir($uploadsDir)) {
+            @mkdir($uploadsDir, 0755, true);
+        }
+        $targetName = sprintf('doc_%d_%s_%s.%s', $user->getId(), $documentType, bin2hex(random_bytes(8)), $ext);
+        $targetPath = $uploadsDir . '/' . $targetName;
+
+        $moved = is_uploaded_file($uploaded['tmp_name'])
+            ? move_uploaded_file($uploaded['tmp_name'], $targetPath)
+            : copy($uploaded['tmp_name'], $targetPath);
+
+        if (!$moved) {
+            Response::json([], 500, 'error', 'Error al almacenar el archivo en el servidor.');
+            return;
+        }
+
+        $filePath = $targetPath;
 
         try {
             $result = $this->uploadKycDocument->execute(

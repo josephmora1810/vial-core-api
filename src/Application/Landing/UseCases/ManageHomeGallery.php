@@ -37,7 +37,22 @@ class ManageHomeGallery
 
         // Si se subió un archivo local, subirlo a S3
         $finalImageUrl = $imageUrl;
-        if (!empty($localImageFilePath) && file_exists($localImageFilePath)) {
+        if (!empty($localImageFilePath)) {
+            if (!file_exists($localImageFilePath) || !is_readable($localImageFilePath)) {
+                throw new Exception('El archivo de imagen no fue encontrado o es ilegible.', 400);
+            }
+
+            // Blindaje contra Path Traversal / CWE-73 / CWE-59: Solo permitir procesar y eliminar archivos en storage o temp
+            $realPath = realpath($localImageFilePath);
+            $storageDir = realpath(dirname(__DIR__, 4) . '/storage');
+            $tempDir = realpath(sys_get_temp_dir());
+            $isSafeStorage = ($storageDir !== false && $realPath !== false && str_starts_with($realPath, $storageDir));
+            $isSafeTemp = ($tempDir !== false && $realPath !== false && str_starts_with($realPath, $tempDir));
+
+            if (!$isSafeStorage && !$isSafeTemp) {
+                throw new Exception('Acceso denegado: la ruta del archivo no está autorizada para carga de imágenes.', 403);
+            }
+
             $ext = strtolower(pathinfo($localImageFilePath, PATHINFO_EXTENSION)) ?: 'jpg';
             $s3Key = sprintf('gallery/banner_%s.%s', bin2hex(random_bytes(6)), $ext);
             $finalImageUrl = $this->storageService->upload($localImageFilePath, $s3Key);
@@ -90,7 +105,22 @@ class ManageHomeGallery
         }
 
         $newImageUrl = $imageUrl;
-        if (!empty($localImageFilePath) && file_exists($localImageFilePath)) {
+        if (!empty($localImageFilePath)) {
+            if (!file_exists($localImageFilePath) || !is_readable($localImageFilePath)) {
+                throw new Exception('El archivo de imagen no fue encontrado o es ilegible.', 400);
+            }
+
+            // Blindaje contra Path Traversal / CWE-73 / CWE-59: Solo permitir procesar y eliminar archivos en storage o temp
+            $realPath = realpath($localImageFilePath);
+            $storageDir = realpath(dirname(__DIR__, 4) . '/storage');
+            $tempDir = realpath(sys_get_temp_dir());
+            $isSafeStorage = ($storageDir !== false && $realPath !== false && str_starts_with($realPath, $storageDir));
+            $isSafeTemp = ($tempDir !== false && $realPath !== false && str_starts_with($realPath, $tempDir));
+
+            if (!$isSafeStorage && !$isSafeTemp) {
+                throw new Exception('Acceso denegado: la ruta del archivo no está autorizada para carga de imágenes.', 403);
+            }
+
             $ext = strtolower(pathinfo($localImageFilePath, PATHINFO_EXTENSION)) ?: 'jpg';
             $s3Key = sprintf('gallery/banner_%s.%s', bin2hex(random_bytes(6)), $ext);
             $newImageUrl = $this->storageService->upload($localImageFilePath, $s3Key);

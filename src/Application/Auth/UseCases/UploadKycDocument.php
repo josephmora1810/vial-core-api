@@ -43,9 +43,19 @@ class UploadKycDocument
         // 2. Validar tipo de documento
         $docType = DocumentType::fromString($rawDocumentType);
 
-        // 3. Validar existencia del archivo
+        // 3. Validar existencia del archivo y protección contra Path Traversal
         if (!file_exists($filePath)) {
             throw new Exception("El archivo del documento no fue encontrado en el servidor.", 400);
+        }
+
+        $realPath = realpath($filePath);
+        $storageDir = realpath(dirname(__DIR__, 4) . '/storage');
+        $tempDir = realpath(sys_get_temp_dir());
+        $isSafeStorage = ($storageDir !== false && $realPath !== false && str_starts_with($realPath, $storageDir));
+        $isSafeTemp = ($tempDir !== false && $realPath !== false && str_starts_with($realPath, $tempDir));
+
+        if (!$isSafeStorage && !$isSafeTemp) {
+            throw new Exception("Acceso denegado: la ruta del archivo no está autorizada para almacenamiento.", 403);
         }
 
         // 4. Determinar si el documento es de usuario o de vehículo

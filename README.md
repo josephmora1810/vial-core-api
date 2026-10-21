@@ -183,7 +183,7 @@ La documentación interactiva completa con Swagger UI está disponible directame
 | `POST` | `/api/v1/payments/process` | Bearer | Procesa cobro `c2p` (solo cliente) o `pago_movil` (cliente y vendedora vía Operaciones Plus) y activa/renueva el contrato |
 | `POST` | `/api/v1/webhooks/bancaribe` | Firma HMAC | Webhook asíncrono de Bancaribe para confirmación/rechazo de pagos |
 | `GET`  | `/api/v1/admin/bank/balances` | Bearer (`admin`) | Consulta de saldos disponibles/bloqueados de las cuentas recaudadoras en Bancaribe |
-| `GET`  | `/api/v1/admin/integrations/logs` | Bearer | Visor de logs de integraciones de terceros (`bancaribe`, `ocr`, `mapbox`, `pusher`, `s3`) |
+| `GET`  | `/api/v1/admin/integrations/logs` | Bearer (`role:admin`) | Visor de logs de integraciones de terceros (`bancaribe`, `ocr`, `mapbox`, `pusher`, `s3`) |
 
 ### 9. Módulo Comercial de Vendedoras (`role:seller`)
 | Método | Endpoint | Auth | Descripción |
@@ -344,7 +344,7 @@ El proyecto cuenta con una cobertura exhaustiva de pruebas unitarias y de arquit
 
 **Resultado actual:**
 ```
-OK (193 tests, 658 assertions) - 100% Passing
+OK (202 tests, 689 assertions) - 100% Passing
 ```
 
 

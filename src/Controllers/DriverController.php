@@ -45,11 +45,20 @@ class DriverController
             }
             $targetName = sprintf('crane_carnet_%d_%s.%s', $user->getId(), bin2hex(random_bytes(6)), $ext ?: 'jpg');
             $targetPath = $uploadsDir . '/' . $targetName;
-            if (move_uploaded_file($uploaded['tmp_name'], $targetPath)) {
+            $moved = is_uploaded_file($uploaded['tmp_name'])
+                ? move_uploaded_file($uploaded['tmp_name'], $targetPath)
+                : copy($uploaded['tmp_name'], $targetPath);
+            if ($moved) {
                 $carnetFilePath = $targetPath;
             }
         } elseif (!empty($request->input('carnet_file_path'))) {
-            $carnetFilePath = (string)$request->input('carnet_file_path');
+            $inputPath = (string)$request->input('carnet_file_path');
+            $real = realpath($inputPath);
+            $storage = realpath(dirname(__DIR__, 2) . '/storage');
+            $temp = realpath(sys_get_temp_dir());
+            if ($real !== false && (($storage && str_starts_with($real, $storage)) || ($temp && str_starts_with($real, $temp)))) {
+                $carnetFilePath = $real;
+            }
         }
 
         // Manejo de archivo multipart opcional para Licencia de Conducir
@@ -63,11 +72,20 @@ class DriverController
             }
             $targetName = sprintf('driver_lic_%d_%s.%s', $user->getId(), bin2hex(random_bytes(6)), $ext ?: 'jpg');
             $targetPath = $uploadsDir . '/' . $targetName;
-            if (move_uploaded_file($uploadedLic['tmp_name'], $targetPath)) {
+            $moved = is_uploaded_file($uploadedLic['tmp_name'])
+                ? move_uploaded_file($uploadedLic['tmp_name'], $targetPath)
+                : copy($uploadedLic['tmp_name'], $targetPath);
+            if ($moved) {
                 $licenseFilePath = $targetPath;
             }
         } elseif (!empty($request->input('license_file_path'))) {
-            $licenseFilePath = (string)$request->input('license_file_path');
+            $inputPath = (string)$request->input('license_file_path');
+            $real = realpath($inputPath);
+            $storage = realpath(dirname(__DIR__, 2) . '/storage');
+            $temp = realpath(sys_get_temp_dir());
+            if ($real !== false && (($storage && str_starts_with($real, $storage)) || ($temp && str_starts_with($real, $temp)))) {
+                $licenseFilePath = $real;
+            }
         }
 
         try {
@@ -119,11 +137,20 @@ class DriverController
             }
             $targetName = sprintf('driver_lic_%d_%s.%s', $user->getId(), bin2hex(random_bytes(6)), $ext ?: 'jpg');
             $targetPath = $uploadsDir . '/' . $targetName;
-            if (move_uploaded_file($uploaded['tmp_name'], $targetPath)) {
+            $moved = is_uploaded_file($uploaded['tmp_name'])
+                ? move_uploaded_file($uploaded['tmp_name'], $targetPath)
+                : copy($uploaded['tmp_name'], $targetPath);
+            if ($moved) {
                 $licenseFilePath = $targetPath;
             }
         } elseif (!empty($request->input('file_path'))) {
-            $licenseFilePath = (string)$request->input('file_path');
+            $inputPath = (string)$request->input('file_path');
+            $real = realpath($inputPath);
+            $storage = realpath(dirname(__DIR__, 2) . '/storage');
+            $temp = realpath(sys_get_temp_dir());
+            if ($real !== false && (($storage && str_starts_with($real, $storage)) || ($temp && str_starts_with($real, $temp)))) {
+                $licenseFilePath = $real;
+            }
         }
 
         if (empty($licenseFilePath)) {

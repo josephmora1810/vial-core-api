@@ -2652,7 +2652,7 @@ paths:
     get:
       summary: Consultar Logs de Servicios de Terceros (OCR, Bancaribe, Mapbox, Pusher, S3)
       description: |
-        Retorna los registros más recientes de llamadas a integraciones externas almacenados en `storage/logs/integrations.jsonl`, incluyendo servicio, operación, URL, código HTTP, tiempo de respuesta (`duration_ms`), payload sanitizado y respuesta.
+        Retorna los registros más recientes de llamadas a integraciones externas almacenados en `storage/logs/integrations.jsonl`, incluyendo servicio, operación, URL, código HTTP, tiempo de respuesta (`duration_ms`), payload sanitizado y respuesta. Requiere rol de administrador (`role:admin`).
       tags:
         - Sistema
       security:

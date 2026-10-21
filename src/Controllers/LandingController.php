@@ -58,17 +58,35 @@ class LandingController
         $imagePath = null;
         if (!empty($_FILES['image']['tmp_name'])) {
             $uploaded = $_FILES['image'];
-            $ext = pathinfo($uploaded['name'], PATHINFO_EXTENSION);
+            $ext = strtolower(pathinfo($uploaded['name'], PATHINFO_EXTENSION));
+            $allowedExtensions = ['jpg', 'jpeg', 'png', 'webp'];
+            if (!in_array($ext, $allowedExtensions, true)) {
+                Response::json(['image' => 'Extensión de archivo no permitida. Formatos aceptados: JPG, PNG, WEBP.'], 422, 'fail', 'Formato no permitido.');
+                return;
+            }
+
+            $finfo = finfo_open(FILEINFO_MIME_TYPE);
+            $mime = finfo_file($finfo, $uploaded['tmp_name']);
+            finfo_close($finfo);
+
+            $allowedMimes = ['image/jpeg', 'image/png', 'image/webp'];
+            if (!in_array($mime, $allowedMimes, true)) {
+                Response::json(['image' => 'El archivo adjunto no es una imagen válida.'], 422, 'fail', 'MIME type inválido.');
+                return;
+            }
+
             $uploadsDir = dirname(__DIR__, 2) . '/storage/documents';
             if (!is_dir($uploadsDir)) {
                 mkdir($uploadsDir, 0755, true);
             }
-            $targetPath = $uploadsDir . '/banner_' . bin2hex(random_bytes(6)) . '.' . ($ext ?: 'jpg');
-            if (move_uploaded_file($uploaded['tmp_name'], $targetPath)) {
+            $targetPath = $uploadsDir . '/banner_' . bin2hex(random_bytes(6)) . '.' . $ext;
+            $moved = is_uploaded_file($uploaded['tmp_name'])
+                ? move_uploaded_file($uploaded['tmp_name'], $targetPath)
+                : copy($uploaded['tmp_name'], $targetPath);
+
+            if ($moved) {
                 $imagePath = $targetPath;
             }
-        } elseif (!empty($request->input('image_path'))) {
-            $imagePath = (string)$request->input('image_path');
         }
 
         try {
@@ -103,14 +121,32 @@ class LandingController
         $imagePath = null;
         if (!empty($_FILES['image']['tmp_name'])) {
             $uploaded = $_FILES['image'];
-            $ext = pathinfo($uploaded['name'], PATHINFO_EXTENSION);
+            $ext = strtolower(pathinfo($uploaded['name'], PATHINFO_EXTENSION));
+            $allowedExtensions = ['jpg', 'jpeg', 'png', 'webp'];
+            if (!in_array($ext, $allowedExtensions, true)) {
+                Response::json(['image' => 'Extensión de archivo no permitida. Formatos aceptados: JPG, PNG, WEBP.'], 422, 'fail', 'Formato no permitido.');
+                return;
+            }
+
+            $finfo = finfo_open(FILEINFO_MIME_TYPE);
+            $mime = finfo_file($finfo, $uploaded['tmp_name']);
+            finfo_close($finfo);
+
+            $allowedMimes = ['image/jpeg', 'image/png', 'image/webp'];
+            if (!in_array($mime, $allowedMimes, true)) {
+                Response::json(['image' => 'El archivo adjunto no es una imagen válida.'], 422, 'fail', 'MIME type inválido.');
+                return;
+            }
+
             $uploadsDir = dirname(__DIR__, 2) . '/storage/documents';
-            $targetPath = $uploadsDir . '/banner_' . bin2hex(random_bytes(6)) . '.' . ($ext ?: 'jpg');
-            if (move_uploaded_file($uploaded['tmp_name'], $targetPath)) {
+            $targetPath = $uploadsDir . '/banner_' . bin2hex(random_bytes(6)) . '.' . $ext;
+            $moved = is_uploaded_file($uploaded['tmp_name'])
+                ? move_uploaded_file($uploaded['tmp_name'], $targetPath)
+                : copy($uploaded['tmp_name'], $targetPath);
+
+            if ($moved) {
                 $imagePath = $targetPath;
             }
-        } elseif (!empty($request->input('image_path'))) {
-            $imagePath = (string)$request->input('image_path');
         }
 
         try {

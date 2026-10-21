@@ -100,7 +100,7 @@ $router->put(API_V1 . 'plans/{id}', 'PlanController@update', ['auth', 'permissio
 $router->delete(API_V1 . 'plans/{id}', 'PlanController@destroy', ['auth', 'permission:manage_catalog']);
 $router->post(API_V1 . 'exchange-rates/sync', 'PaymentController@syncExchangeRates', ['auth', 'role:admin']);
 $router->get(API_V1 . 'admin/bank/balances', 'PaymentController@adminBankBalances', ['auth', 'role:admin']);
-$router->get(API_V1 . 'admin/integrations/logs', 'PaymentController@adminIntegrationLogs', ['auth']);
+$router->get(API_V1 . 'admin/integrations/logs', 'PaymentController@adminIntegrationLogs', ['auth', 'role:admin']);
 $router->post(API_V1 . 'admin/contracts/expire-overdue', 'PaymentController@expireOverdueContracts', ['auth', 'role:admin']);
 
 return $router;

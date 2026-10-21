@@ -34,11 +34,14 @@ class SendPasswordResetCode
 
         // Generar OTP de 6 dígitos criptográficamente seguro
         $otp = sprintf('%06d', random_int(0, 999999));
-        $redisKey = 'password_reset:' . md5(strtolower($email->getValue()));
+        $emailHash = md5(strtolower($email->getValue()));
+        $redisKey = 'password_reset:' . $emailHash;
+        $attemptsKey = 'password_reset_attempts:' . $emailHash;
 
-        // Guardar en Redis con expiración de 15 minutos (900 seg)
+        // Guardar en Redis con expiración de 15 minutos (900 seg) y reiniciar intentos
         $this->redis->execute('SET', $redisKey, $otp);
         $this->redis->execute('EXPIRE', $redisKey, 900);
+        $this->redis->execute('DEL', $attemptsKey);
 
         // Contenido del Correo con identidad visual corporativa UbikGo
         $subject = "UbikGo - Código de Recuperación de Contraseña";

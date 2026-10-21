@@ -155,10 +155,12 @@ class PaymentController
     public function webhook(Request $request): void
     {
         $payload = $request->body();
+        $rawBody = file_get_contents('php://input');
+        $rawPayload = ($rawBody !== false && $rawBody !== '') ? $rawBody : json_encode($payload, JSON_UNESCAPED_UNICODE);
         $signature = $request->header('X-Bancaribe-Signature') ?? $request->header('X-Webhook-Signature');
 
         try {
-            $result = $this->handleWebhook->execute($payload, $signature);
+            $result = $this->handleWebhook->execute($payload, $signature, $rawPayload);
             Response::json($result, 200, 'success', $result['message'] ?? 'Webhook procesado.');
         } catch (Exception $e) {
             $code = (is_int($e->getCode()) && $e->getCode() >= 400 && $e->getCode() < 600) ? $e->getCode() : 400;

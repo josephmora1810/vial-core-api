@@ -164,4 +164,24 @@ class ContractPdfAndExpirationTest extends TestCase
         $this->assertSame(ContractStatus::Expired, $this->contractRepo->findById($overdueContract->getId())->getStatus());
         $this->assertSame(ContractStatus::Active, $this->contractRepo->findById($validContract->getId())->getStatus());
     }
+
+    public function testRejectsNumericIdToPreventEnumerationAttack(): void
+    {
+        $contract = new ServiceContract(
+            clientId: 1,
+            planId: 1,
+            remainingServices: 3,
+            remainingKm: 80.0,
+            vehicleId: 1,
+            status: ContractStatus::Active,
+            id: 42
+        );
+        $this->contractRepo->save($contract);
+
+        $this->expectException(\Exception::class);
+        $this->expectExceptionCode(404);
+
+        // Intentar acceder por ID numérico en lugar de UUID o código de verificación
+        $this->generatePdfUseCase->execute('42', 'http://localhost:8088');
+    }
 }

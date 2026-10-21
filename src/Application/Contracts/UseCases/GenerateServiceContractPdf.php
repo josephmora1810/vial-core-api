@@ -33,13 +33,10 @@ class GenerateServiceContractPdf
     {
         $identifier = trim((string)$contractIdentifier);
 
-        $contract = ctype_digit($identifier)
-            ? $this->contractRepository->findById((int)$identifier)
-            : $this->contractRepository->findByUuid($identifier);
-
-        if ($contract === null) {
-            $contract = $this->contractRepository->findByVerificationCode($identifier);
-        }
+        // Seguridad Antifraude: En rutas públicas / generación de PDF solo permitir UUIDv7 o el código oficial de verificación (UBKMMYY-XXXX-ZZZZ)
+        // Rechazar IDs numéricos autoincrementales para prevenir ataques de fuerza bruta y enumeración de contratos.
+        $contract = $this->contractRepository->findByUuid($identifier)
+            ?? $this->contractRepository->findByVerificationCode($identifier);
 
         if ($contract === null) {
             throw new Exception('El contrato solicitado no existe.', 404);

@@ -39,12 +39,32 @@ class ResetPassword
             throw new Exception("El código de verificación es requerido.", 400);
         }
 
-        $redisKey = 'password_reset:' . md5(strtolower($email->getValue()));
+        $emailHash = md5(strtolower($email->getValue()));
+        $redisKey = 'password_reset:' . $emailHash;
+        $attemptsKey = 'password_reset_attempts:' . $emailHash;
+
         $storedCode = $this->redis->execute('GET', $redisKey);
 
-        if (!$storedCode || $storedCode !== $code) {
+        if (!$storedCode) {
             throw new Exception("El código de recuperación es inválido o ha expirado.", 400);
         }
+
+        if ($storedCode !== $code) {
+            $attempts = (int)$this->redis->execute('INCR', $attemptsKey);
+            $this->redis->execute('EXPIRE', $attemptsKey, 900);
+
+            if ($attempts >= 5) {
+                // Invalida inmediatamente el código para frustrar ataques de fuerza bruta
+                $this->redis->execute('DEL', $redisKey);
+                $this->redis->execute('DEL', $attemptsKey);
+                throw new Exception("Ha superado el límite de intentos fallidos (5). El código ha sido invalidado por seguridad.", 429);
+            }
+
+            throw new Exception("El código de recuperación es inválido o ha expirado.", 400);
+        }
+
+        // Si el código coincide, limpiar contador de intentos
+        $this->redis->execute('DEL', $attemptsKey);
 
         $user = $this->userRepository->findByEmail($email);
         if (!$user) {

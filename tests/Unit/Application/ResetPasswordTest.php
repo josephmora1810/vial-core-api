@@ -150,4 +150,42 @@ class ResetPasswordTest extends TestCase
             newPasswordConfirmation: 'NuevaPassword123!'
         );
     }
+
+    public function test_brute_force_invalidates_code_after_5_attempts(): void
+    {
+        $attemptsKey = 'password_reset_attempts:' . md5('roberto@ubikgo.com');
+        $this->redis->execute('DEL', $attemptsKey);
+
+        // Primeros 4 intentos fallidos lanzan excepción 400
+        for ($i = 1; $i <= 4; $i++) {
+            try {
+                $this->useCase->execute(
+                    rawEmail: 'roberto@ubikgo.com',
+                    rawCode: '00000' . $i,
+                    newPassword: 'Password123!',
+                    newPasswordConfirmation: 'Password123!'
+                );
+                $this->fail("Debió fallar en el intento {$i}");
+            } catch (Exception $e) {
+                $this->assertSame(400, $e->getCode());
+            }
+        }
+
+        // El 5to intento fallido debe lanzar 429 y destruir el código de Redis
+        try {
+            $this->useCase->execute(
+                rawEmail: 'roberto@ubikgo.com',
+                rawCode: '000005',
+                newPassword: 'Password123!',
+                newPasswordConfirmation: 'Password123!'
+            );
+            $this->fail("Debió fallar en el 5to intento");
+        } catch (Exception $e) {
+            $this->assertSame(429, $e->getCode());
+            $this->assertStringContainsString("Ha superado el límite de intentos fallidos", $e->getMessage());
+        }
+
+        // El código en Redis debe haber sido destruido por completo
+        $this->assertNull($this->redis->execute('GET', $this->redisKey));
+    }
 }
