@@ -8,19 +8,24 @@
  * garantizando que las peticiones de cobro no sufran latencia de autenticación.
  *
  * Ejemplo Crontab (cada 25 minutos):
- *   */25 * * * * php /ruta/al/proyecto/scripts/sync_bank_token.php >> /var/log/ubikgo_cron.log 2>&1
+ *   * //25 * * * * php /ruta/al/proyecto/scripts/sync_bank_token.php >> /var/log/ubikgo_cron.log 2>&1 
  */
 
 require_once __DIR__ . '/../autoload.php';
 
-use App\Core\Env;
+use App\Core\DotEnv;
 use App\Infrastructure\Database\Database;
 use App\Infrastructure\Database\Redis;
 use App\Infrastructure\Database\Repositories\Payments\MariaDbBankTokenRepository;
 use App\Infrastructure\Http\CurlHttpClient;
 use App\Infrastructure\Services\Bancaribe\BancaribeAuthService;
 
-Env::load(__DIR__ . '/../.env');
+$rootPath = dirname(__DIR__);
+require_once "{$rootPath}/autoload.php";
+
+$envFile = $rootPath . "/.env";
+$dotEnv = new DotEnv($envFile);
+$dotEnv->load();
 
 try {
     $pdo = (new Database())->getConnection();
@@ -40,7 +45,7 @@ try {
         sandboxMode: $isSandbox
     );
 
-    $token = $authService->refreshToken();
+    $token = $authService->getAccessToken();
     $preview = substr($token, 0, 12) . '...';
 
     echo sprintf(

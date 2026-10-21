@@ -24,7 +24,8 @@ use App\Infrastructure\Http\CurlHttpClient;
 use App\Infrastructure\Services\Bancaribe\BancaribeAuthService;
 use App\Infrastructure\Services\Bancaribe\BancaribeExchangeService;
 
-Env::load(__DIR__ . '/../.env');
+$rootPath = dirname(__DIR__);
+require_once "{$rootPath}/autoload.php";
 
 try {
     $pdo = (new Database())->getConnection();
@@ -61,7 +62,7 @@ try {
 
     // Invalidar caché de planes para que la landing page refleje de inmediato la nueva tasa BCV
     $planRepo = new CachedPlanRepository(new MariaDbPlanRepository($pdo), $redis);
-    $planRepo->invalidateCache();
+    $planRepo->invalidatePlansCache();
 
     echo sprintf(
         "[%s] [CRON:EXCHANGE_RATES] Tasas BCV sincronizadas exitosamente (%d registros).\n",

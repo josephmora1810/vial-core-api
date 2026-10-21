@@ -199,10 +199,11 @@ La documentación interactiva completa con Swagger UI está disponible directame
 ## ⏰ Cronjobs Obligatorios del Servidor
 
 > [!IMPORTANT]
-> **Requisitos Operativos Indispensables:** El servidor centraliza en segundo plano mediante cronjobs las 3 tareas críticas de sincronización y vigencia para que ninguna petición de usuario sufra bloqueos:
+> **Requisitos Operativos Indispensables:** El servidor centraliza en segundo plano mediante cronjobs y workers las tareas críticas de sincronización, vigencia y almacenamiento para que ninguna petición de usuario sufra bloqueos:
 > 1. **`php scripts/sync_bank_token.php`**: Renueva proactivamente el token OAuth2 de Bancaribe en MariaDB (`bank_tokens`) y Redis (`bancaribe:access_token`).
 > 2. **`php scripts/sync_exchange_rates.php`**: Sincroniza las tasas oficiales BCV (USD y EUR) con Bancaribe en MariaDB y Redis e invalida la caché de planes.
 > 3. **`php scripts/expire_contracts.php`**: Transiciona automáticamente de `ACTIVE` a `EXPIRED` los contratos cuyo timestamp exacto `expires_at` (`YYYY-MM-DD HH:MM:SS`) haya vencido.
+> 4. **`php scripts/process_s3_queue.php`**: Procesa la cola en Redis (`queue:s3_document_uploads`), eliminando metadatos EXIF (NFR-17) y subiendo de forma persistente los documentos a AWS S3 (bucket `ubik-go`).
 
 ### Ejecución manual conjunta o individual por CLI:
 ```bash
@@ -211,13 +212,17 @@ php scripts/run_cronjobs.php
 php scripts/sync_bank_token.php
 php scripts/sync_exchange_rates.php
 php scripts/expire_contracts.php
+php scripts/process_s3_queue.php          # Procesa lote de hasta 50 trabajos
+php scripts/process_s3_queue.php --daemon # Modo Daemon continuo en segundo plano
+php scripts/enqueue_existing_documents.php # Migra archivos locales existentes en storage/documents hacia S3
 ```
 
-### Configuración en Linux (`crontab -e`):
+### Configuración en Linux (`crontab -e` / Supervisor):
 ```cron
 */25 * * * * /usr/bin/php /ruta/al/proyecto/vial-core-api/scripts/sync_bank_token.php >> /ruta/al/proyecto/vial-core-api/storage/logs/cron.log 2>&1
 0 * * * * /usr/bin/php /ruta/al/proyecto/vial-core-api/scripts/sync_exchange_rates.php >> /ruta/al/proyecto/vial-core-api/storage/logs/cron.log 2>&1
 */5 * * * * /usr/bin/php /ruta/al/proyecto/vial-core-api/scripts/expire_contracts.php >> /ruta/al/proyecto/vial-core-api/storage/logs/cron.log 2>&1
+* * * * * /usr/bin/php /ruta/al/proyecto/vial-core-api/scripts/process_s3_queue.php >> /ruta/al/proyecto/vial-core-api/storage/logs/s3_worker.log 2>&1
 ```
 
 ---
@@ -232,7 +237,7 @@ El proyecto cuenta con una cobertura exhaustiva de pruebas unitarias y de arquit
 
 **Resultado actual:**
 ```
-OK (168 tests, 513 assertions) - 100% Passing
+OK (173 tests, 552 assertions) - 100% Passing
 ```
 
 

@@ -2,6 +2,7 @@
 
 namespace App\Application\Users\UseCases;
 
+use App\Application\Documents\UseCases\EnqueueDocumentS3Upload;
 use App\Application\Users\DTOs\UserResponseDto;
 use App\Domain\Auth\Entities\Document;
 use App\Domain\Auth\Entities\Role;
@@ -36,7 +37,8 @@ class RegisterClientBySeller
         private DocumentExtractorInterface $documentExtractor,
         private ?DocumentRepositoryInterface $documentRepository = null,
         private ?MailerInterface $mailer = null,
-        private ?Redis $redis = null
+        private ?Redis $redis = null,
+        private ?EnqueueDocumentS3Upload $enqueueS3 = null
     ) {}
 
     /**
@@ -154,6 +156,17 @@ class RegisterClientBySeller
                 status: DocumentStatus::Verified
             );
             $this->documentRepository->save($doc);
+
+            // Encolar subida asíncrona a Amazon S3 si hay archivo físico (NFR-20-B)
+            if ($this->enqueueS3 !== null && $doc->getId() !== null && $hasDocFile && file_exists((string)$documentFilePath)) {
+                $this->enqueueS3->execute(
+                    documentId: $doc->getId(),
+                    localFilePath: (string)$documentFilePath,
+                    documentType: $doc->getDocumentType()->getValue(),
+                    documentableType: $doc->getDocumentableType(),
+                    documentableId: $doc->getDocumentableId()
+                );
+            }
         }
 
         // 8. Actualizar caché de búsqueda por cédula en Redis

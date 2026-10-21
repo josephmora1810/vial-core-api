@@ -977,9 +977,11 @@ paths:
   # ==========================================
   /documents/upload:
     post:
-      summary: Cargar o Reenviar Documentos KYC (FR-07, FR-09, FR-10, FR-33)
+      summary: Cargar o Reenviar Documentos KYC (FR-07, FR-09, FR-10, FR-33, NFR-17, NFR-20-B)
       description: |
         Permite adjuntar documentos de identidad (cédula, pasaporte, licencia) o documentos vehiculares (carnet de circulación, certificado NIV).
+        El archivo es limpiado automáticamente de metadatos EXIF (NFR-17) y encolado en segundo plano en Redis (`queue:s3_document_uploads`)
+        para su transferencia persistente hacia Amazon Web Services (AWS S3, bucket `ubik-go`).
         Si el documento fue rechazado anteriormente, reinicia el estado a `PENDING` para nueva revisión por auditores.
       tags:
         - Documentos KYC

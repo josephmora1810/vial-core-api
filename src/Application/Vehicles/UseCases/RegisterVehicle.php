@@ -2,6 +2,7 @@
 
 namespace App\Application\Vehicles\UseCases;
 
+use App\Application\Documents\UseCases\EnqueueDocumentS3Upload;
 use App\Application\Vehicles\DTOs\VehicleResponseDto;
 use App\Domain\Auth\Entities\Document;
 use App\Domain\Vehicles\Entities\Vehicle;
@@ -23,7 +24,8 @@ class RegisterVehicle
         private VehicleRepositoryInterface $vehicleRepository,
         private UserRepositoryInterface $userRepository,
         private ?DocumentRepositoryInterface $documentRepository = null,
-        private ?VehicleCatalogRepositoryInterface $catalogRepository = null
+        private ?VehicleCatalogRepositoryInterface $catalogRepository = null,
+        private ?EnqueueDocumentS3Upload $enqueueS3 = null
     ) {}
 
     public function execute(
@@ -118,6 +120,17 @@ class RegisterVehicle
                 status: $autoVerifyBySeller ? DocumentStatus::Verified : DocumentStatus::Pending
             );
             $this->documentRepository->save($doc);
+
+            // Encolar subida asíncrona a Amazon S3 (NFR-20-B)
+            if ($this->enqueueS3 !== null && $doc->getId() !== null && file_exists((string)$carnetFilePath)) {
+                $this->enqueueS3->execute(
+                    documentId: $doc->getId(),
+                    localFilePath: (string)$carnetFilePath,
+                    documentType: $doc->getDocumentType()->getValue(),
+                    documentableType: $doc->getDocumentableType(),
+                    documentableId: $doc->getDocumentableId()
+                );
+            }
         }
 
         return VehicleResponseDto::fromEntity(

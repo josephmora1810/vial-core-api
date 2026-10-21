@@ -2,6 +2,8 @@
 // bootstrap/container.php
 
 use App\Application\Contracts\UseCases\CheckoutServiceContract;
+use App\Application\Documents\UseCases\EnqueueDocumentS3Upload;
+use App\Application\Documents\UseCases\ProcessDocumentS3UploadJob;
 use App\Application\Users\UseCases\CreateSavedAddress;
 use App\Application\Users\UseCases\DeleteSavedAddress;
 use App\Application\Vehicles\UseCases\DeleteVehicle;
@@ -14,6 +16,7 @@ use App\Application\Vehicles\UseCases\ListUserVehicles;
 use App\Application\Auth\UseCases\LoginUser;
 use App\Application\Auth\UseCases\LogoutUser;
 use App\Application\Contracts\UseCases\ManagePlan;
+use App\Application\Contracts\UseCases\GenerateServiceContractPdf;
 use App\Application\Payments\UseCases\ProcessPayment;
 use App\Application\Auth\UseCases\RefreshToken;
 use App\Application\Auth\UseCases\RegisterUser;
@@ -31,9 +34,14 @@ use App\Controllers\PlanController;
 use App\Controllers\SavedAddressController;
 use App\Controllers\VehicleController;
 use App\Core\JwtService;
+use App\Domain\Shared\Services\QueueServiceInterface;
+use App\Domain\Shared\Services\StorageServiceInterface;
 use App\Domain\Vehicles\Services\VehicleMatcherService;
 use App\Infrastructure\Database\Database;
 use App\Infrastructure\Database\Redis;
+use App\Infrastructure\Logging\IntegrationLogger;
+use App\Infrastructure\Queue\RedisQueueService;
+use App\Infrastructure\Storage\AwsS3StorageService;
 use App\Infrastructure\Database\Repositories\Contracts\CachedPlanRepository;
 use App\Infrastructure\Database\Repositories\Vehicles\CachedVehicleCatalogRepository;
 use App\Infrastructure\Database\Repositories\Payments\MariaDbBankTokenRepository;
@@ -62,6 +70,8 @@ use App\Middlewares\CorsMiddleware;
 use App\Middlewares\EnforceJsonResponseMiddleware;
 use App\Middlewares\EnsureKycVerifiedMiddleware;
 use App\Middlewares\ThrottleMiddleware;
+use App\Infrastructure\Pdf\FpdfContractPdfGenerator;
+use App\Application\Contracts\UseCases\CancelServiceContract;
 
 // Conexiones con MariaDB y Redis
 // instanciadas de manera lazy para no abrir conexiones innecesarias en rutas públicas
@@ -106,6 +116,8 @@ $mailer = new SmtpMailer(
     fromName: $_ENV['MAIL_FROM_NAME'] ?? 'UbikGo',
     encryption: $_ENV['SMTP_ENCRYPTION'] ?? 'ssl'
 );
+
+$integrationLogger = new IntegrationLogger();
 
 // Repositorios Lazy
 $getUserRepo = fn() => new MariaDbUserRepository($getDb());
@@ -183,11 +195,22 @@ $getBalanceGateway = fn() => new BancaribeBalanceService(
     sandboxMode: $isSandbox
 );
 
+// Servicios de Almacenamiento S3 y Colas en Redis (NFR-20-B)
+$getQueueService = fn() => new RedisQueueService($getRedis());
+$getStorageService = fn() => new AwsS3StorageService(logger: $integrationLogger);
+$getEnqueueS3 = fn() => new EnqueueDocumentS3Upload($getQueueService());
+$getProcessS3 = fn() => new ProcessDocumentS3UploadJob(
+    queueService: $getQueueService(),
+    storageService: $getStorageService(),
+    documentRepository: $getDocumentRepo(),
+    logger: $integrationLogger
+);
+
 return [
     'controllers' => [
         AuthController::class => fn() => new AuthController(
             new LoginUser($getUserRepo(), $getTokenRepo(), $jwtService, $getRateLimiter()),
-            new RegisterUser($getUserRepo(), $documentExtractor, $jwtService, $getTokenRepo(), $getDocumentRepo()),
+            new RegisterUser($getUserRepo(), $documentExtractor, $jwtService, $getTokenRepo(), $getDocumentRepo(), $getEnqueueS3()),
             new RefreshToken($getTokenRepo(), $getUserRepo(), $jwtService),
             new LogoutUser($getTokenRepo()),
             new SendPasswordResetCode($getUserRepo(), $mailer, $getRedis()),
@@ -196,7 +219,7 @@ return [
         ),
         HomeController::class => fn() => new HomeController(),
         DocumentController::class => fn() => new DocumentController(
-            new UploadKycDocument($getDocumentRepo(), $getUserRepo(), $documentExtractor),
+            new UploadKycDocument($getDocumentRepo(), $getUserRepo(), $documentExtractor, $getEnqueueS3()),
             new GetKycStatus($getDocumentRepo(), $getUserRepo()),
             new \App\Application\Auth\UseCases\ReviewKycDocument($getDocumentRepo(), $getVehicleRepo())
         ),
@@ -206,7 +229,7 @@ return [
             new DeleteSavedAddress($getSavedAddressRepo())
         ),
         VehicleController::class => fn() => new VehicleController(
-            new RegisterVehicle($getVehicleRepo(), $getUserRepo(), $getDocumentRepo(), $getCatalogRepo()),
+            new RegisterVehicle($getVehicleRepo(), $getUserRepo(), $getDocumentRepo(), $getCatalogRepo(), $getEnqueueS3()),
             new ListUserVehicles($getVehicleRepo(), $getUserRepo()),
             new DeleteVehicle($getVehicleRepo()),
             new ScanVehicleRegistration($documentExtractor, new VehicleMatcherService($getCatalogRepo())),
@@ -252,16 +275,16 @@ return [
             ),
             $getExchangeService(),
             $getBalanceGateway(),
-            new \App\Application\Contracts\UseCases\GenerateServiceContractPdf(
+            new GenerateServiceContractPdf(
                 $getContractRepo(),
                 $getPlanRepo(),
                 $getUserRepo(),
                 $getVehicleRepo(),
                 $getSavedAddressRepo(),
                 $getCatalogRepo(),
-                new \App\Infrastructure\Pdf\FpdfContractPdfGenerator()
+                new FpdfContractPdfGenerator()
             ),
-            new \App\Application\Contracts\UseCases\CancelServiceContract(
+            new CancelServiceContract(
                 $getContractRepo(),
                 $getPlanRepo(),
                 $getVehicleRepo()
@@ -298,9 +321,10 @@ return [
                 $documentExtractor,
                 $getDocumentRepo(),
                 $mailer,
-                $getRedis()
+                $getRedis(),
+                $getEnqueueS3()
             ),
-            new RegisterVehicle($getVehicleRepo(), $getUserRepo(), $getDocumentRepo(), $getCatalogRepo()),
+            new RegisterVehicle($getVehicleRepo(), $getUserRepo(), $getDocumentRepo(), $getCatalogRepo(), $getEnqueueS3()),
             new CheckoutServiceContract(
                 $getPlanRepo(),
                 $getVehicleRepo(),
@@ -330,6 +354,12 @@ return [
             ),
             $getUserRepo()
         ),
+    ],
+    'services' => [
+        QueueServiceInterface::class      => $getQueueService,
+        StorageServiceInterface::class    => $getStorageService,
+        EnqueueDocumentS3Upload::class    => $getEnqueueS3,
+        ProcessDocumentS3UploadJob::class => $getProcessS3,
     ],
     'route_middlewares' => [
         // Lazy: si la ruta es pública, no instanciamos AuthMiddleware ni tocamos la BD

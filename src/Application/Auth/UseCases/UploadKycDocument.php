@@ -2,6 +2,7 @@
 
 namespace App\Application\Auth\UseCases;
 
+use App\Application\Documents\UseCases\EnqueueDocumentS3Upload;
 use App\Domain\Auth\Entities\Document;
 use App\Domain\Auth\Enums\DocumentStatus;
 use App\Domain\Auth\Enums\DocumentType;
@@ -16,7 +17,8 @@ class UploadKycDocument
     public function __construct(
         private DocumentRepositoryInterface $documentRepository,
         private UserRepositoryInterface $userRepository,
-        private ?DocumentExtractorInterface $documentExtractor = null
+        private ?DocumentExtractorInterface $documentExtractor = null,
+        private ?EnqueueDocumentS3Upload $enqueueS3 = null
     ) {}
 
     /**
@@ -103,6 +105,17 @@ class UploadKycDocument
                 status: DocumentStatus::Pending
             );
             $this->documentRepository->save($document);
+        }
+
+        // 7. Encolar subida asíncrona a Amazon S3 si es un archivo local (NFR-20-B)
+        if ($this->enqueueS3 !== null && $document->getId() !== null && file_exists($filePath)) {
+            $this->enqueueS3->execute(
+                documentId: $document->getId(),
+                localFilePath: $filePath,
+                documentType: $document->getDocumentType()->getValue(),
+                documentableType: $document->getDocumentableType(),
+                documentableId: $document->getDocumentableId()
+            );
         }
 
         return [

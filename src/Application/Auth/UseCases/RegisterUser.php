@@ -2,6 +2,7 @@
 
 namespace App\Application\Auth\UseCases;
 
+use App\Application\Documents\UseCases\EnqueueDocumentS3Upload;
 use App\Application\Users\DTOs\UserResponseDto;
 use App\Core\JwtService;
 use App\Domain\Auth\Entities\PersonalAccessToken;
@@ -35,7 +36,8 @@ class RegisterUser
         private DocumentExtractorInterface $documentExtractor,
         private JwtService $jwtService,
         private PersonalAccessTokenRepositoryInterface $tokenRepository,
-        private ?DocumentRepositoryInterface $documentRepository = null
+        private ?DocumentRepositoryInterface $documentRepository = null,
+        private ?EnqueueDocumentS3Upload $enqueueS3 = null
     ) {}
 
     /**
@@ -188,6 +190,17 @@ class RegisterUser
                 status: $docStatus
             );
             $this->documentRepository->save($doc);
+
+            // Encolar subida asíncrona a Amazon S3 (NFR-20-B)
+            if ($this->enqueueS3 !== null && $doc->getId() !== null && file_exists($documentFilePath)) {
+                $this->enqueueS3->execute(
+                    documentId: $doc->getId(),
+                    localFilePath: $documentFilePath,
+                    documentType: $doc->getDocumentType()->getValue(),
+                    documentableType: $doc->getDocumentableType(),
+                    documentableId: $doc->getDocumentableId()
+                );
+            }
         }
 
         // 9. Emitir Access Token JWT (stateless) para inicio de sesión inmediato (FR-02)
