@@ -200,6 +200,48 @@ La documentación interactiva completa con Swagger UI está disponible directame
 
 ---
 
+## 📱 Flujos de Usuario Móvil: Cliente vs. Operador de Grúa (Gruero)
+
+La Core API proporciona un diseño desacoplado que unifica la seguridad pero bifurca la experiencia según el rol del usuario:
+
+### 1. Inicio de Sesión Unificado (`POST /api/v1/login`)
+El login es el mismo para todos los usuarios. Al autenticarse con correo o teléfono, el JWT y la respuesta devuelven el campo `role`:
+* **Si `role: "client"`**: La aplicación móvil abre la interfaz de **Conductor Particular** (mapa de auxilio SOS, compra de planes anuales, libreta de direcciones y sus carros registrados).
+* **Si `role: "driver"`**: La aplicación móvil abre la interfaz de **Operador de Grúa** (consulta de flota en `GET /api/v1/driver/status`, botón de disponibilidad/guardia y radar de solicitudes cercanas de auxilio).
+
+### 2. Registro de Usuario (`POST /api/v1/register`)
+* **Cliente (`role: "client"`)**:
+  - Puede pre-escanear su cédula con `POST /api/v1/scan-identity` para autocompletar nombres y fecha de nacimiento.
+  - Al registrarse, si la cédula coincide con el OCR queda verificada de inmediato, emitiéndose el JWT para uso instantáneo.
+* **Gruero (`role: "driver"`)**:
+  - Se registra con sus datos y foto de cédula. Su cuenta queda creada pero en estado preliminar hasta completar la documentación de su grúa y licencia.
+
+### 3. Registro de Vehículos vs. Unidades de Grúa
+| Parámetro | Cliente Particular | Operador de Grúa (Gruero) |
+| :--- | :--- | :--- |
+| **Endpoint** | `POST /api/v1/vehicles` | `POST /api/v1/driver/cranes` |
+| **Tipo (`type`)** | `CAR` (Carro), `SUV` (Camioneta/Rústico), `MOTO` | `CRANE` (Grúa de plataforma o gancho) |
+| **Recaudo del Vehículo** | Carnet de Circulación o Título de Propiedad | Certificado de Registro INTT de la Grúa (OCR obligatorio) |
+| **Recaudo Conductor** | Cédula de Identidad | **Licencia de Conducir (4to o 5to grado)** en `POST /api/v1/driver/license` |
+| **Almacenamiento** | Guardado local y subida asíncrona a **AWS S3** | Guardado local y subida asíncrona a **AWS S3** |
+| **Habilitación Operativa** | Inmediata para comprar planes y pedir SOS | Requiere `can_operate: true` en `GET /api/v1/driver/status` tras aprobación del Admin |
+
+### Diagrama de Ciclo de Vida del Gruero:
+```mermaid
+flowchart TD
+    A["Gruero inicia sesión (POST /api/v1/login)"] --> B["Consulta Estado (GET /api/v1/driver/status)"]
+    B --> C{"¿can_operate == true?"}
+    C -- "No (Faltan recaudos)" --> D["Asistente de Flota en App"]
+    D --> E["1. Sube Carnet INTT de la Grúa (POST /driver/cranes)"]
+    D --> F["2. Sube Licencia 5to Grado (POST /driver/license)"]
+    E & F --> G["Subida asíncrona a AWS S3 (Redis Queues)"]
+    G --> H["Admin aprueba recaudos en Backoffice (ReviewKycDocument)"]
+    H --> I["Grúa pasa a ACTIVE y Chofer a can_operate = true"]
+    C -- "Sí (Verificado)" --> J["Radar de Auxilio: Disponible para recibir solicitudes SOS"]
+```
+
+---
+
 ## ⏰ Cronjobs Obligatorios del Servidor
 
 > [!IMPORTANT]
