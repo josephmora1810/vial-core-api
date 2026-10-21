@@ -2,6 +2,7 @@
 
 namespace App\Application\Payments\UseCases;
 
+use App\Application\Commissions\UseCases\GenerateOrderCommission;
 use App\Application\Payments\DTOs\OrderResponseDto;
 use App\Application\Contracts\DTOs\ServiceContractResponseDto;
 use App\Domain\Payments\Entities\Payment;
@@ -22,7 +23,8 @@ class HandleBancaribeWebhook
         private PaymentRepositoryInterface $paymentRepository,
         private ServiceContractRepositoryInterface $contractRepository,
         private PlanRepositoryInterface $planRepository,
-        private ?string $webhookSecret = null
+        private ?string $webhookSecret = null,
+        private ?GenerateOrderCommission $generateOrderCommission = null
     ) {
         if (empty($this->webhookSecret) && !empty($_ENV['BANCARIBE_WEBHOOK_SECRET'])) {
             $this->webhookSecret = (string)$_ENV['BANCARIBE_WEBHOOK_SECRET'];
@@ -137,6 +139,12 @@ class HandleBancaribeWebhook
                     resetKm: $plan?->getMaxKm()
                 );
                 $this->contractRepository->save($contract);
+
+                // FR-14, FR-15: Generar comisión comercial para la vendedora si el contrato tiene seller_id
+                if ($this->generateOrderCommission !== null) {
+                    $this->generateOrderCommission->execute($order, $contract);
+                }
+
                 $activatedContract = ServiceContractResponseDto::fromEntity($contract, $plan?->getName())->toArray();
             }
         }

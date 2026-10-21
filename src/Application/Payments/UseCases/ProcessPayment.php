@@ -2,6 +2,7 @@
 
 namespace App\Application\Payments\UseCases;
 
+use App\Application\Commissions\UseCases\GenerateOrderCommission;
 use App\Application\Payments\DTOs\OrderResponseDto;
 use App\Application\Contracts\DTOs\ServiceContractResponseDto;
 use App\Domain\Payments\Entities\Payment;
@@ -27,7 +28,8 @@ class ProcessPayment
         private ServiceContractRepositoryInterface $contractRepository,
         private PlanRepositoryInterface $planRepository,
         private PaymentGatewayInterface $paymentGateway,
-        private ?ExchangeRateServiceInterface $exchangeRateService = null
+        private ?ExchangeRateServiceInterface $exchangeRateService = null,
+        private ?GenerateOrderCommission $generateOrderCommission = null
     ) {}
 
     /**
@@ -214,6 +216,12 @@ class ProcessPayment
                     resetKm: $plan?->getMaxKm()
                 );
                 $this->contractRepository->save($contract);
+
+                // FR-14, FR-15: Generar comisión comercial para la vendedora si el contrato tiene seller_id
+                if ($this->generateOrderCommission !== null) {
+                    $this->generateOrderCommission->execute($order, $contract);
+                }
+
                 $activatedContractDto = ServiceContractResponseDto::fromEntity(
                     $contract,
                     $plan?->getName()

@@ -2904,13 +2904,241 @@ paths:
         - BearerAuth: []
       parameters:
         - name: id
-          in: path
+        - in: path
           required: true
           schema:
             type: string
       responses:
         '201':
           description: Orden de renovación anual generada exitosamente
+
+  # ==========================================
+  # COMISIONES Y BILLETERA B2B (FR-14, FR-15, FR-34)
+  # ==========================================
+  /seller/profile:
+    get:
+      summary: Consultar Perfil Comercial y Datos Bancarios (Seller)
+      description: Retorna los datos comerciales de la vendedora, su tasa de comisión pactada y sus datos bancarios registrados.
+      tags:
+        - Comisiones y Vendedoras
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Perfil comercial consultado exitosamente
+
+  /seller/bank-account:
+    post:
+      summary: Registrar o Actualizar Cuenta Bancaria Nacional (Seller)
+      description: |
+        Registra o modifica la cuenta bancaria de la vendedora receptora de liquidaciones.
+        Valida que el número de cuenta tenga 20 dígitos y que sus primeros 4 dígitos coincidan con el código oficial de Sudeban del banco seleccionado.
+      tags:
+        - Comisiones y Vendedoras
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - bank_id
+                - account_number
+                - account_type
+                - account_holder_name
+                - account_holder_id
+                - phone_pago_movil
+              properties:
+                bank_id:
+                  type: integer
+                  example: 1
+                account_number:
+                  type: string
+                  example: "01140123450123456789"
+                account_type:
+                  type: string
+                  enum: [CORRIENTE, AHORRO]
+                  example: "CORRIENTE"
+                account_holder_name:
+                  type: string
+                  example: "Valeria Vendedora"
+                account_holder_id:
+                  type: string
+                  example: "V-20111222"
+                phone_pago_movil:
+                  type: string
+                  example: "04141112233"
+      responses:
+        '200':
+          description: Datos bancarios registrados exitosamente
+        '422':
+          description: Error de validación en la cuenta bancaria o discrepancia con Sudeban
+
+    put:
+      summary: Actualizar Cuenta Bancaria Nacional (Seller)
+      description: Equivalente a POST /seller/bank-account para actualización idempotente.
+      tags:
+        - Comisiones y Vendedoras
+      security:
+        - BearerAuth: []
+      requestBody:
+        $ref: '#/paths/~1seller~1bank-account/post/requestBody'
+      responses:
+        '200':
+          description: Datos bancarios actualizados exitosamente
+
+  /seller/commissions:
+    get:
+      summary: Consultar Historial de Comisiones y Resumen de Billetera (Seller)
+      description: |
+        Retorna el balance de la billetera de comisiones (`total_earned_usd`, `pending_balance_usd`, `withdrawal_requested_usd`, `paid_balance_usd`)
+        y el detalle de comisiones generadas por venta de contratos de servicio.
+      tags:
+        - Comisiones y Vendedoras
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [PENDING, WITHDRAWAL_REQUESTED, PAID, CANCELLED]
+      responses:
+        '200':
+          description: Historial de comisiones y billetera comercial consultado exitosamente
+
+  /seller/commissions/withdraw:
+    post:
+      summary: Solicitar Retiro de Comisiones Pendientes (Seller)
+      description: |
+        Solicita la liquidación de las comisiones en estado `PENDING`.
+        Exige obligatoriamente tener registrados los datos bancarios nacionales completos.
+        Transiciona las comisiones al estado `WITHDRAWAL_REQUESTED`.
+      tags:
+        - Comisiones y Vendedoras
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                commission_ids:
+                  type: array
+                  items:
+                    type: integer
+                  description: IDs opcionales de comisiones específicas a retirar. Si se omite, retira todas las pendientes.
+      responses:
+        '200':
+          description: Solicitud de retiro procesada exitosamente
+        '422':
+          description: Datos bancarios incompletos o saldo pendiente insuficiente
+
+  # ==========================================
+  # ADMINISTRACIÓN DE COMISIONES B2B
+  # ==========================================
+  /admin/commissions:
+    get:
+      summary: Listar Comisiones y Balances Consolidados (Admin)
+      description: Visor global para administradores con resumen financiero general y detalle de comisiones por vendedor.
+      tags:
+        - Comisiones y Vendedoras
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: seller_id
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: Listado de comisiones consultado exitosamente
+
+  /admin/commissions/{id}/pay:
+    post:
+      summary: Liquidar Comisión a Vendedora (Admin)
+      description: Marca una comisión como `PAID` registrando la referencia de pago bancaria transferida.
+      tags:
+        - Comisiones y Vendedoras
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - payment_reference
+              properties:
+                payment_reference:
+                  type: string
+                  example: "REF-BANCARIBE-998877"
+      responses:
+        '200':
+          description: Comisión liquidada y marcada como PAID exitosamente
+        '422':
+          description: Referencia requerida o comisión no liquidable
+
+  /admin/sellers/{id}/commission-rate:
+    put:
+      summary: Configurar Porcentaje de Comisión del Vendedor (Admin)
+      description: Actualiza el porcentaje de comisión pactado con un vendedor específico (ej. 15.00%).
+      tags:
+        - Comisiones y Vendedoras
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - commission_rate
+              properties:
+                commission_rate:
+                  type: number
+                  format: float
+                  example: 15.00
+      responses:
+        '200':
+          description: Porcentaje de comisión actualizado exitosamente
 
   # ==========================================
   # AUDITORÍA KYC ADMINISTRADOR

@@ -185,15 +185,22 @@ La documentación interactiva completa con Swagger UI está disponible directame
 | `GET`  | `/api/v1/admin/bank/balances` | Bearer (`admin`) | Consulta de saldos disponibles/bloqueados de las cuentas recaudadoras en Bancaribe |
 | `GET`  | `/api/v1/admin/integrations/logs` | Bearer (`role:admin`) | Visor de logs de integraciones de terceros (`bancaribe`, `ocr`, `mapbox`, `pusher`, `s3`) |
 
-### 9. Módulo Comercial de Vendedoras (`role:seller`)
+### 9. Módulo Comercial de Vendedoras y Comisiones B2B (`role:seller`, FR-14, FR-15, FR-34)
 | Método | Endpoint | Auth | Descripción |
 |---|---|---|---|
+| `GET`  | `/api/v1/seller/profile` | Bearer (`sell_service_contract`) | Perfil comercial, tasa de comisión asignada (`commission_rate`) y estado de datos bancarios |
+| `POST` / `PUT` | `/api/v1/seller/bank-account` | Bearer (`sell_service_contract`) | Registra o actualiza cuenta bancaria nacional (20 dígitos con validación de código Sudeban, tipo, titular, CI/RIF y Pago Móvil) |
+| `GET`  | `/api/v1/seller/commissions?status=...` | Bearer (`withdraw_commissions`) | Historial de comisiones generadas por venta de contratos y balance de billetera (`total_earned_usd`, `pending_balance_usd`, `withdrawal_requested_usd`, `paid_balance_usd`) |
+| `POST` | `/api/v1/seller/commissions/withdraw` | Bearer (`withdraw_commissions`) | Solicita liquidación de comisiones acumuladas (exige tener cuenta bancaria registrada) |
 | `GET`  | `/api/v1/seller/clients/search?identification_card=V-...` | Bearer (`sell_service_contract`) | Busca cliente por cédula (Redis + Índice Único MariaDB) y retorna sus vehículos y contratos |
 | `POST` | `/api/v1/seller/clients` | Bearer (`sell_service_contract`) | Registra cliente (OCR o manual), aprueba su cédula (`VERIFIED`) y envía correo con clave aleatoria |
 | `POST` | `/api/v1/seller/vehicles` | Bearer (`sell_service_contract`) | Registra vehículo para el cliente y lo aprueba automáticamente (`VERIFIED`) sin revisión de admin |
-| `POST` | `/api/v1/seller/contracts` | Bearer (`sell_service_contract`) | Genera contrato preliminar (`NO PAGADO`) y orden anual vinculada a la vendedora (`seller_id`) |
+| `POST` | `/api/v1/seller/contracts` | Bearer (`sell_service_contract`) | Genera contrato preliminar (`NO PAGADO`) y orden anual vinculada a la vendedora (`seller_id`) (exige datos bancarios previos) |
 | `GET`  | `/api/v1/seller/contracts?status=EXPIRED` | Bearer (`sell_service_contract`) | Lista contratos vendidos por la vendedora (y contratos vencidos para gestionar renovaciones) |
 | `POST` | `/api/v1/seller/contracts/{id}/renew` | Bearer (`sell_service_contract`) | Genera nueva orden anual de renovación para un contrato vencido |
+| `GET`  | `/api/v1/admin/commissions` | Bearer (`role:admin`) | Visor global de comisiones, resumen consolidado de billeteras y filtros por vendedor y estado |
+| `POST` | `/api/v1/admin/commissions/{id}/pay` | Bearer (`role:admin`) | Liquida comisión a la vendedora registrando la referencia de transferencia bancaria |
+| `PUT`  | `/api/v1/admin/sellers/{id}/commission-rate` | Bearer (`role:admin`) | Configura porcentaje de comisión personalizado acordado con la vendedora (ej: 15.00%) |
 
 ### 10. Operadores de Grúa y Validación de Flota (`role:driver`, FR-09, FR-10)
 | Método | Endpoint | Auth | Descripción |

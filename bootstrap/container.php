@@ -34,6 +34,7 @@ use App\Application\Landing\UseCases\ManageHomeGallery;
 use App\Application\Users\UseCases\ActivateUser;
 use App\Application\Users\UseCases\SuspendUser;
 use App\Application\Users\UseCases\UploadUserAvatar;
+use App\Controllers\AdminCommissionController;
 use App\Controllers\AuthController;
 use App\Controllers\DocumentController;
 use App\Controllers\DriverController;
@@ -53,6 +54,8 @@ use App\Infrastructure\Database\Redis;
 use App\Infrastructure\Logging\IntegrationLogger;
 use App\Infrastructure\Queue\RedisQueueService;
 use App\Infrastructure\Storage\AwsS3StorageService;
+use App\Infrastructure\Database\Repositories\Commissions\MariaDbCommissionRepository;
+use App\Infrastructure\Database\Repositories\Commissions\MariaDbSellerProfileRepository;
 use App\Infrastructure\Database\Repositories\Contracts\CachedPlanRepository;
 use App\Infrastructure\Database\Repositories\Vehicles\CachedVehicleCatalogRepository;
 use App\Infrastructure\Database\Repositories\Payments\MariaDbBankTokenRepository;
@@ -160,6 +163,14 @@ $getImageRepo = fn() => new CachedImageRepository(
     $getRedis()
 );
 $getHomeGalleryRepo = fn() => new MariaDbHomeGalleryRepository($getDb(), $getImageRepo());
+
+// Repositorios y Servicios de Comisiones y Billeteras B2B (FR-14, FR-15, FR-34)
+$getSellerProfileRepo = fn() => new MariaDbSellerProfileRepository($getDb());
+$getCommissionRepo = fn() => new MariaDbCommissionRepository($getDb());
+$getGenerateOrderCommission = fn() => new \App\Application\Commissions\UseCases\GenerateOrderCommission(
+    $getCommissionRepo(),
+    $getSellerProfileRepo()
+);
 
 $isSandbox = filter_var($_ENV['BANCARIBE_SANDBOX'] ?? false, FILTER_VALIDATE_BOOLEAN);
 $isLocalEnv = ($_ENV['APP_ENV'] ?? 'local') === 'local';
@@ -278,14 +289,16 @@ return [
                 $getContractRepo(),
                 $getPlanRepo(),
                 $getPaymentGateway(),
-                $getExchangeService()
+                $getExchangeService(),
+                $getGenerateOrderCommission()
             ),
             new HandleBancaribeWebhook(
                 $getOrderRepo(),
                 $getPaymentRepo(),
                 $getContractRepo(),
                 $getPlanRepo(),
-                !empty($_ENV['BANCARIBE_WEBHOOK_SECRET']) ? $_ENV['BANCARIBE_WEBHOOK_SECRET'] : null
+                !empty($_ENV['BANCARIBE_WEBHOOK_SECRET']) ? $_ENV['BANCARIBE_WEBHOOK_SECRET'] : null,
+                $getGenerateOrderCommission()
             ),
             new ListUserContractsAndOrders(
                 $getContractRepo(),
@@ -380,7 +393,28 @@ return [
                 $_ENV['APP_TELEFONO'] ?? '04267536320',
                 $_ENV['APP_NAME'] ?? 'UbikGo'
             ),
-            $getUserRepo()
+            $getUserRepo(),
+            new \App\Application\Commissions\UseCases\ManageSellerBankAccount($getSellerProfileRepo(), $getPlanRepo()),
+            new \App\Application\Commissions\UseCases\ListSellerCommissions($getCommissionRepo(), $getSellerProfileRepo(), $getOrderRepo(), $getPlanRepo()),
+            new \App\Application\Commissions\UseCases\RequestCommissionWithdrawal($getCommissionRepo(), $getSellerProfileRepo()),
+            $getSellerProfileRepo(),
+            $getPlanRepo()
+        ),
+        AdminCommissionController::class => fn() => new AdminCommissionController(
+            new \App\Application\Commissions\UseCases\ListAdminCommissions(
+                $getCommissionRepo(),
+                $getSellerProfileRepo(),
+                $getUserRepo(),
+                $getOrderRepo()
+            ),
+            new \App\Application\Commissions\UseCases\PayCommissionByAdmin(
+                $getCommissionRepo(),
+                $getSellerProfileRepo()
+            ),
+            new \App\Application\Commissions\UseCases\UpdateSellerCommissionRate(
+                $getSellerProfileRepo(),
+                $getUserRepo()
+            )
         ),
         DriverController::class => fn() => new DriverController(
             new RegisterDriverCrane(

@@ -72,7 +72,12 @@ $router->post(API_V1 . 'contracts/{id}/cancel', 'PaymentController@cancelContrac
 $router->get(API_V1 . 'orders', 'PaymentController@myOrders', ['auth']);
 $router->post(API_V1 . 'payments/process', 'PaymentController@process', ['auth']);
 
-// Módulo Comercial de Vendedoras (Búsqueda por Cédula en Redis, Registro Verificado, Contratos y Renovaciones)
+// Módulo Comercial de Vendedoras (Búsqueda por Cédula en Redis, Registro Verificado, Contratos, Renovaciones, Cuentas Bancarias y Comisiones FR-14, FR-15, FR-34)
+$router->get(API_V1 . 'seller/profile', 'SellerController@getProfile', ['auth', 'permission:sell_service_contract']);
+$router->post(API_V1 . 'seller/bank-account', 'SellerController@updateBankAccount', ['auth', 'permission:sell_service_contract']);
+$router->put(API_V1 . 'seller/bank-account', 'SellerController@updateBankAccount', ['auth', 'permission:sell_service_contract']);
+$router->get(API_V1 . 'seller/commissions', 'SellerController@myCommissions', ['auth', 'permission:withdraw_commissions']);
+$router->post(API_V1 . 'seller/commissions/withdraw', 'SellerController@withdrawCommissions', ['auth', 'permission:withdraw_commissions']);
 $router->get(API_V1 . 'seller/clients/search', 'SellerController@searchClient', ['auth', 'permission:sell_service_contract']);
 $router->post(API_V1 . 'seller/clients', 'SellerController@registerClient', ['auth', 'permission:sell_service_contract']);
 $router->post(API_V1 . 'seller/vehicles', 'SellerController@registerVehicle', ['auth', 'permission:sell_service_contract']);
@@ -102,5 +107,10 @@ $router->post(API_V1 . 'exchange-rates/sync', 'PaymentController@syncExchangeRat
 $router->get(API_V1 . 'admin/bank/balances', 'PaymentController@adminBankBalances', ['auth', 'role:admin']);
 $router->get(API_V1 . 'admin/integrations/logs', 'PaymentController@adminIntegrationLogs', ['auth', 'role:admin']);
 $router->post(API_V1 . 'admin/contracts/expire-overdue', 'PaymentController@expireOverdueContracts', ['auth', 'role:admin']);
+
+// Módulo Administrativo de Comisiones y Billeteras B2B (FR-14, FR-15, FR-34)
+$router->get(API_V1 . 'admin/commissions', 'AdminCommissionController@listCommissions', ['auth', 'role:admin']);
+$router->post(API_V1 . 'admin/commissions/{id}/pay', 'AdminCommissionController@payCommission', ['auth', 'role:admin']);
+$router->put(API_V1 . 'admin/sellers/{id}/commission-rate', 'AdminCommissionController@updateCommissionRate', ['auth', 'role:admin']);
 
 return $router;

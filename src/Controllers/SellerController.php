@@ -2,6 +2,9 @@
 
 namespace App\Controllers;
 
+use App\Application\Commissions\UseCases\ListSellerCommissions;
+use App\Application\Commissions\UseCases\ManageSellerBankAccount;
+use App\Application\Commissions\UseCases\RequestCommissionWithdrawal;
 use App\Application\Contracts\UseCases\CheckoutServiceContract;
 use App\Application\Contracts\UseCases\ListSellerContracts;
 use App\Application\Contracts\UseCases\RenewServiceContract;
@@ -10,6 +13,8 @@ use App\Application\Users\UseCases\SearchClientByNationalId;
 use App\Application\Vehicles\UseCases\RegisterVehicle;
 use App\Core\Request;
 use App\Core\Response;
+use App\Domain\Commissions\Repositories\SellerProfileRepositoryInterface;
+use App\Domain\Contracts\Repositories\PlanRepositoryInterface;
 use App\Domain\Shared\ValueObjects\Uuid;
 use App\Domain\Users\Entities\User;
 use App\Domain\Users\Repositories\UserRepositoryInterface;
@@ -25,7 +30,12 @@ class SellerController
         private CheckoutServiceContract $checkoutServiceContract,
         private ListSellerContracts $listSellerContracts,
         private RenewServiceContract $renewServiceContract,
-        private UserRepositoryInterface $userRepository
+        private UserRepositoryInterface $userRepository,
+        private ?ManageSellerBankAccount $manageSellerBankAccount = null,
+        private ?ListSellerCommissions $listSellerCommissions = null,
+        private ?RequestCommissionWithdrawal $requestCommissionWithdrawal = null,
+        private ?SellerProfileRepositoryInterface $sellerProfileRepository = null,
+        private ?PlanRepositoryInterface $planRepository = null
     ) {}
 
     /**
@@ -219,6 +229,20 @@ class SellerController
             return;
         }
 
+        // Exigir datos bancarios antes de vender (FR-14, FR-34)
+        if ($this->sellerProfileRepository !== null) {
+            $profile = $this->sellerProfileRepository->findByUserId($seller->getId());
+            if ($profile === null || !$profile->hasCompleteBankDetails()) {
+                Response::json(
+                    ['bank_details' => 'Antes de vender o emitir contratos, debe registrar sus datos bancarios propios para la liquidación de sus comisiones.'],
+                    422,
+                    'fail',
+                    'Datos bancarios requeridos antes de vender.'
+                );
+                return;
+            }
+        }
+
         try {
             $result = $this->checkoutServiceContract->execute(
                 userId: $clientId,
@@ -303,6 +327,159 @@ class SellerController
             return $user?->getId();
         } catch (InvalidArgumentException) {
             return null;
+        }
+    }
+
+    /**
+     * GET /api/v1/seller/profile
+     * Consulta el perfil de la vendedora, su tasa de comisión y sus datos bancarios registrados.
+     */
+    public function getProfile(Request $request): void
+    {
+        /** @var User|null $seller */
+        $seller = $request->user();
+        if ($seller === null || $seller->getId() === null) {
+            Response::json([], 401, 'fail', 'No autenticado.');
+            return;
+        }
+
+        $profile = $this->sellerProfileRepository?->findByUserId($seller->getId());
+        $bankInfo = null;
+
+        if ($profile !== null && $profile->getBankId() !== null && $this->planRepository !== null) {
+            $banks = $this->planRepository->getBanks(onlyActive: false);
+            foreach ($banks as $b) {
+                if ((int)$b['id'] === $profile->getBankId()) {
+                    $bankInfo = [
+                        'id'   => (int)$b['id'],
+                        'code' => (string)$b['code'],
+                        'name' => (string)$b['name'],
+                    ];
+                    break;
+                }
+            }
+        }
+
+        Response::json([
+            'seller' => [
+                'id'                  => $seller->getId(),
+                'uuid'                => $seller->getUuid()->getValue(),
+                'name'                => $seller->getFullName(),
+                'identification_card' => $seller->getIdentificationCard()->getValue(),
+                'email'               => $seller->getEmail()->getValue(),
+                'phone'               => $seller->getPhone(),
+            ],
+            'profile' => $profile?->toArray() ?? [
+                'user_id'          => $seller->getId(),
+                'commission_rate'  => 10.00,
+                'has_bank_details' => false,
+            ],
+            'bank' => $bankInfo,
+        ], 200, 'success', 'Perfil comercial de vendedora consultado exitosamente.');
+    }
+
+    /**
+     * POST /api/v1/seller/bank-account
+     * PUT /api/v1/seller/bank-account
+     * Registra o actualiza la cuenta bancaria nacional de la vendedora.
+     */
+    public function updateBankAccount(Request $request): void
+    {
+        /** @var User|null $seller */
+        $seller = $request->user();
+        if ($seller === null || $seller->getId() === null) {
+            Response::json([], 401, 'fail', 'No autenticado.');
+            return;
+        }
+
+        if ($this->manageSellerBankAccount === null) {
+            Response::json([], 500, 'error', 'Servicio de gestión bancaria no inicializado.');
+            return;
+        }
+
+        try {
+            $profile = $this->manageSellerBankAccount->execute($seller->getId(), $request->all());
+            Response::json(
+                $profile->toArray(),
+                200,
+                'success',
+                'Datos bancarios nacionales registrados exitosamente.'
+            );
+        } catch (InvalidArgumentException $e) {
+            Response::json(['bank_account' => $e->getMessage()], 422, 'fail', $e->getMessage());
+        } catch (Exception $e) {
+            $code = $e->getCode() >= 400 && $e->getCode() <= 499 ? $e->getCode() : 500;
+            Response::json(['error' => $e->getMessage()], $code, 'fail', $e->getMessage());
+        }
+    }
+
+    /**
+     * GET /api/v1/seller/commissions?status=PENDING|WITHDRAWAL_REQUESTED|PAID
+     * Consulta el resumen de billetera de comisiones y el historial de ventas comisionables.
+     */
+    public function myCommissions(Request $request): void
+    {
+        /** @var User|null $seller */
+        $seller = $request->user();
+        if ($seller === null || $seller->getId() === null) {
+            Response::json([], 401, 'fail', 'No autenticado.');
+            return;
+        }
+
+        if ($this->listSellerCommissions === null) {
+            Response::json([], 500, 'error', 'Servicio de listado de comisiones no disponible.');
+            return;
+        }
+
+        $statusFilter = $request->query('status');
+
+        try {
+            $result = $this->listSellerCommissions->execute($seller->getId(), $statusFilter);
+            Response::json(
+                $result,
+                200,
+                'success',
+                'Historial de comisiones y billetera comercial consultado exitosamente.'
+            );
+        } catch (InvalidArgumentException $e) {
+            Response::json(['status' => $e->getMessage()], 422, 'fail', $e->getMessage());
+        } catch (Exception $e) {
+            Response::json(['error' => $e->getMessage()], 500, 'error', 'Error al consultar comisiones.');
+        }
+    }
+
+    /**
+     * POST /api/v1/seller/commissions/withdraw
+     * Solicita la liquidación / retiro de las comisiones pendientes acumuladas.
+     */
+    public function withdrawCommissions(Request $request): void
+    {
+        /** @var User|null $seller */
+        $seller = $request->user();
+        if ($seller === null || $seller->getId() === null) {
+            Response::json([], 401, 'fail', 'No autenticado.');
+            return;
+        }
+
+        if ($this->requestCommissionWithdrawal === null) {
+            Response::json([], 500, 'error', 'Servicio de retiro de comisiones no disponible.');
+            return;
+        }
+
+        $rawIds = $request->input('commission_ids');
+        $commissionIds = is_array($rawIds) ? array_map('intval', $rawIds) : [];
+
+        try {
+            $result = $this->requestCommissionWithdrawal->execute($seller->getId(), $commissionIds);
+            Response::json(
+                $result,
+                200,
+                'success',
+                "Solicitud de retiro procesada exitosamente. Total solicitado: \${$result['requested_amount_usd']} USD."
+            );
+        } catch (Exception $e) {
+            $code = $e->getCode() >= 400 && $e->getCode() <= 499 ? $e->getCode() : 500;
+            Response::json(['error' => $e->getMessage()], $code, 'fail', $e->getMessage());
         }
     }
 }
