@@ -38,6 +38,10 @@ class GenerateServiceContractPdf
             : $this->contractRepository->findByUuid($identifier);
 
         if ($contract === null) {
+            $contract = $this->contractRepository->findByVerificationCode($identifier);
+        }
+
+        if ($contract === null) {
             throw new Exception('El contrato solicitado no existe.', 404);
         }
 
@@ -116,8 +120,10 @@ class GenerateServiceContractPdf
 
         $uuidStr = $contract->getUuid()->getValue();
         $code = $contract->getVerificationCode();
-        $plateParam = $plateNumber ? '&plate=' . urlencode($plateNumber) : '';
-        $officialVerificationUrl = "https://ubikgo.com/verificar?code={$code}{$plateParam}";
+        $appUrl = !empty($_ENV['APP_URL']) ? rtrim($_ENV['APP_URL'], '/') : rtrim($baseUrl, '/');
+        $officialVerificationUrl = $appUrl !== ''
+            ? "{$appUrl}/api/v1/contracts/{$code}/pdf"
+            : "/api/v1/contracts/{$code}/pdf";
 
         $sellerName = 'CANAL DIGITAL UBIKGO';
         if ($contract->getSellerId() !== null) {

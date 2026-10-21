@@ -287,6 +287,16 @@ class PaymentController
             return;
         }
 
+        // Si la petición proviene de un navegador web/móvil (cámara escaneando QR) o solicita PDF explícito (?pdf=1)
+        $accept = $_SERVER['HTTP_ACCEPT'] ?? '';
+        $wantsPdf = filter_var($request->query('pdf', false), FILTER_VALIDATE_BOOLEAN)
+            || (str_contains($accept, 'text/html') && !str_contains($accept, 'application/json'));
+
+        if ($wantsPdf && $this->generateContractPdf !== null) {
+            $this->downloadContractPdf($request, $code);
+            return;
+        }
+
         try {
             $plate = $request->query('plate') ?? $request->input('plate');
             $result = $this->verifyContractUseCase->execute($code, $plate ? (string)$plate : null);

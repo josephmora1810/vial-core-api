@@ -73,6 +73,7 @@ $vehicle = Vehicle::create(
 $fakeAddress = 'AV. FRANCISCO DE MIRANDA, RES. PARQUE CRISTAL, CHACAO, CARACAS';
 $fakeClassLabel = 'AUTOMÓVIL / SEDAN';
 $secretKey = $_ENV['APP_KEY'] ?? 'ubikgo-secret-contract-key';
+$appUrl = rtrim($_ENV['APP_URL'] ?? 'http://localhost:8088', '/');
 
 // =========================================================================
 // 1. CONTRATO PENDIENTE DE PAGO (Marca de agua diagonal "NO PAGADO")
@@ -89,7 +90,7 @@ $contractPending = new ServiceContract(
 );
 $codePending = $contractPending->generateVerificationCode();
 $contractPending->setIntegrityHash($contractPending->calculateIntegrityHash($secretKey, $vehicle->getPlateNumber()->getValue()));
-$urlPending = "https://ubikgo.com/verificar?code={$codePending}&plate=" . $vehicle->getPlateNumber()->getValue();
+$urlPending = "{$appUrl}/api/v1/contracts/{$codePending}/pdf";
 
 $filePending = $outputDir . '/contrato_1_pendiente_pago.pdf';
 file_put_contents(
@@ -124,7 +125,7 @@ $contractActive = new ServiceContract(
 $contractActive->activate(12);
 $codeActive = $contractActive->generateVerificationCode();
 $contractActive->setIntegrityHash($contractActive->calculateIntegrityHash($secretKey, $vehicle->getPlateNumber()->getValue()));
-$urlActive = "https://ubikgo.com/verificar?code={$codeActive}&plate=" . $vehicle->getPlateNumber()->getValue();
+$urlActive = "{$appUrl}/api/v1/contracts/{$codeActive}/pdf";
 
 $fileActive = $outputDir . '/contrato_2_activo_pagado.pdf';
 file_put_contents(
@@ -160,7 +161,7 @@ $contractCancelled->activate(12);
 $contractCancelled->cancel();
 $codeCancelled = $contractCancelled->generateVerificationCode();
 $contractCancelled->setIntegrityHash($contractCancelled->calculateIntegrityHash($secretKey, $vehicle->getPlateNumber()->getValue()));
-$urlCancelled = "https://ubikgo.com/verificar?code={$codeCancelled}&plate=" . $vehicle->getPlateNumber()->getValue();
+$urlCancelled = "{$appUrl}/api/v1/contracts/{$codeCancelled}/pdf";
 
 $fileCancelled = $outputDir . '/contrato_3_cancelado_vencido.pdf';
 file_put_contents(
