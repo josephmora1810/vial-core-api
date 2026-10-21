@@ -327,6 +327,13 @@ return [
                 $getContractRepo(),
                 $getPlanRepo(),
                 $getVehicleRepo()
+            ),
+            new \App\Application\Contracts\UseCases\VerifyServiceContract(
+                $getContractRepo(),
+                $getPlanRepo(),
+                $getUserRepo(),
+                $getVehicleRepo(),
+                $getRedis()
             )
         ),
         \App\Controllers\SellerController::class => fn() => new \App\Controllers\SellerController(

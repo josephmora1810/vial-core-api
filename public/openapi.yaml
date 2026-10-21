@@ -2206,6 +2206,140 @@ paths:
                     items:
                       $ref: '#/components/schemas/ServiceContractDto'
 
+  /contracts/verify/{code}:
+    get:
+      summary: Validación Pública Antifraude de Contratos de Grúa (Anti-IA y Anti-Clonación)
+      description: |
+        Endpoint público y autoritativo para que clientes, agentes de tránsito o grúistas verifiquen la autenticidad e inmutabilidad de un Contrato de Servicio UbikGo mediante el escaneo del Código QR oficial o ingreso del código alfanumérico.
+        - **Anti-Tampering:** Compara la firma criptográfica HMAC-SHA256 y firma digital X.509 RSA-2048.
+        - **Cotejo de Placa:** Si se envía el parámetro `plate`, valida que corresponda al vehículo del contrato. En caso de inconsistencia, retorna una alerta de fraude (`fraud_alert: true`, HTTP 409).
+        - **Privacidad:** Los datos sensibles del titular (nombre, cédula) se muestran enmascarados (ej: `J*** P***`).
+      tags:
+        - Contratos y Checkout
+      parameters:
+        - name: code
+          in: path
+          required: true
+          description: Código único de verificación (formato `UBKMMYY-XXXX-XXXX`, ej. `UBK1026-8F2A-99C1`) o UUID v7 del contrato.
+          schema:
+            type: string
+            example: UBK1026-8F2A-99C1
+        - name: plate
+          in: query
+          required: false
+          description: Placa del vehículo para cotejo antifraude (ej. `AB123CD`).
+          schema:
+            type: string
+            example: AB123CD
+      responses:
+        '200':
+          description: Contrato verificado exitosamente y vigente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  is_valid:
+                    type: boolean
+                    example: true
+                  fraud_alert:
+                    type: boolean
+                    example: false
+                  contract:
+                    type: object
+                    properties:
+                      contract_number:
+                        type: string
+                        example: "000042"
+                      verification_code:
+                        type: string
+                        example: "UBK1026-8F2A-99C1"
+                      status:
+                        type: string
+                        example: ACTIVE
+                      status_label:
+                        type: string
+                        example: "ACTIVO / VIGENTE"
+                      plan_name:
+                        type: string
+                        example: "Plan Básico Vial"
+                      starts_at:
+                        type: string
+                        example: "2026-10-21 14:00:00"
+                      expires_at:
+                        type: string
+                        example: "2027-10-21 14:00:00"
+                      remaining_services:
+                        type: integer
+                        example: 3
+                      remaining_km:
+                        type: number
+                        example: 60.0
+                      vehicle:
+                        type: object
+                        properties:
+                          plate:
+                            type: string
+                            example: "AB123CD"
+                          brand:
+                            type: string
+                            example: "TOYOTA"
+                          model:
+                            type: string
+                            example: "COROLLA"
+                          year:
+                            type: integer
+                            example: 2022
+                          color:
+                            type: string
+                            example: "PLATA"
+                      client_masked:
+                        type: object
+                        properties:
+                          name:
+                            type: string
+                            example: "M**** G*******"
+                          identification:
+                            type: string
+                            example: "V-***3456"
+                      integrity_verified:
+                        type: boolean
+                        example: true
+                      digital_signature:
+                        type: string
+                        example: "X.509 RSA-2048 UBIK SERVICE C.A."
+                  verified_at:
+                    type: string
+                    example: "2026-10-21T15:00:00+00:00"
+        '404':
+          description: Código de verificación no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Alerta de inconsistencia o presunto fraude (placa no coincide o firma adulterada)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: alert
+                  is_valid:
+                    type: boolean
+                    example: false
+                  fraud_alert:
+                    type: boolean
+                    example: true
+                  alert_message:
+                    type: string
+                    example: "ALERTA DE SEGURIDAD: La placa consultada no coincide con el registro oficial del contrato."
+
   /contracts/{id}/pdf:
     get:
       summary: Descargar o Visualizar Contrato de Servicio en PDF (2 páginas con QR y Marca de Agua dinámica)

@@ -31,6 +31,15 @@ class MariaDbServiceContractRepository implements ServiceContractRepositoryInter
         return $row ? $this->mapRow($row) : null;
     }
 
+    public function findByVerificationCode(string $code): ?ServiceContract
+    {
+        $stmt = $this->db->prepare("SELECT * FROM service_contracts WHERE verification_code = :code LIMIT 1");
+        $stmt->execute(['code' => strtoupper(trim($code))]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        return $row ? $this->mapRow($row) : null;
+    }
+
     public function findByClientId(int $clientId): array
     {
         $stmt = $this->db->prepare("
@@ -122,10 +131,12 @@ class MariaDbServiceContractRepository implements ServiceContractRepositoryInter
             $stmt = $this->db->prepare("
                 INSERT INTO service_contracts (
                     uuid, client_id, seller_id, plan_id, vehicle_id,
-                    remaining_services, remaining_km, starts_at, expires_at, status
+                    remaining_services, remaining_km, starts_at, expires_at, status,
+                    verification_code, integrity_hash
                 ) VALUES (
                     :uuid, :client_id, :seller_id, :plan_id, :vehicle_id,
-                    :remaining_services, :remaining_km, :starts_at, :expires_at, :status
+                    :remaining_services, :remaining_km, :starts_at, :expires_at, :status,
+                    :verification_code, :integrity_hash
                 )
             ");
             $stmt->execute([
@@ -139,6 +150,8 @@ class MariaDbServiceContractRepository implements ServiceContractRepositoryInter
                 'starts_at'          => $contract->getStartsAt()?->format('Y-m-d H:i:s'),
                 'expires_at'         => $contract->getExpiresAt()?->format('Y-m-d H:i:s'),
                 'status'             => $contract->getStatus()->getValue(),
+                'verification_code'  => $contract->getVerificationCode(),
+                'integrity_hash'     => $contract->getIntegrityHash(),
             ]);
             $contract->setId((int)$this->db->lastInsertId());
             return $contract;
@@ -152,7 +165,9 @@ class MariaDbServiceContractRepository implements ServiceContractRepositoryInter
                 starts_at = :starts_at,
                 expires_at = :expires_at,
                 status = :status,
-                vehicle_id = :vehicle_id
+                vehicle_id = :vehicle_id,
+                verification_code = :verification_code,
+                integrity_hash = :integrity_hash
             WHERE id = :id
         ");
         $stmt->execute([
@@ -164,6 +179,8 @@ class MariaDbServiceContractRepository implements ServiceContractRepositoryInter
             'expires_at'         => $contract->getExpiresAt()?->format('Y-m-d H:i:s'),
             'status'             => $contract->getStatus()->getValue(),
             'vehicle_id'         => $contract->getVehicleId(),
+            'verification_code'  => $contract->getVerificationCode(),
+            'integrity_hash'     => $contract->getIntegrityHash(),
         ]);
 
         return $contract;
@@ -183,7 +200,9 @@ class MariaDbServiceContractRepository implements ServiceContractRepositoryInter
             id: (int)$row['id'],
             createdAt: !empty($row['created_at']) ? new DateTimeImmutable((string)$row['created_at']) : null,
             startsAt: !empty($row['starts_at']) ? new DateTimeImmutable((string)$row['starts_at']) : null,
-            sellerId: isset($row['seller_id']) && $row['seller_id'] !== null ? (int)$row['seller_id'] : null
+            sellerId: isset($row['seller_id']) && $row['seller_id'] !== null ? (int)$row['seller_id'] : null,
+            verificationCode: isset($row['verification_code']) && $row['verification_code'] !== null ? (string)$row['verification_code'] : null,
+            integrityHash: isset($row['integrity_hash']) && $row['integrity_hash'] !== null ? (string)$row['integrity_hash'] : null
         );
     }
 }

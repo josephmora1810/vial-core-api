@@ -93,11 +93,31 @@ class GenerateServiceContractPdf
                 : $firstAddr->getAlias();
         }
 
+        // Asegurar que el contrato tenga verification_code e integrity_hash calculados y persistidos
+        $contractUpdated = false;
+        if ($contract->getVerificationCode() === null) {
+            $contract->generateVerificationCode(
+                $contract->getStartsAt() ?? $contract->getCreatedAt()
+            );
+            $contractUpdated = true;
+        }
+
+        $secretKey = $_ENV['APP_KEY'] ?? 'ubikgo-secret-contract-key';
+        $plateNumber = $vehicle?->getPlateNumber()?->getValue();
+        $expectedHash = $contract->calculateIntegrityHash($secretKey, $plateNumber);
+        if ($contract->getIntegrityHash() !== $expectedHash) {
+            $contract->setIntegrityHash($expectedHash);
+            $contractUpdated = true;
+        }
+
+        if ($contractUpdated) {
+            $this->contractRepository->save($contract);
+        }
+
         $uuidStr = $contract->getUuid()->getValue();
-        $cleanBaseUrl = rtrim($baseUrl, '/');
-        $downloadUrl = $cleanBaseUrl !== ''
-            ? "{$cleanBaseUrl}/api/v1/contracts/{$uuidStr}/pdf"
-            : "/api/v1/contracts/{$uuidStr}/pdf";
+        $code = $contract->getVerificationCode();
+        $plateParam = $plateNumber ? '&plate=' . urlencode($plateNumber) : '';
+        $officialVerificationUrl = "https://ubikgo.com/verificar?code={$code}{$plateParam}";
 
         $sellerName = 'CANAL DIGITAL UBIKGO';
         if ($contract->getSellerId() !== null) {
@@ -112,7 +132,7 @@ class GenerateServiceContractPdf
             plan: $plan,
             client: $client,
             vehicle: $vehicle,
-            downloadUrl: $downloadUrl,
+            downloadUrl: $officialVerificationUrl,
             clientAddress: $clientAddress,
             vehicleClassLabel: $vehicleClassLabel,
             sellerName: $sellerName

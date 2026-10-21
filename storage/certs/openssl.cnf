@@ -1,0 +1,14 @@
+[ req ]
+default_bits        = 2048
+default_keyfile     = privkey.pem
+distinguished_name  = req_distinguished_name
+prompt              = no
+
+[ req_distinguished_name ]
+C   = VE
+ST  = Distrito Capital
+L   = Caracas
+O   = UBIK SERVICE C.A.
+OU  = Departamento de Seguridad Digital y Emision de Contratos
+CN  = UBIK SERVICE C.A. - Certificado Digital de Contratos UbikGo
+emailAddress = legal@ubikgo.com

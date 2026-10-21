@@ -25,7 +25,9 @@ class ServiceContract
         private ?int $id = null,
         ?DateTimeImmutable $createdAt = null,
         private ?DateTimeImmutable $startsAt = null,
-        private ?int $sellerId = null
+        private ?int $sellerId = null,
+        private ?string $verificationCode = null,
+        private ?string $integrityHash = null
     ) {
         if ($this->remainingServices < 0) {
             throw new InvalidArgumentException('Los servicios restantes no pueden ser negativos.');
@@ -190,5 +192,66 @@ class ServiceContract
     {
         $this->remainingServices++;
         $this->remainingKm = round($this->remainingKm + max(0.0, $distanceKm), 2);
+    }
+
+    public function getVerificationCode(): ?string
+    {
+        return $this->verificationCode;
+    }
+
+    public function setVerificationCode(string $verificationCode): void
+    {
+        $this->verificationCode = strtoupper(trim($verificationCode));
+    }
+
+    public function getIntegrityHash(): ?string
+    {
+        return $this->integrityHash;
+    }
+
+    public function setIntegrityHash(string $integrityHash): void
+    {
+        $this->integrityHash = strtolower(trim($integrityHash));
+    }
+
+    /**
+     * Genera un código de verificación alfanumérico público único para el contrato.
+     * Formato: UBKXXXX-YYYY-ZZZZ (donde XXXX es MMYY, ej: UBK1026-8F2A-99C1)
+     */
+    public function generateVerificationCode(?DateTimeImmutable $date = null): string
+    {
+        if ($this->verificationCode !== null && $this->verificationCode !== '') {
+            return $this->verificationCode;
+        }
+
+        $refDate = $date ?? $this->startsAt ?? $this->createdAt ?? new DateTimeImmutable();
+        $mmyy = $refDate->format('my'); // mes y año en 2 dígitos cada uno (ej: 1026)
+
+        $part1 = strtoupper(substr(hash('crc32b', $this->uuid->getValue() . ($this->id ?? 0)), 0, 4));
+        $part2 = strtoupper(substr(bin2hex(random_bytes(2)), 0, 4));
+        $this->verificationCode = "UBK{$mmyy}-{$part1}-{$part2}";
+        return $this->verificationCode;
+    }
+
+    /**
+     * Calcula la firma HMAC SHA-256 de integridad interna del contrato.
+     */
+    public function calculateIntegrityHash(string $secretKey, ?string $plateNumber = null): string
+    {
+        $payload = implode('|', [
+            (string)($this->id ?? 0),
+            $this->uuid->getValue(),
+            (string)$this->clientId,
+            (string)$this->planId,
+            (string)($this->vehicleId ?? 0),
+            strtoupper(trim((string)$plateNumber)),
+            $this->startsAt?->format('Y-m-d') ?? '',
+            $this->expiresAt?->format('Y-m-d') ?? '',
+            $this->status->getValue(),
+            $this->verificationCode ?? '',
+        ]);
+
+        $this->integrityHash = hash_hmac('sha256', $payload, $secretKey);
+        return $this->integrityHash;
     }
 }

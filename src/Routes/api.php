@@ -61,6 +61,7 @@ $router->post(API_V1 . 'vehicles', 'VehicleController@store', ['auth', 'permissi
 $router->delete(API_V1 . 'vehicles/{id}', 'VehicleController@destroy', ['auth']);
 
 // Suscripción de Contratos, Renovación, Canje, Órdenes, Descarga PDF QR y Pagos Bancaribe (FR-12, FR-14, FR-28, FR-30)
+$router->get(API_V1 . 'contracts/verify/{code}', 'PaymentController@verifyContract');
 $router->get(API_V1 . 'contracts/{id}/pdf', 'PaymentController@downloadContractPdf');
 $router->post(API_V1 . 'checkout', 'PaymentController@checkout', ['auth', 'permission:buy_service_contract']);
 $router->post(API_V1 . 'contracts/checkout', 'PaymentController@checkout', ['auth', 'permission:buy_service_contract']);

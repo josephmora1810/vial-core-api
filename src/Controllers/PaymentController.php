@@ -11,6 +11,7 @@ use App\Application\Contracts\UseCases\ListUserContractsAndOrders;
 use App\Application\Payments\UseCases\ProcessPayment;
 use App\Application\Contracts\UseCases\RedeemServiceContract;
 use App\Application\Contracts\UseCases\RenewServiceContract;
+use App\Application\Contracts\UseCases\VerifyServiceContract;
 use App\Core\Request;
 use App\Core\Response;
 use App\Domain\Users\Entities\User;
@@ -31,7 +32,8 @@ class PaymentController
         private ?CancelServiceContract $cancelContractUseCase = null,
         private ?ExpireOverdueContracts $expireOverdueContractsUseCase = null,
         private ?RenewServiceContract $renewContractUseCase = null,
-        private ?RedeemServiceContract $redeemContractUseCase = null
+        private ?RedeemServiceContract $redeemContractUseCase = null,
+        private ?VerifyServiceContract $verifyContractUseCase = null
     ) {}
 
     /**
@@ -270,6 +272,29 @@ class PaymentController
         } catch (Exception $e) {
             $code = (is_int($e->getCode()) && $e->getCode() >= 400 && $e->getCode() < 600) ? $e->getCode() : 404;
             Response::json([], $code, 'fail', $e->getMessage());
+        }
+    }
+
+    /**
+     * GET /api/v1/contracts/verify/{code}
+     * Validación pública y autoritativa de contratos de grúa contra clonación y fraude por IA.
+     * Permite validar la autenticidad del documento escaneando el código QR oficial.
+     */
+    public function verifyContract(Request $request, string $code): void
+    {
+        if ($this->verifyContractUseCase === null) {
+            Response::json([], 500, 'error', 'El servicio de verificación de contratos no está configurado.');
+            return;
+        }
+
+        try {
+            $plate = $request->query('plate') ?? $request->input('plate');
+            $result = $this->verifyContractUseCase->execute($code, $plate ? (string)$plate : null);
+            $statusCode = $result['fraud_alert'] ? 409 : 200;
+            Response::json($result, $statusCode, $result['status'], $result['fraud_alert'] ? 'Alerta de inconsistencia en verificación.' : 'Contrato verificado exitosamente.');
+        } catch (Exception $e) {
+            $codeHttp = (is_int($e->getCode()) && $e->getCode() >= 400 && $e->getCode() < 600) ? $e->getCode() : 404;
+            Response::json([], $codeHttp, 'fail', $e->getMessage());
         }
     }
 

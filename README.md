@@ -173,6 +173,7 @@ La documentación interactiva completa con Swagger UI está disponible directame
 |---|---|---|---|
 | `POST` | `/api/v1/checkout` | Bearer | Genera contrato en `PENDING_PAYMENT` y orden polimórfica con tasa BCV |
 | `GET`  | `/api/v1/contracts` | Bearer | Listado de contratos del usuario con timestamps exactos (`starts_at`, `expires_at`) y cupos disponibles |
+| `GET`  | `/api/v1/contracts/verify/{code}` | Público | Validación autoritativa antifraude y cotejo de placa (`?plate=AB123CD`) con soporte Redis |
 | `GET`  | `/api/v1/contracts/{id}/pdf` | Público (UUID) / Bearer | Descarga o visualiza el Contrato en PDF (2 páginas con QR y marca de agua dinámica según estado) |
 | `POST` | `/api/v1/contracts/{id}/renew` | Bearer | Genera una nueva Orden de Pago anual para renovar un contrato (extiende 1 año y restaura km/viajes) |
 | `POST` | `/api/v1/contracts/{id}/redeem` | Bearer | Canjea 1 servicio de grúa y descuenta los kilómetros recorridos sobre un contrato activo |
@@ -274,6 +275,34 @@ flowchart TD
 
 ---
 
+## 🛡️ Arquitectura de Seguridad Antifraude, Anti-IA y Firma Digital de Contratos
+
+Para evitar que los contratos de adhesión de UbikGo en PDF sean alterados, adulterados mediante herramientas de edición/IA (inpainting, clone stamp) o clonados para reclamar servicios ilícitos de grúa con vehículos no asegurados, la plataforma implementa una estrategia de **seguridad en profundidad de 4 capas**:
+
+```
++---------------------------------------------------------------------------------------------------+
+| 1. CRIPTOGRAFÍA X.509 RSA-2048 & FIRMA BINARIA                                                     |
+|    - Firma digital PKCS#7 estampada en el trailer del PDF con la clave privada de UBIK SERVICE C.A.|
+|    - Modificar 1 solo byte o metadato corrompe la firma y hace fallar la verificación criptográfica|
++---------------------------------------------------------------------------------------------------+
+| 2. SELLO DE INTEGRIDAD HMAC SHA-256 EN MARIADB                                                     |
+|    - Hash criptográfico almacenado en columna `integrity_hash` (m000028)                          |
+|    - Sella id, uuid, titular, plan, vigencia, cupos y placa del vehículo usando APP_KEY           |
++---------------------------------------------------------------------------------------------------+
+| 3. CÓDIGO ÚNICO `UBKMMYY-XXXX-ZZZZ` & VALIDACIÓN PÚBLICA OFICIAL                                  |
+|    - Código estructurado con mes/año (ej: UBK1026-8F2A-99C1) y columna única `verification_code`   |
+|    - QR vectorial con aviso anti-phishing enlazando estrictamente a `ubikgo.com/verificar`         |
+|    - Endpoint autoritativo GET /api/v1/contracts/verify/{code}?plate=... con caché en Redis       |
+|    - Detección inmediata de fraude (409 Conflict) si la placa física no coincide con el contrato  |
++---------------------------------------------------------------------------------------------------+
+| 4. TRAMA DE MICRO-SEGURIDAD ANTI-IA & PRIVACIDAD (GDPR/LPDP)                                      |
+|    - Patrón microscópico repetitivo de fondo con datos del contrato (evita borrado y edición IA)  |
+|    - Enmascaramiento de identidad en la validación pública (ej: "J*** P***", "V-***5678")         |
++---------------------------------------------------------------------------------------------------+
+```
+
+---
+
 ## ⏰ Cronjobs Obligatorios del Servidor
 
 > [!IMPORTANT]
@@ -315,7 +344,7 @@ El proyecto cuenta con una cobertura exhaustiva de pruebas unitarias y de arquit
 
 **Resultado actual:**
 ```
-OK (173 tests, 552 assertions) - 100% Passing
+OK (193 tests, 658 assertions) - 100% Passing
 ```
 
 

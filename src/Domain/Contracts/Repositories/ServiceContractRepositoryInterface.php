@@ -10,6 +10,8 @@ interface ServiceContractRepositoryInterface
 
     public function findByUuid(string $uuid): ?ServiceContract;
 
+    public function findByVerificationCode(string $code): ?ServiceContract;
+
     /** @return list<ServiceContract> */
     public function findByClientId(int $clientId): array;
 

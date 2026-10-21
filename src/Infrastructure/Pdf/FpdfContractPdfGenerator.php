@@ -8,6 +8,7 @@ use App\Domain\Contracts\Enums\ContractStatus;
 use App\Domain\Contracts\Services\ContractPdfGeneratorInterface;
 use App\Domain\Users\Entities\User;
 use App\Domain\Vehicles\Entities\Vehicle;
+use App\Infrastructure\Security\PdfDigitalSignatureService;
 
 /**
  * Extensión interna de FPDF 1.9 con soporte para rectángulos redondeados,
@@ -112,6 +113,22 @@ class UbikContractFpdf extends \FPDF
             ($h - $y3) * $this->k
         ));
     }
+
+    /**
+     * Dibuja una trama sutil de micro-seguridad repetitiva en el fondo (anti-IA, anti-clonación y anti-recorte).
+     * Si un estafador intenta borrar texto con IA o recortar campos, la trama de fondo se rompe visiblemente.
+     */
+    public function renderMicroSecurityPattern(string $patternText, float $yStart = 55.0, float $yEnd = 245.0): void
+    {
+        $this->SetFont('Helvetica', 'B', 4.5);
+        $this->SetTextColor(238, 236, 246); // Tono lavanda extremadamente tenue
+
+        $fullLine = str_repeat($patternText . '   •   ', 3);
+        for ($y = $yStart; $y <= $yEnd; $y += 6.0) {
+            $this->SetXY(10.0, $y);
+            $this->Cell(195.9, 2.5, $this->encodeText($fullLine), 0, 0, 'C');
+        }
+    }
 }
 
 /**
@@ -133,10 +150,12 @@ class FpdfContractPdfGenerator implements ContractPdfGeneratorInterface
     private const DARK_B = 38;
 
     private string $assetsDir;
+    private PdfDigitalSignatureService $signatureService;
 
-    public function __construct(?string $assetsDir = null)
+    public function __construct(?string $assetsDir = null, ?PdfDigitalSignatureService $signatureService = null)
     {
         $this->assetsDir = $assetsDir ?? (__DIR__ . '/../../../public/assets/contracts');
+        $this->signatureService = $signatureService ?? new PdfDigitalSignatureService();
     }
 
     public function generate(
@@ -157,17 +176,30 @@ class FpdfContractPdfGenerator implements ContractPdfGeneratorInterface
         $pdf->SetAuthor('UBIK SERVICE C.A. - UbikGo');
         $pdf->SetCreator('UbikGo Core API');
 
+        $contractNumber = str_pad((string)($contract->getId() ?? 1), 6, '0', STR_PAD_LEFT);
+        $plate = $vehicle ? $vehicle->getPlateNumber()->getValue() : 'SIN ASIGNAR';
+        $verificationCode = $contract->getVerificationCode()
+            ?? $contract->generateVerificationCode($contract->getStartsAt() ?? $contract->getCreatedAt());
+        $officialUrl = $downloadUrl !== ''
+            ? $downloadUrl
+            : "https://ubikgo.com/verificar?code={$verificationCode}&plate={$plate}";
+
         // =========================================================================
         // PÁGINA 1: CARÁTULA DEL CONTRATO (ENCABEZADO, 3 RECUADROS Y FIRMAS/SELLO)
         // =========================================================================
         $pdf->AddPage();
 
-        $this->renderHeader($pdf, $downloadUrl);
+        // Trama de micro-seguridad repetitiva de fondo en página 1 (anti-IA, anti-tampering)
+        $cedula = $client->getIdentificationCard()->getValue();
+        $patternText = "UBIK SERVICE C.A. • CONTRATO #{$contractNumber} • C.I. {$cedula} • PLACA: {$plate} • {$verificationCode}";
+        $pdf->renderMicroSecurityPattern($patternText, 52.0, 255.0);
+
+        $this->renderHeader($pdf, $officialUrl, $verificationCode);
         $this->renderTitleAndMetadata($pdf, $contract, $plan, $branchName, $sellerName);
         $this->renderClientBox($pdf, $contract, $client, $clientAddress);
         $this->renderVehicleBox($pdf, $vehicle, $vehicleClassLabel);
         $this->renderSummaryBox($pdf, $contract, $plan);
-        $this->renderFooterAndSignatures($pdf, $contract, $client);
+        $this->renderFooterAndSignatures($pdf, $contract, $client, $verificationCode);
 
         // Superponer marca de agua en diagonal de extremo a extremo según estado
         $this->renderStatusWatermark($pdf, $contract->getStatus());
@@ -179,16 +211,17 @@ class FpdfContractPdfGenerator implements ContractPdfGeneratorInterface
         $this->renderClausesPage($pdf, $plan);
         $this->renderStatusWatermark($pdf, $contract->getStatus());
 
-        return $pdf->Output('S');
+        $rawPdf = $pdf->Output('S');
+        return $this->signatureService->sign($rawPdf);
     }
 
     /**
      * Renderiza el encabezado superior:
      * - Izquierda/Centro-Izq: Nuevo logo UbikGo (ubikgo-logo.png)
      * - Centro-Der: "SÍGUENOS" + íconos circulares Instagram/Facebook/X + insignia redondeada "@UBIKGO / #SomosUBIK"
-     * - Derecha: Recuadro con código QR que apunta a la descarga del PDF
+     * - Derecha: Recuadro con código QR que apunta a la verificación oficial del PDF
      */
-    private function renderHeader(UbikContractFpdf $pdf, string $downloadUrl): void
+    private function renderHeader(UbikContractFpdf $pdf, string $downloadUrl, string $verificationCode = ''): void
     {
         // 1. Logo nuevo UbikGo (centrado-izquierda como en el diseño de referencia)
         $logoPath = $this->assetsDir . '/ubikgo-logo.png';
@@ -241,14 +274,32 @@ class FpdfContractPdfGenerator implements ContractPdfGeneratorInterface
         // 3. Recuadro QR a la derecha
         $qrBoxX = 152.0;
         $qrBoxY = 6.5;
-        $qrBoxSize = 26.0;
+        $qrBoxSize = 25.5;
 
         $pdf->SetDrawColor(self::PURPLE_R, self::PURPLE_G, self::PURPLE_B);
         $pdf->SetLineWidth(0.9);
         $pdf->Rect($qrBoxX, $qrBoxY, $qrBoxSize, $qrBoxSize, 'D');
 
-        $qrTarget = $downloadUrl !== '' ? $downloadUrl : 'https://ubikgo.com';
-        $this->renderQrVector($pdf, $qrTarget, $qrBoxX + 1.6, $qrBoxY + 1.6, $qrBoxSize - 3.2);
+        $qrTarget = $downloadUrl !== '' ? $downloadUrl : 'https://ubikgo.com/verificar';
+        $this->renderQrVector($pdf, $qrTarget, $qrBoxX + 1.5, $qrBoxY + 1.5, $qrBoxSize - 3.0);
+
+        // Leyenda anti-phishing oficial debajo del QR
+        $pdf->SetFont('Helvetica', 'B', 4.8);
+        $pdf->SetTextColor(self::PURPLE_R, self::PURPLE_G, self::PURPLE_B);
+        $pdf->SetXY($qrBoxX - 2.0, $qrBoxY + $qrBoxSize + 0.5);
+        $pdf->Cell($qrBoxSize + 4.0, 2.2, $pdf->encodeText('VERIFICACIÓN OFICIAL'), 0, 1, 'C');
+
+        $pdf->SetFont('Helvetica', 'B', 5.2);
+        $pdf->SetTextColor(self::ORANGE_R, self::ORANGE_G, self::ORANGE_B);
+        $pdf->SetXY($qrBoxX - 2.0, $qrBoxY + $qrBoxSize + 2.7);
+        $pdf->Cell($qrBoxSize + 4.0, 2.2, $pdf->encodeText('ubikgo.com/verificar'), 0, 1, 'C');
+
+        if ($verificationCode !== '') {
+            $pdf->SetFont('Helvetica', '', 4.6);
+            $pdf->SetTextColor(self::DARK_R, self::DARK_G, self::DARK_B);
+            $pdf->SetXY($qrBoxX - 2.0, $qrBoxY + $qrBoxSize + 4.9);
+            $pdf->Cell($qrBoxSize + 4.0, 2.2, $pdf->encodeText('CÓD: ' . $verificationCode), 0, 1, 'C');
+        }
     }
 
     /**
@@ -619,7 +670,8 @@ class FpdfContractPdfGenerator implements ContractPdfGeneratorInterface
     private function renderFooterAndSignatures(
         UbikContractFpdf $pdf,
         ServiceContract $contract,
-        User $client
+        User $client,
+        string $verificationCode = ''
     ): void {
         // Aviso legal en púrpura negrita debajo del 3er recuadro
         $legalY = 226.5;
@@ -670,6 +722,53 @@ class FpdfContractPdfGenerator implements ContractPdfGeneratorInterface
         $pdf->SetFont('Helvetica', '', 6.5);
         $pdf->SetXY(140.0, $sigLineY + 5.0);
         $pdf->Cell(48.0, 3.5, $pdf->encodeText('C.I./RIF: ' . $client->getIdentificationCard()->getValue()), 0, 0, 'C');
+
+        // Recuadro de Autenticidad Digital Criptográfica X.509 PKCS#7 y Hash SHA-256
+        $boxX = 10.0;
+        $boxY = 261.2;
+        $boxW = 195.9;
+        $boxH = 9.8;
+
+        $pdf->SetFillColor(248, 248, 252);
+        $pdf->SetDrawColor(180, 175, 215);
+        $pdf->SetLineWidth(0.25);
+        $pdf->RoundedRect($boxX, $boxY, $boxW, $boxH, 1.8, 'DF');
+
+        // Línea 1: Aviso de inmutabilidad criptográfica
+        $pdf->SetFont('Helvetica', 'B', 5.0);
+        $pdf->SetTextColor(self::PURPLE_R, self::PURPLE_G, self::PURPLE_B);
+        $pdf->SetXY($boxX + 2.0, $boxY + 1.2);
+        $pdf->Write(3.0, $pdf->encodeText('[SEGURIDAD CRIPTOGRÁFICA X.509 PKCS#7 / SHA-256] '));
+
+        $pdf->SetFont('Helvetica', '', 4.7);
+        $pdf->SetTextColor(self::DARK_R, self::DARK_G, self::DARK_B);
+        $pdf->Write(3.0, $pdf->encodeText('Documento digital inmutable firmado electrónicamente por UBIK SERVICE C.A. (RIF J-50450532-6).'));
+
+        // Línea 2: Código de verificación + Hash + URL de validación
+        $pdf->SetXY($boxX + 2.0, $boxY + 4.8);
+        $pdf->SetFont('Helvetica', 'B', 4.8);
+        $pdf->SetTextColor(self::DARK_R, self::DARK_G, self::DARK_B);
+        $pdf->Write(3.0, $pdf->encodeText('CÓDIGO DE VERIFICACIÓN: '));
+
+        $codeText = $verificationCode !== '' ? $verificationCode : ($contract->getVerificationCode() ?? 'UBK-PENDING');
+        $pdf->SetTextColor(self::PURPLE_R, self::PURPLE_G, self::PURPLE_B);
+        $pdf->Write(3.0, $pdf->encodeText($codeText . '  |  '));
+
+        $pdf->SetTextColor(self::DARK_R, self::DARK_G, self::DARK_B);
+        $pdf->Write(3.0, $pdf->encodeText('HASH INTEGRIDAD: '));
+
+        $hashSnippet = $contract->getIntegrityHash()
+            ? (substr($contract->getIntegrityHash(), 0, 20) . '...')
+            : 'FIRMADO_DIGITALMENTE';
+        $pdf->SetFont('Helvetica', '', 4.6);
+        $pdf->Write(3.0, $pdf->encodeText($hashSnippet . '  |  '));
+
+        $pdf->SetFont('Helvetica', 'B', 4.8);
+        $pdf->SetTextColor(self::DARK_R, self::DARK_G, self::DARK_B);
+        $pdf->Write(3.0, $pdf->encodeText('VERIFICACIÓN PÚBLICA: '));
+
+        $pdf->SetTextColor(self::ORANGE_R, self::ORANGE_G, self::ORANGE_B);
+        $pdf->Write(3.0, $pdf->encodeText('https://ubikgo.com/verificar'));
     }
 
     /**

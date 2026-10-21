@@ -19,6 +19,10 @@ scripts/*.png
 storage/documents/*
 storage/contracts/*
 storage/logs/*
+storage/certs/*.key
+storage/certs/*.crt
 !storage/documents/.gitkeep
 !storage/contracts/.gitkeep
 !storage/logs/.gitkeep
+!storage/certs/openssl.cnf
+!storage/certs/.gitkeep

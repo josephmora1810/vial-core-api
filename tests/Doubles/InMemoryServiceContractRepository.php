@@ -27,6 +27,17 @@ class InMemoryServiceContractRepository implements ServiceContractRepositoryInte
         return null;
     }
 
+    public function findByVerificationCode(string $code): ?ServiceContract
+    {
+        $normalized = strtoupper(trim($code));
+        foreach ($this->contracts as $contract) {
+            if ($contract->getVerificationCode() !== null && strtoupper($contract->getVerificationCode()) === $normalized) {
+                return $contract;
+            }
+        }
+        return null;
+    }
+
     public function findByClientId(int $clientId): array
     {
         $result = [];
