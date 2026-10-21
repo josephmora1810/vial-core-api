@@ -133,6 +133,10 @@ components:
         is_active:
           type: boolean
           example: true
+        avatar_url:
+          type: string
+          nullable: true
+          example: https://ubik-go.s3.us-east-1.amazonaws.com/users/1/avatar_abc123.jpg
         created_at:
           type: string
           example: 2026-10-15 00:55:44
@@ -2838,7 +2842,7 @@ paths:
   /driver/cranes:
     get:
       summary: Listar Grúas del Conductor Autenticado
-      description: Retorna el listado de unidades de grúa (`type: CRANE`) registradas para el operador autenticado.
+      description: "Retorna el listado de unidades de grúa (`type: CRANE`) registradas para el operador autenticado."
       tags:
         - Operadores de Grúa (Flotas)
       security:
@@ -2952,6 +2956,270 @@ paths:
       responses:
         '200':
           description: Estado de flota y documentación consultado con éxito
+
+  # ==========================================
+  # LANDING PAGE Y GALERÍA DINÁMICA (FR-36)
+  # ==========================================
+  /home-gallery:
+    get:
+      summary: Obtener Galería de Banners Activos para la Landing Page (FR-36)
+      description: |
+        Endpoint público optimizado para la aplicación web de Vue.js (Landing Page).
+        Retorna únicamente los banners con `is_active = true`, ordenados ascendentemente por `order_index`.
+        Incluye la URL pública de la imagen alojada en AWS S3 a través de la tabla polimórfica `images`.
+      tags:
+        - Landing Page (Galería Dinámica)
+      responses:
+        '200':
+          description: Banners dinámicos activos consultados exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  message:
+                    type: string
+                    example: Galería de banners consultada exitosamente.
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: integer
+                          example: 1
+                        title:
+                          type: string
+                          example: Asistencia Vial 24/7 en Toda Venezuela
+                        subtitle:
+                          type: string
+                          example: La red de grúas más rápida y confiable
+                        description:
+                          type: string
+                          example: Solicita tu grúa en segundos o suscríbete a un plan anual de cobertura total.
+                        button_text:
+                          type: string
+                          example: Ver Planes
+                        button_link:
+                          type: string
+                          example: /planes
+                        order_index:
+                          type: integer
+                          example: 1
+                        is_active:
+                          type: boolean
+                          example: true
+                        image_url:
+                          type: string
+                          example: https://ubik-go.s3.us-east-1.amazonaws.com/gallery/banner_abc123.jpg
+
+  /admin/home-gallery:
+    get:
+      summary: Listar Todos los Banners de Galería (Administrador) (FR-36)
+      description: Retorna el catálogo completo de banners (tanto activos como inactivos) para la consola administrativa.
+      tags:
+        - Landing Page (Galería Dinámica)
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Listado administrativo de banners consultado exitosamente
+
+    post:
+      summary: Crear Nuevo Banner de Galería con Imagen S3 (FR-36)
+      description: |
+        Crea un nuevo banner promocional o informativo para la Landing Page.
+        Sube automáticamente el archivo de imagen adjunto a AWS S3 y lo registra en la tabla polimórfica `images` (`imageable_type = 'home_gallery'`).
+      tags:
+        - Landing Page (Galería Dinámica)
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - title
+              properties:
+                title:
+                  type: string
+                  example: Nueva Cobertura Nacional
+                subtitle:
+                  type: string
+                  example: Ahora disponibles en el oriente del país
+                description:
+                  type: string
+                  example: Más de 50 nuevas unidades de rescate listas para auxiliarte.
+                button_text:
+                  type: string
+                  example: Descargar App
+                button_link:
+                  type: string
+                  example: https://play.google.com/store/apps
+                order_index:
+                  type: integer
+                  example: 2
+                is_active:
+                  type: boolean
+                  example: true
+                image:
+                  type: string
+                  format: binary
+                  description: Imagen promocional para el banner (JPG, PNG, WEBP).
+      responses:
+        '201':
+          description: Banner creado y publicado exitosamente
+
+  /admin/home-gallery/{id}:
+    put:
+      summary: Actualizar Banner de Galería (FR-36)
+      description: Actualiza los textos, enlaces, orden de visualización o estado activo/inactivo de un banner existente.
+      tags:
+        - Landing Page (Galería Dinámica)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                subtitle:
+                  type: string
+                description:
+                  type: string
+                button_text:
+                  type: string
+                button_link:
+                  type: string
+                order_index:
+                  type: integer
+                is_active:
+                  type: boolean
+                image_url:
+                  type: string
+      responses:
+        '200':
+          description: Banner actualizado exitosamente
+
+    delete:
+      summary: Eliminar Banner de Galería (FR-36)
+      description: Elimina permanentemente el banner y sus referencias de imagen.
+      tags:
+        - Landing Page (Galería Dinámica)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Banner eliminado exitosamente
+
+  # ==========================================
+  # MODERACIÓN DE USUARIOS Y AVATARES (FR-35, FR-36)
+  # ==========================================
+  /users/avatar:
+    post:
+      summary: Cargar o Actualizar Foto de Perfil / Avatar (FR-36 / SRS pág. 38)
+      description: |
+        Sube la fotografía de perfil del usuario autenticado a AWS S3 (`users/{id}/avatar_{hex}.ext`)
+        y persiste o sobrescribe su registro en la tabla polimórfica 1 a 1 `images` (`imageable_type = 'user'`, `type = 'avatar'`).
+        Tras la subida exitosa a S3, el archivo temporal local se elimina inmediatamente.
+        La URL de S3 se cachea en Redis (`images:single:user:{id}:avatar`) y se retorna en `GET /api/v1/me`.
+      tags:
+        - Usuarios
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - avatar
+              properties:
+                avatar:
+                  type: string
+                  format: binary
+                  description: Archivo de fotografía para el perfil del usuario (JPEG, PNG).
+      responses:
+        '200':
+          description: Foto de perfil actualizada exitosamente
+
+  /admin/users/{id}/suspend:
+    post:
+      summary: Suspender o Banear Usuario del Sistema (FR-35)
+      description: |
+        Inhabilita la cuenta de un usuario (`is_active = false`), impidiendo su inicio de sesión
+        o uso de cualquier servicio de la plataforma. Inmediatamente revoca todos sus Refresh Tokens
+        de sesión activa e inserta una traza de auditoría de seguridad obligatoria con el motivo del baneo.
+      tags:
+        - Moderación de Usuarios
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID del usuario a suspender
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - reason
+              properties:
+                reason:
+                  type: string
+                  example: Violación reiterada de las condiciones de servicio y reclamos injustificados.
+      responses:
+        '200':
+          description: Usuario suspendido y sesiones revocadas exitosamente
+
+  /admin/users/{id}/activate:
+    post:
+      summary: Reactivar Usuario Suspendido (FR-35)
+      description: |
+        Restaura el acceso al sistema a un usuario previamente suspendido (`is_active = true`),
+        registrando la acción y el administrador responsable en la auditoría del sistema.
+      tags:
+        - Moderación de Usuarios
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID del usuario a reactivar
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Usuario reactivado exitosamente
+
 
 
 

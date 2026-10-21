@@ -193,10 +193,42 @@ La documentación interactiva completa con Swagger UI está disponible directame
 | `POST` | `/api/v1/seller/contracts` | Bearer (`sell_service_contract`) | Genera contrato preliminar (`NO PAGADO`) y orden anual vinculada a la vendedora (`seller_id`) |
 | `GET`  | `/api/v1/seller/contracts?status=EXPIRED` | Bearer (`sell_service_contract`) | Lista contratos vendidos por la vendedora (y contratos vencidos para gestionar renovaciones) |
 | `POST` | `/api/v1/seller/contracts/{id}/renew` | Bearer (`sell_service_contract`) | Genera nueva orden anual de renovación para un contrato vencido |
+
+### 10. Operadores de Grúa y Validación de Flota (`role:driver`, FR-09, FR-10)
+| Método | Endpoint | Auth | Descripción |
+|---|---|---|---|
 | `POST` | `/api/v1/driver/cranes` | Bearer (`role:driver`) | Registra unidad de grúa (`type: CRANE`) con Carnet INTT vía OCR y encola a AWS S3 (FR-09) |
 | `GET`  | `/api/v1/driver/cranes` | Bearer (`role:driver`) | Lista las unidades de grúa registradas para el operador |
 | `POST` | `/api/v1/driver/license` | Bearer (`role:driver`) | Carga o actualiza Licencia de Conducir profesional del chofer y encola a AWS S3 (FR-09) |
 | `GET`  | `/api/v1/driver/status` | Bearer (`role:driver`) | Consulta estado integral de flota y habilitación (`can_operate`) para despacho SOS (FR-09, FR-10) |
+
+### 11. Landing Page y Moderación Administrativa (FR-35, FR-36)
+| Método | Endpoint | Auth | Descripción |
+|---|---|---|---|
+| `GET`    | `/api/v1/home-gallery` | Público | Lista los banners dinámicos activos para la Landing Page de Vue.js ordenados por prioridad |
+| `GET`    | `/api/v1/admin/home-gallery` | Bearer (`role:admin`) | Lista todos los banners (activos e inactivos) para gestión en el panel administrativo |
+| `POST`   | `/api/v1/admin/home-gallery` | Bearer (`role:admin`) | Crea un nuevo banner y sube su imagen a AWS S3 (asociada a la tabla polimórfica `images`) |
+| `PUT`    | `/api/v1/admin/home-gallery/{id}` | Bearer (`role:admin`) | Actualiza textos, orden de prioridad o estado activo/inactivo de un banner |
+| `DELETE` | `/api/v1/admin/home-gallery/{id}` | Bearer (`role:admin`) | Elimina un banner de la galería dinámica |
+| `POST`   | `/api/v1/users/avatar` | Bearer | Sube la foto de perfil del usuario a AWS S3 y la asocia a `images` (`type: avatar`) |
+| `POST`   | `/api/v1/admin/users/{id}/suspend` | Bearer (`role:admin`) | Suspende/banea un usuario, revoca todos sus Refresh Tokens e inserta auditoría con motivo (FR-35) |
+| `POST`   | `/api/v1/admin/users/{id}/activate` | Bearer (`role:admin`) | Reactiva una cuenta de usuario previamente suspendida (FR-35) |
+
+### 12. Arquitectura de Almacenamiento y Caché de Imágenes (AWS S3 + Redis)
+1. **Ciclo de Vida de Imágenes y Purga Local**:
+   * Las carpetas locales (`storage/documents`, `storage/temp`) operan únicamente como área de aterrizaje temporal para procesar el OCR y validar el archivo.
+   * Al completarse la subida a **Amazon S3** (vía worker asíncrono o caso de uso directo), el archivo local es **eliminado de inmediato** (`unlink`), evitando el consumo innecesario de almacenamiento en disco en los servidores de la API.
+   * Cualquier consulta posterior apunta directamente a la URL pública/firmada de S3 (`https://ubik-go.s3.amazonaws.com/...`).
+2. **Relación Polimórfica 1 a 1 (`UNIQUE KEY (imageable_type, imageable_id)`)**:
+   * Cada entidad del sistema tiene **estrictamente una imagen** asociada en la tabla `images`:
+     - Usuario (`user`): Exactamente un avatar de perfil.
+     - Documento (`document`): Exactamente la imagen escaneada del documento (cédula, licencia o carnet INTT).
+     - Galería (`home_gallery`): Exactamente un banner publicitario.
+   * **Re-envío tras Rechazo**: Si un administrador rechaza un documento o el usuario actualiza su foto de perfil, el sistema **sobrescribe** el registro existente mediante `UPDATE` in-place (`ON DUPLICATE KEY UPDATE`), sin duplicar filas en base de datos.
+3. **Capa de Caché de Imágenes en Redis (`CachedImageRepository`)**:
+   * Al igual que los planes y bancos, las rutas de imágenes se cachean en memoria en Redis con una vigencia TTL de 24 horas (`images:single:{type}:{id}`, `catalog:home_gallery:active`).
+   * Cualquier actualización o eliminación invalida automáticamente la caché para reflejar los cambios en tiempo real.
+   * La llamada `GET /api/v1/me` resuelve la clave `avatar_url` directamente desde Redis a velocidad de submilisegundos.
 
 ---
 

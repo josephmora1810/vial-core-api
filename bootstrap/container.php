@@ -29,13 +29,20 @@ use App\Application\Auth\UseCases\ScanIdentityCard;
 use App\Application\Vehicles\UseCases\ScanVehicleRegistration;
 use App\Application\Auth\UseCases\SendPasswordResetCode;
 use App\Application\Auth\UseCases\UploadKycDocument;
+use App\Application\Landing\UseCases\GetActiveHomeGallery;
+use App\Application\Landing\UseCases\ManageHomeGallery;
+use App\Application\Users\UseCases\ActivateUser;
+use App\Application\Users\UseCases\SuspendUser;
+use App\Application\Users\UseCases\UploadUserAvatar;
 use App\Controllers\AuthController;
 use App\Controllers\DocumentController;
 use App\Controllers\DriverController;
 use App\Controllers\HomeController;
+use App\Controllers\LandingController;
 use App\Controllers\PaymentController;
 use App\Controllers\PlanController;
 use App\Controllers\SavedAddressController;
+use App\Controllers\UserModerationController;
 use App\Controllers\VehicleController;
 use App\Core\JwtService;
 use App\Domain\Shared\Services\QueueServiceInterface;
@@ -55,6 +62,9 @@ use App\Infrastructure\Database\Repositories\Payments\MariaDbOrderRepository;
 use App\Infrastructure\Database\Repositories\Payments\MariaDbPaymentRepository;
 use App\Infrastructure\Database\Repositories\Auth\MariaDbPersonalAccessTokenRepository;
 use App\Infrastructure\Database\Repositories\Contracts\MariaDbPlanRepository;
+use App\Infrastructure\Database\Repositories\Landing\MariaDbHomeGalleryRepository;
+use App\Infrastructure\Database\Repositories\Shared\CachedImageRepository;
+use App\Infrastructure\Database\Repositories\Shared\MariaDbImageRepository;
 use App\Infrastructure\Database\Repositories\Users\MariaDbSavedAddressRepository;
 use App\Infrastructure\Database\Repositories\Contracts\MariaDbServiceContractRepository;
 use App\Infrastructure\Database\Repositories\Users\MariaDbUserRepository;
@@ -145,6 +155,11 @@ $getPlanRepo = fn() => new CachedPlanRepository(
 $getContractRepo = fn() => new MariaDbServiceContractRepository($getDb());
 $getOrderRepo = fn() => new MariaDbOrderRepository($getDb());
 $getPaymentRepo = fn() => new MariaDbPaymentRepository($getDb());
+$getImageRepo = fn() => new CachedImageRepository(
+    new MariaDbImageRepository($getDb()),
+    $getRedis()
+);
+$getHomeGalleryRepo = fn() => new MariaDbHomeGalleryRepository($getDb(), $getImageRepo());
 
 $isSandbox = filter_var($_ENV['BANCARIBE_SANDBOX'] ?? false, FILTER_VALIDATE_BOOLEAN);
 $isLocalEnv = ($_ENV['APP_ENV'] ?? 'local') === 'local';
@@ -207,6 +222,7 @@ $getProcessS3 = fn() => new ProcessDocumentS3UploadJob(
     queueService: $getQueueService(),
     storageService: $getStorageService(),
     documentRepository: $getDocumentRepo(),
+    imageRepository: $getImageRepo(),
     logger: $integrationLogger
 );
 
@@ -219,7 +235,8 @@ return [
             new LogoutUser($getTokenRepo()),
             new SendPasswordResetCode($getUserRepo(), $mailer, $getRedis()),
             new ResetPassword($getUserRepo(), $getTokenRepo(), $getRedis()),
-            new ScanIdentityCard($documentExtractor)
+            new ScanIdentityCard($documentExtractor),
+            $getImageRepo()
         ),
         HomeController::class => fn() => new HomeController(),
         DocumentController::class => fn() => new DocumentController(
@@ -378,6 +395,15 @@ return [
                 $getVehicleRepo()
             ),
             $getVehicleRepo()
+        ),
+        LandingController::class => fn() => new LandingController(
+            new GetActiveHomeGallery($getHomeGalleryRepo()),
+            new ManageHomeGallery($getHomeGalleryRepo(), $getStorageService())
+        ),
+        UserModerationController::class => fn() => new UserModerationController(
+            new SuspendUser($getUserRepo(), $getTokenRepo(), $integrationLogger),
+            new ActivateUser($getUserRepo(), $integrationLogger),
+            new UploadUserAvatar($getUserRepo(), $getStorageService(), $getImageRepo())
         ),
     ],
     'services' => [

@@ -12,6 +12,7 @@ use App\Application\Auth\UseCases\ScanIdentityCard;
 use App\Application\Auth\UseCases\SendPasswordResetCode;
 use App\Core\Request;
 use App\Core\Response;
+use App\Domain\Shared\Repositories\ImageRepositoryInterface;
 use Exception;
 
 class AuthController
@@ -23,7 +24,8 @@ class AuthController
         private LogoutUser $logoutUseCase,
         private SendPasswordResetCode $sendPasswordResetCode,
         private ResetPassword $resetPassword,
-        private ?ScanIdentityCard $scanIdentityCard = null
+        private ?ScanIdentityCard $scanIdentityCard = null,
+        private ?ImageRepositoryInterface $imageRepository = null
     ) {}
 
     public function login(Request $request): void
@@ -213,8 +215,14 @@ class AuthController
             return;
         }
 
+        $avatarUrl = null;
+        if ($this->imageRepository !== null && $user->getId() !== null) {
+            $avatarImg = $this->imageRepository->findLatestByImageable('user', $user->getId(), 'avatar');
+            $avatarUrl = $avatarImg['path'] ?? null;
+        }
+
         Response::json(
-            UserResponseDto::fromEntity($user)->toArray(),
+            UserResponseDto::fromEntity($user, $avatarUrl)->toArray(),
             200,
             'success',
             'Usuario autenticado.'

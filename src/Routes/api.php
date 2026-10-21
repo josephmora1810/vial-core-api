@@ -32,6 +32,9 @@ $router->get(API_V1 . 'plans', 'PlanController@index');
 $router->get(API_V1 . 'banks', 'PlanController@banks');
 $router->get(API_V1 . 'exchange-rates', 'PaymentController@exchangeRates');
 
+// Galería Dinámica de la Landing Page (FR-36)
+$router->get(API_V1 . 'home-gallery', 'LandingController@index');
+
 // Webhook Asíncrono de Bancaribe (FR-29)
 $router->post(API_V1 . 'webhooks/bancaribe', 'PaymentController@webhook');
 
@@ -39,6 +42,9 @@ $router->post(API_V1 . 'webhooks/bancaribe', 'PaymentController@webhook');
 // RUTAS PRIVADAS (Llevan ['auth'])
 // ==========================================
 $router->get(API_V1 . 'me', 'AuthController@me', ['auth']);
+
+// Foto de Perfil / Avatar Polimórfico (FR-36 / SRS pág. 38)
+$router->post(API_V1 . 'users/avatar', 'UserModerationController@uploadAvatar', ['auth']);
 
 $router->post(API_V1 . 'documents/upload', 'DocumentController@upload', ['auth']);
 $router->get(API_V1 . 'documents/kyc-status', 'DocumentController@status', ['auth']);
@@ -80,6 +86,12 @@ $router->post(API_V1 . 'driver/license', 'DriverController@uploadLicense', ['aut
 $router->get(API_V1 . 'driver/status', 'DriverController@status', ['auth', 'role:driver']);
 
 // Administración de Planes, Auditoría KYC y Finanzas Bancaribe (Solo Admin / Permisos de Gestión)
+$router->post(API_V1 . 'admin/users/{id}/suspend', 'UserModerationController@suspend', ['auth', 'role:admin']);
+$router->post(API_V1 . 'admin/users/{id}/activate', 'UserModerationController@activate', ['auth', 'role:admin']);
+$router->get(API_V1 . 'admin/home-gallery', 'LandingController@adminIndex', ['auth', 'role:admin']);
+$router->post(API_V1 . 'admin/home-gallery', 'LandingController@store', ['auth', 'role:admin']);
+$router->put(API_V1 . 'admin/home-gallery/{id}', 'LandingController@update', ['auth', 'role:admin']);
+$router->delete(API_V1 . 'admin/home-gallery/{id}', 'LandingController@destroy', ['auth', 'role:admin']);
 $router->get(API_V1 . 'admin/documents', 'DocumentController@adminIndex', ['auth', 'permission:audit_kyc']);
 $router->post(API_V1 . 'admin/documents/{id}/review', 'DocumentController@adminReview', ['auth', 'permission:audit_kyc']);
 $router->post(API_V1 . 'plans', 'PlanController@store', ['auth', 'permission:manage_catalog']);

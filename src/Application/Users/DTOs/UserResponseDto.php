@@ -27,10 +27,11 @@ readonly class UserResponseDto
         public float $walletBalance,
         public bool $isActive,
         public string $createdAt,
-        public ?string $consentAt = null
+        public ?string $consentAt = null,
+        public ?string $avatarUrl = null
     ) {}
 
-    public static function fromEntity(User $user): self
+    public static function fromEntity(User $user, ?string $avatarUrl = null): self
     {
         return new self(
             uuid: $user->getUuid()->getValue(),
@@ -46,7 +47,8 @@ readonly class UserResponseDto
             walletBalance: $user->getWalletBalance()->getAmount(),
             isActive: $user->isActive(),
             createdAt: $user->getCreatedAt()->format('Y-m-d H:i:s'),
-            consentAt: $user->getConsentAt()?->format('Y-m-d H:i:s')
+            consentAt: $user->getConsentAt()?->format('Y-m-d H:i:s'),
+            avatarUrl: $avatarUrl
         );
     }
 
@@ -65,6 +67,7 @@ readonly class UserResponseDto
             'roles'               => $this->roles,
             'wallet_balance'      => $this->walletBalance,
             'is_active'           => $this->isActive,
+            'avatar_url'          => $this->avatarUrl,
             'created_at'          => $this->createdAt,
             'consent_at'          => $this->consentAt,
         ];

@@ -3,6 +3,7 @@
 namespace App\Application\Documents\UseCases;
 
 use App\Domain\Auth\Repositories\DocumentRepositoryInterface;
+use App\Domain\Shared\Repositories\ImageRepositoryInterface;
 use App\Domain\Shared\Services\QueueServiceInterface;
 use App\Domain\Shared\Services\StorageServiceInterface;
 use App\Infrastructure\Logging\IntegrationLogger;
@@ -16,7 +17,8 @@ class ProcessDocumentS3UploadJob
         private QueueServiceInterface $queueService,
         private StorageServiceInterface $storageService,
         private DocumentRepositoryInterface $documentRepository,
-        private ?IntegrationLogger $logger = null
+        private ?IntegrationLogger $logger = null,
+        private ?ImageRepositoryInterface $imageRepository = null
     ) {
         $this->logger ??= new IntegrationLogger();
     }
@@ -67,11 +69,26 @@ class ProcessDocumentS3UploadJob
         try {
             $s3Url = $this->storageService->upload($localFilePath, $s3Key);
 
+            // Eliminar archivo local temporal tras subida exitosa a AWS S3
+            if (file_exists($localFilePath) && is_file($localFilePath)) {
+                @unlink($localFilePath);
+            }
+
             // 3. Actualizar la entidad Document en MariaDB
             $document = $this->documentRepository->findById($documentId);
             if ($document !== null) {
                 $document->setFilePath($s3Url);
                 $this->documentRepository->save($document);
+
+                // 4. Registrar URL en la tabla polimórfica de imágenes (1 a 1 para el documento)
+                if ($this->imageRepository !== null) {
+                    $this->imageRepository->save(
+                        imageableType: 'document',
+                        imageableId: $documentId,
+                        type: $document->getDocumentType()->getValue(),
+                        path: $s3Url
+                    );
+                }
             }
 
             return [
