@@ -3489,6 +3489,108 @@ paths:
         '200':
           description: Estado de flota y documentación consultado con éxito
 
+  /driver/shift/start:
+    post:
+      summary: Iniciar Turno de Chofer y Activar Grúa (Regla 1 Sola Grúa Activa)
+      description: |
+        Inicia el turno operativo del chofer y asocia la grúa seleccionada.
+        Garantiza que el chofer solo tenga UNA grúa activa a la vez. Si el chofer ya se encuentra en un servicio activo (EN_ROUTE o IN_PROGRESS), la operación es rechazada con HTTP 409 Conflict.
+      tags:
+        - Operadores de Grúa (Flotas)
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - crane_id
+              properties:
+                crane_id:
+                  type: integer
+                  example: 5
+                latitude:
+                  type: number
+                  format: float
+                  example: 10.4900
+                longitude:
+                  type: number
+                  format: float
+                  example: -66.8800
+      responses:
+        '200':
+          description: Turno iniciado y grúa activada.
+        '409':
+          description: Conflicto - Chofer en servicio activo o grúa no verificada.
+
+  /driver/shift/end:
+    post:
+      summary: Finalizar Turno de Chofer y Desactivar Grúa
+      description: |
+        Finaliza el turno activo del chofer, desactiva la grúa asociada y la remueve del radar en Redis.
+        Si el chofer está en un servicio activo (EN_ROUTE o IN_PROGRESS), la acción es rechazada con HTTP 409 Conflict.
+      tags:
+        - Operadores de Grúa (Flotas)
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Turno finalizado exitosamente.
+        '409':
+          description: No se puede finalizar turno durante un servicio en curso.
+
+  /driver/cranes/{id}/activate:
+    post:
+      summary: Activar Grúa Específica para el Turno del Chofer
+      description: Cambia la grúa activa del chofer desactivando cualquier otra unidad previa (invariante de 1 grúa activa).
+      tags:
+        - Operadores de Grúa (Flotas)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Grúa activada exitosamente.
+        '409':
+          description: No se puede cambiar de grúa mientras se está en servicio activo.
+
+  /driver/location:
+    post:
+      summary: Actualizar Posición GPS de Grúa en Segundo Plano (Heartbeat Radar)
+      description: Actualiza las coordenadas de la grúa en MariaDB y en el radar espacial Redis (GEOADD cranes:locations).
+      tags:
+        - Operadores de Grúa (Flotas)
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - latitude
+                - longitude
+              properties:
+                latitude:
+                  type: number
+                  format: float
+                  example: 10.4850
+                longitude:
+                  type: number
+                  format: float
+                  example: -66.8900
+      responses:
+        '200':
+          description: Ubicación de radar actualizada.
+
   # ==========================================
   # LANDING PAGE Y GALERÍA DINÁMICA (FR-36)
   # ==========================================
@@ -3755,6 +3857,66 @@ paths:
   # ==========================================
   # ASISTENCIA VIAL Y TELEMETRÍA (TOWING)
   # ==========================================
+  /sos/quote:
+    post:
+      summary: Pre-Cotizar Asistencia Vial SOS y Verificar Radares Disponibles (FR-20, FR-23)
+      description: |
+        Calcula la distancia de rescate y traslado usando OSRM, verifica la cobertura del contrato del vehículo o calcula la tarifa express (en USD y VES con tasa oficial BCV), y escanea el radar en MariaDB/Redis.
+        Si no hay grúas activas en la zona, can_proceed_payment es falso para evitar cobrarle al cliente en vano.
+      tags:
+        - Asistencia Vial y Telemetría
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - vehicle_id
+                - origin
+              properties:
+                vehicle_id:
+                  type: string
+                  description: UUID o ID del vehículo registrado del cliente.
+                  example: "0194bc02-0000-7000-8000-000000000001"
+                origin:
+                  type: object
+                  required:
+                    - latitude
+                    - longitude
+                  properties:
+                    latitude:
+                      type: number
+                      format: float
+                      example: 10.4806
+                    longitude:
+                      type: number
+                      format: float
+                      example: -66.9036
+                destination:
+                  type: object
+                  properties:
+                    latitude:
+                      type: number
+                      format: float
+                      example: 10.5000
+                    longitude:
+                      type: number
+                      format: float
+                      example: -66.9200
+                saved_address_id:
+                  type: string
+                  description: UUID de dirección guardada opcional para destino.
+      responses:
+        '200':
+          description: Cotización calculada exitosamente.
+        '400':
+          description: Parámetros inválidos.
+        '422':
+          description: Origen fuera de la geocerca de cobertura.
+
   /sos:
     post:
       summary: Solicitar Asistencia Vial de Emergencia SOS (FR-20, FR-22, FR-23-B)

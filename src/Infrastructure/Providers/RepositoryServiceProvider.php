@@ -13,6 +13,7 @@ use App\Infrastructure\Database\Repositories\Commissions\{
     MariaDbCommissionRepository,
     MariaDbSellerProfileRepository
 };
+use App\Infrastructure\Database\Repositories\Driver\MariaDbDriverShiftRepository;
 use App\Infrastructure\Database\Repositories\Contracts\{
     CachedPlanRepository,
     MariaDbPlanRepository,
@@ -83,6 +84,7 @@ final class RepositoryServiceProvider
             $getRedis()
         );
         $getHomeGalleryRepo = fn() => new MariaDbHomeGalleryRepository($getDb(), $getImageRepo());
+        $getDriverShiftRepo = fn() => new MariaDbDriverShiftRepository($getDb());
 
         $getSellerProfileRepo = fn() => new MariaDbSellerProfileRepository($getDb());
         $getCommissionRepo = fn() => new MariaDbCommissionRepository($getDb());
@@ -109,6 +111,7 @@ final class RepositoryServiceProvider
             'payment'                    => $getPaymentRepo,
             'image'                      => $getImageRepo,
             'home_gallery'               => $getHomeGalleryRepo,
+            'driver_shift'               => $getDriverShiftRepo,
             'seller_profile'             => $getSellerProfileRepo,
             'commission'                 => $getCommissionRepo,
             'generate_order_commission'  => $getGenerateOrderCommission,

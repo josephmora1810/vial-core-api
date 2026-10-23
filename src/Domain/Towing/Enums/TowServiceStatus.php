@@ -16,7 +16,11 @@ enum TowServiceStatus: string
 
     public static function fromString(string $value): self
     {
-        $status = self::tryFrom(strtoupper(trim($value)));
+        $normalized = strtoupper(trim($value));
+        if ($normalized === 'EN_ROUTE') {
+            $normalized = 'IN_ROUTE';
+        }
+        $status = self::tryFrom($normalized);
         if ($status === null) {
             throw new InvalidArgumentException(sprintf(
                 'El estado de servicio de remolque "%s" no es válido. Permitidos: %s.',

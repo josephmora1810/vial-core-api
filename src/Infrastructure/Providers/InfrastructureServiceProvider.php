@@ -12,6 +12,7 @@ use App\Application\Towing\UseCases\ExpireOverdueSosServices;
 use App\Core\JwtService;
 use App\Domain\Shared\Services\{
     BroadcasterInterface,
+    PushNotificationInterface,
     QueueServiceInterface,
     StorageServiceInterface
 };
@@ -31,6 +32,7 @@ use App\Infrastructure\Services\Bancaribe\{
     BancaribePaymentService
 };
 use App\Infrastructure\Services\LaVenezolanaDocumentExtractor;
+use App\Infrastructure\Services\PusherBeamsService;
 use App\Infrastructure\Services\RedisAccountRateLimiter;
 use App\Infrastructure\Services\Towing\{
     InMemoryCoverageZoneRepository,
@@ -174,6 +176,12 @@ final class InfrastructureServiceProvider
         );
 
         $getQueueService = fn() => new RedisQueueService($getRedis());
+        $getPushNotification = fn() => new PusherBeamsService(
+            httpClient: $httpClient,
+            instanceId: $_ENV['PUSHER_BEAMS_INSTANCE_ID'] ?? '',
+            secretKey: $_ENV['PUSHER_BEAMS_SECRET_KEY'] ?? '',
+            logger: $integrationLogger
+        );
         $getStorageService = fn() => new AwsS3StorageService(logger: $integrationLogger);
         $getEnqueueS3 = fn() => new EnqueueDocumentS3Upload($getQueueService());
         $getProcessS3 = fn(array $repos) => new ProcessDocumentS3UploadJob(
@@ -196,6 +204,7 @@ final class InfrastructureServiceProvider
             'coverage_zones'     => $getCoverageZones,
             'routing_service'    => $getRoutingService,
             'broadcaster'        => $getBroadcaster,
+            'push_notification'  => $getPushNotification,
             'bancaribe_auth'     => $getBancaribeAuth,
             'bancaribe_exchange' => $getExchangeService,
             'bancaribe_payment'  => $getPaymentGateway,
@@ -216,6 +225,7 @@ final class InfrastructureServiceProvider
     {
         return [
             BroadcasterInterface::class       => $infra['broadcaster'],
+            PushNotificationInterface::class  => $infra['push_notification'],
             QueueServiceInterface::class      => $infra['queue_service'],
             StorageServiceInterface::class    => $infra['storage_service'],
             EnqueueDocumentS3Upload::class    => $infra['enqueue_s3'],

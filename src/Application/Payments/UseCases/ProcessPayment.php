@@ -17,6 +17,7 @@ use App\Domain\Contracts\Repositories\ServiceContractRepositoryInterface;
 use App\Domain\Payments\Services\ExchangeRateServiceInterface;
 use App\Domain\Payments\Services\PaymentGatewayInterface;
 use App\Domain\Shared\Services\BroadcasterInterface;
+use App\Domain\Shared\Services\PushNotificationInterface;
 use App\Domain\Towing\Enums\TowServiceStatus;
 use App\Domain\Towing\Repositories\TowServiceRepositoryInterface;
 use App\Infrastructure\Services\Bancaribe\C2pStrategy;
@@ -35,7 +36,8 @@ class ProcessPayment
         private ?ExchangeRateServiceInterface $exchangeRateService = null,
         private ?GenerateOrderCommission $generateOrderCommission = null,
         private ?TowServiceRepositoryInterface $towServiceRepository = null,
-        private ?BroadcasterInterface $broadcaster = null
+        private ?BroadcasterInterface $broadcaster = null,
+        private ?PushNotificationInterface $pushNotificationService = null
     ) {}
 
     /**
@@ -250,6 +252,15 @@ class ProcessPayment
                     channels: 'private-cranes-radar',
                     event: 'new-sos-request',
                     data: $serviceDto
+                );
+
+                $this->pushNotificationService?->publishToInterests(
+                    interests: ['cranes-radar'],
+                    title: '🚨 ¡NUEVA SOLICITUD DE AUXILIO VIAL!',
+                    body: "Avería reportada en {$towService->getOriginAddress()}. Toca para ver la solicitud.",
+                    data: [
+                        'service_uuid' => $towService->getUuid()->getValue(),
+                    ]
                 );
             }
         }

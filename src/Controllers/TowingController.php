@@ -8,6 +8,7 @@ use App\Application\Towing\UseCases\CancelTowService;
 use App\Application\Towing\UseCases\CompleteTowService;
 use App\Application\Towing\UseCases\FindNearbyPendingServices;
 use App\Application\Towing\UseCases\GetTowService;
+use App\Application\Towing\UseCases\QuoteSosAssistance;
 use App\Application\Towing\UseCases\RateTowService;
 use App\Application\Towing\UseCases\RequestSosAssistance;
 use App\Application\Towing\UseCases\UpdateCraneTelemetry;
@@ -30,8 +31,76 @@ class TowingController
         private CancelTowService $cancelTowService,
         private RateTowService $rateTowService,
         private GetTowService $getTowService,
-        private FindNearbyPendingServices $findNearbyPendingServices
+        private FindNearbyPendingServices $findNearbyPendingServices,
+        private ?QuoteSosAssistance $quoteSosAssistance = null
     ) {}
+
+    /**
+     * POST /api/v1/sos/quote
+     * Pre-cotiza el auxilio vial y verifica disponibilidad de grúas en radar sin generar cobros.
+     */
+    public function quote(Request $request): void
+    {
+        /** @var User|null $user */
+        $user = $request->user();
+        if ($user === null || $user->getId() === null) {
+            Response::json([], 401, 'fail', 'No autorizado.');
+            return;
+        }
+
+        if ($this->quoteSosAssistance === null) {
+            Response::json([], 500, 'error', 'Servicio de cotización no configurado.');
+            return;
+        }
+
+        $vehicleId = $request->input('vehicle_id');
+        $originLat = $request->input('origin_lat');
+        $originLng = $request->input('origin_lng');
+        $destLat = $request->input('dest_lat');
+        $destLng = $request->input('dest_lng');
+        $savedAddressId = $request->input('saved_address_id');
+        $radiusKm = (float)($request->input('radius_km') ?? 25.0);
+
+        $errors = [];
+        if (empty($vehicleId)) {
+            $errors['vehicle_id'] = 'El vehículo averiado es obligatorio.';
+        }
+        if ($originLat === null || $originLng === null || !is_numeric($originLat) || !is_numeric($originLng)) {
+            $errors['origin'] = 'Las coordenadas de origen (origin_lat, origin_lng) son obligatorias y numéricas.';
+        }
+        if ($destLat === null || $destLng === null || !is_numeric($destLat) || !is_numeric($destLng)) {
+            $errors['destination'] = 'Las coordenadas de destino (dest_lat, dest_lng) son obligatorias y numéricas.';
+        }
+
+        if (!empty($errors)) {
+            Response::json($errors, 422, 'fail', 'Datos incompletos o inválidos.');
+            return;
+        }
+
+        try {
+            $origin = new Coordinates((float)$originLat, (float)$originLng);
+            $destination = new Coordinates((float)$destLat, (float)$destLng);
+
+            $result = $this->quoteSosAssistance->execute(
+                clientId: (int)$user->getId(),
+                vehicleIdentifier: $vehicleId,
+                origin: $origin,
+                destination: $destination,
+                savedAddressIdentifier: $savedAddressId,
+                searchRadiusKm: $radiusKm
+            );
+
+            Response::json($result, 200, 'success', 'Cotización calculada exitosamente.');
+        } catch (DomainException $e) {
+            $code = $e->getCode();
+            $httpCode = (is_int($code) && $code >= 400 && $code < 600) ? $code : 422;
+            Response::json([], $httpCode, 'fail', $e->getMessage());
+        } catch (Exception $e) {
+            $code = $e->getCode();
+            $httpCode = (is_int($code) && $code >= 400 && $code < 600) ? $code : 500;
+            Response::json([], $httpCode, 'error', $e->getMessage());
+        }
+    }
 
     /**
      * POST /api/v1/sos

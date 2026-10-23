@@ -3,8 +3,8 @@
 <!-- <p align="center">
   <img src="https://img.shields.io/badge/PHP-8.5%2B%20Puro-777BB4?style=for-the-badge&logo=php&logoColor=white" alt="PHP 8.5+" />
   <img src="https://img.shields.io/badge/Architecture-Hexagonal%20%2F%20DDD-blue?style=for-the-badge" alt="Hexagonal DDD" />
-  <img src="https://img.shields.io/badge/Tests-282%20Passing-success?style=for-the-badge&logo=phpunit&logoColor=white" alt="282 Tests Passing" />
-  <img src="https://img.shields.io/badge/Assertions-1021%20Verified-brightgreen?style=for-the-badge" alt="1021 Assertions" />
+  <img src="https://img.shields.io/badge/Tests-308%20Passing-success?style=for-the-badge&logo=phpunit&logoColor=white" alt="308 Tests Passing" />
+  <img src="https://img.shields.io/badge/Assertions-1139%20Verified-brightgreen?style=for-the-badge" alt="1139 Assertions" />
   <img src="https://img.shields.io/badge/Database-MariaDB%2010.11%2B-003545?style=for-the-badge&logo=mariadb&logoColor=white" alt="MariaDB" />
   <img src="https://img.shields.io/badge/Cache%20%26%20Queues-Redis%206%2B-DC382D?style=for-the-badge&logo=redis&logoColor=white" alt="Redis" />
   <img src="https://img.shields.io/badge/Broadcasting-Pusher%20WebSockets-300D4F?style=for-the-badge&logo=pusher&logoColor=white" alt="Pusher" />
@@ -166,11 +166,22 @@ A continuación se detalla la transcripción completa de los requerimientos func
 
 ### Dominio 4: Asistencia Vial y Telemetría (Matching)
 
-#### **FR-20: Solicitud de Emergencia Vial (SOS)** *(Prioridad: CRÍTICA)*
-* **Definición SRS**: El Cliente DEBE poder iniciar un flujo de emergencia, confirmando su ubicación GPS, la placa del vehículo averiado y una nota descriptiva de la falla.
+#### **FR-20: Pre-Cotización y Solicitud de Emergencia Vial (SOS)** *(Prioridad: CRÍTICA)*
+* **Definición SRS**: El Cliente DEBE poder pre-cotizar y solicitar asistencia vial confirmando ubicación GPS de avería, destino (o dirección favorita guardada), placa del vehículo y falla reportada.
 * **Implementación en Core API**:
-  - **Aplicación**: Caso de uso `RequestSosAssistance`. Valida la vigencia del contrato del vehículo, descuenta cupos o calcula costo individual, verifica coordenadas y emite la alarma al canal Pusher `cranes-radar`.
-  - **Endpoints**: `POST /api/v1/sos`.
+  - **Pre-Cotización (`QuoteSosAssistance`)**: Endpoint `POST /api/v1/sos/quote`. Valida geocerca operativa, calcula distancia real y ETA con OSRM, consulta saldo de contrato vs. tarifa express en USD/VES (tasa oficial BCV) y realiza un escaneo de proximidad en Redis/MariaDB (`crane_count`). **Guardrail Operativo**: Si hay 0 grúas en la zona, responde `can_proceed_payment: false` y advierte al cliente para no cobrarle innecesariamente.
+  - **Despacho Dual (`RequestSosAssistance`)**: Endpoint `POST /api/v1/sos`. Crea el servicio en `PENDING` y activa el despacho dual:
+    1. Notificación Push a dispositivos móviles mediante **Pusher Beams** (`cranes-radar`) con payload nativo para Android (FCM) e iOS (APNs).
+    2. Evento WebSocket en tiempo real al canal `cranes-radar` para choferes con la app abierta.
+  - **Endpoints**: `POST /api/v1/sos/quote`, `POST /api/v1/sos`.
+
+#### **FR-20-B: Gestión de Turnos y Regla Invariante de 1 Sola Grúa Activa** *(Prioridad: CRÍTICA)*
+* **Definición SRS**: Un chofer puede registrar varias grúas en su flota, pero DEBE tener **únicamente UNA grúa activa a la vez** durante su jornada laboral (`driver_shifts`).
+* **Implementación en Core API**:
+  - **Aplicación**: `StartDriverShift`, `EndDriverShift`, `ActivateCraneForDriver`, `UpdateDriverLocation`.
+  - **Regla Invariante de Conflicto**: No se puede cambiar de grúa ni finalizar el turno si el chofer tiene un servicio en curso (`EN_ROUTE` o `IN_PROGRESS`). La API responde de inmediato con `HTTP 409 Conflict`.
+  - **Telemetría de Radar**: El chofer transmite latidos periódicos GPS (`POST /api/v1/driver/location`) que actualizan MariaDB y el set geoespacial de Redis `GEOADD cranes:locations`.
+  - **Endpoints**: `POST /api/v1/driver/shift/start`, `POST /api/v1/driver/shift/end`, `POST /api/v1/driver/cranes/{id}/activate`, `POST /api/v1/driver/location`.
 
 #### **FR-21: Guardado de Borradores SOS** *(Prioridad: MEDIA)*
 * **Definición SRS**: El sistema DEBE permitir guardar el SOS como "Borrador" de manera local en el dispositivo si el usuario pierde conexión temporalmente.
@@ -221,10 +232,12 @@ A continuación se detalla la transcripción completa de los requerimientos func
 * **Definición SRS**: La aplicación móvil del Cliente DEBE actualizar en tiempo real sobre el mapa la posición del Gruero aproximándose a su ubicación.
 * **Implementación en Core API**: Satisfecho mediante la difusión de eventos WebSocket `location-updated` hacia el cliente suscrito a su canal de auxilio, entregando latitud, longitud, rumbo (heading) y velocidad en tiempo real.
 
-#### **FR-27: Finalización y Calificación de Servicio** *(Prioridad: BAJA)*
+#### **FR-27: Finalización, Hito de Llegada y Calificación Bidireccional** *(Prioridad: ALTA)*
 * **Definición SRS**: Una vez culminado el rescate, el Gruero finaliza el evento. El sistema DEBE descontar el evento del saldo del Contrato del Cliente y obligar a ambas partes a emitir una calificación de 1 a 5 estrellas.
 * **Implementación en Core API**:
-  - **Aplicación**: `CompleteTowService` transiciona el estado a `COMPLETED`. `RateTowService` registra las evaluaciones mutuas en la tabla `ratings` e invalida la caché de promedios del chofer en Redis (`driver_rating_{id}`).
+  - **Hito de Llegada (`ArriveTowService`)**: El chofer presiona "He llegado" al arribar a la avería (`POST /api/v1/sos/{uuid}/arrive`). Transiciona a `IN_PROGRESS` y difunde el evento WebSocket `service-arrived` al canal privado del cliente (`private-tow-{uuid}`) notificando inicio de maniobras de enganche.
+  - **Culminación del Servicio (`CompleteTowService`)**: El chofer pulsa "Servicio finalizado" (`POST /api/v1/sos/{uuid}/complete`). Transiciona a `COMPLETED`, descuenta cupo de auxilio, difunde el evento WebSocket `service-completed` y libera la grúa/chofer en el radar Redis (`status: available`).
+  - **Calificación Bidireccional Estricta (`RateTowService`)**: Ambos actores se evalúan mutuamente (`POST /api/v1/sos/{uuid}/rate`). Restringido por clave única en MariaDB `UNIQUE KEY uq_rating_service_user (tow_service_id, user_id)`: el cliente califica al chofer y el chofer califica al cliente (máximo 1 reseña por usuario por servicio).
   - **Endpoints**: `POST /api/v1/sos/{uuid}/arrive`, `POST /api/v1/sos/{uuid}/complete`, `POST /api/v1/sos/{uuid}/rate`.
 
 ---
@@ -489,43 +502,99 @@ sequenceDiagram
 
 ---
 
-### 7. Diagrama de Secuencia 3: Despacho SOS, Cálculo OSRM, Matching y Telemetría
+### 7. Flujo del Cliente de Emergencia SOS, Pre-Cotización y Pago
 
 ```mermaid
 sequenceDiagram
     autonumber
-    actor Cliente as Cliente Varado
-    participant API as Core API (PHP)
-    participant OSRM as Servidor OSRM
-    participant Pusher as Pusher Channels
-    actor Gruero as Operador de Grúa
-    participant DB as MariaDB
+    actor Cliente as 📱 Cliente (App Móvil)
+    participant CoreAPI as ⚙️ Core API
+    participant OSRM as 🗺️ Servidor OSRM
+    participant RedisRadar as ⚡ Redis (GEO / Shifts)
+    participant MariaDB as 🗄️ MariaDB 10.11+
+    participant Bancaribe as 🏦 Pasarela Bancaribe (C2P)
+    participant Beams as 🔔 Pusher Beams / WebSockets
+    actor Gruero as 🚛 Grueros en Turno
 
-    Cliente->>API: POST /api/v1/sos (lat, lng, vehicle_id)
-    API->>API: Valida Geocerca (Gran Caracas / Litoral Central)
-    API->>OSRM: GET /route/v1/driving/{origen};{destino}
-    OSRM-->>API: 200 OK (Distancia en Metros y Duración)
-    API->>DB: INSERT INTO tow_services (status: PENDING)
-    API->>Pusher: Trigger 'new-sos-request' en canal 'cranes-radar'
-    Pusher-->>Gruero: Alerta Sonora en Radar de la App Móvil
+    Note over Cliente,CoreAPI: Fase 1: Pre-Cotización y Verificación de Flota
+    Cliente->>CoreAPI: POST /api/v1/sos/quote {origin, destination, vehicle_id}
+    CoreAPI->>CoreAPI: Validar geocerca operativa (Gran Caracas / Litoral)
+    CoreAPI->>OSRM: Calcular ruta carretera (distancia Km, ETA)
+    OSRM-->>CoreAPI: Distancia 18.5 Km, ETA 25 min
+    CoreAPI->>RedisRadar: GEORADIUS / active shifts (radio 15-30 Km)
+    alt No hay grúas activas en el radar
+        CoreAPI-->>Cliente: 200 OK {available_cranes: 0, can_proceed_payment: false, message: "No hay grúas disponibles en tu zona"}
+        Note over Cliente: UI bloquea pago y sugiere reintentar en unos minutos
+    else Hay grúas activas disponibles
+        CoreAPI->>MariaDB: Verificar contrato de auxilio vial del vehículo
+        alt Posee contrato activo con saldo
+            CoreAPI-->>Cliente: 200 OK {covered: true, cost_usd: 0.00, can_proceed_payment: true, available_cranes: 3}
+            Cliente->>CoreAPI: POST /api/v1/sos (Disparo inmediato sin cobro)
+        else Servicio Express o Excedente de Kilometraje
+            CoreAPI-->>Cliente: 200 OK {covered: false, cost_usd: 45.00, cost_ves: 2250.00, can_proceed_payment: true, available_cranes: 3}
+            Note over Cliente,Bancaribe: Fase 2: Pasarela y Cobro C2P
+            Cliente->>CoreAPI: POST /api/v1/payments/process {method: "c2p", amount, otp}
+            CoreAPI->>Bancaribe: Debitar pago móvil C2P
+            Bancaribe-->>CoreAPI: Pago Aprobado (Ref: #789123)
+            CoreAPI->>MariaDB: Registrar pago y crear servicio SOS (PENDING)
+            CoreAPI-->>Cliente: 200 OK {status: "PAID", service_uuid: "..."}
+        end
 
-    Gruero->>API: POST /api/v1/sos/{uuid}/accept
-    Note over API,DB: Transacción con Pessimistic Lock (SELECT ... FOR UPDATE)
-    API->>DB: UPDATE tow_services SET status = EN_ROUTE, driver_id = ...
-    API->>Pusher: Trigger 'tow-assigned' al Cliente
-    API-->>Gruero: 200 OK (Adjudicado)
+        Note over CoreAPI,Gruero: Fase 3: Despacho Dual en Tiempo Real
+        CoreAPI->>Beams: 1. Push Notification (Pusher Beams / FCM / APNs)
+        CoreAPI->>Beams: 2. WebSocket Broadcast (canal: private-crane-radar)
+        Beams-->>Gruero: Alerta sonora en App en segundo plano y primer plano
+    end
+```
 
-    loop Cada 5-10 segundos en ruta
-        Gruero->>API: PUT /api/v1/sos/{uuid}/telemetry (lat, lng)
-        API->>DB: INSERT INTO tow_service_logs (append-only)
-        API->>Pusher: Trigger 'location-updated' en canal privado del cliente
-        Pusher-->>Cliente: Movimiento de la Grúa en el Mapa en Vivo
+---
+
+### 7-B. Las Dos Etapas de Navegación en Tiempo Real y Calificación Bidireccional
+
+```mermaid
+flowchart TD
+    subgraph ETAPA1["📍 ETAPA 1: Trayecto de Rescate (Gruero hacia Cliente)"]
+        direction TB
+        E1_Start(["Gruero acepta SOS<br/>Estado: EN_ROUTE"])
+        E1_Nav["App Gruero traza ruta por carretera:<br/>Origen: Posición actual del Gruero<br/>Destino: Coordenadas de avería del Cliente"]
+        E1_Telemetry["Telemetría continua (cada 5s):<br/>Gruero emite PUT /sos/{uuid}/telemetry<br/>Pusher difunde 'location-updated' en canal privado"]
+        E1_ClientView["App Cliente visualiza:<br/>Ícono de grúa aproximándose en vivo<br/>Tiempo estimado de llegada (ETA)"]
+        E1_Arrive["Gruero llega al punto de avería<br/>Presiona botón: 'HE LLEGADO'"]
+        E1_Start --> E1_Nav --> E1_Telemetry --> E1_ClientView --> E1_Arrive
     end
 
-    Gruero->>API: POST /api/v1/sos/{uuid}/complete
-    API->>DB: UPDATE tow_services SET status = COMPLETED
-    API->>DB: Descuenta 1 evento y km en service_contracts
-    API-->>Gruero: 200 OK (Requiere Calificación Mutua 1-5 estrellas)
+    subgraph HITO_LLEGADA["⚓ HITO DE LLEGADA Y ENGANCHE"]
+        direction TB
+        HL_Action["Core API: POST /sos/{uuid}/arrive<br/>1. Actualiza estado a IN_PROGRESS<br/>2. Emite WebSocket 'service-arrived'"]
+        HL_Push["App Cliente muestra aviso:<br/>'Tu grúa ha llegado. El operador está<br/>realizando las maniobras de enganche.'"]
+        HL_Action --> HL_Push
+    end
+
+    subgraph ETAPA2["🏁 ETAPA 2: Trayecto de Remolque (Cliente hacia Destino)"]
+        direction TB
+        E2_Nav["Ambas Apps (Gruero y Cliente) reconfiguran ruta GPS:<br/>Origen: Lugar del incidente<br/>Destino: Taller mecánico / Dirección guardada"]
+        E2_Telemetry["Telemetría y navegación sincronizada en tiempo real:<br/>Gruero avanza remolcando vehículo averiado.<br/>Cliente monitorea el trayecto en su pantalla."]
+        E2_Finish["Gruero arriba a destino final<br/>Presiona botón: 'FINALIZAR SERVICIO'"]
+        E2_Nav --> E2_Telemetry --> E2_Finish
+    end
+
+    subgraph FINALIZACION["⭐ FINALIZACIÓN Y CALIFICACIÓN BIDIRECCIONAL"]
+        direction TB
+        FIN_Action["Core API: POST /sos/{uuid}/complete<br/>1. Estado: COMPLETED<br/>2. Libera grúa y chofer en Redis<br/>3. Emite WebSocket 'service-completed'"]
+        FIN_Rate["Se abre modal de Calificación Mutua:<br/>1. Cliente califica al Gruero (1-5 ⭐ + nota)<br/>2. Gruero califica al Cliente (1-5 ⭐ + nota)<br/>Restricción: Máximo 1 calificación por usuario por servicio."]
+        FIN_Action --> FIN_Rate
+    end
+
+    ETAPA1 --> HITO_LLEGADA
+    HITO_LLEGADA --> ETAPA2
+    ETAPA2 --> FINALIZACION
+
+    classDef etapa fill:#1e293b,stroke:#3b82f6,stroke-width:2px,color:#f8fafc;
+    classDef hito fill:#064e3b,stroke:#10b981,stroke-width:2px,color:#f8fafc;
+    classDef fin fill:#451a03,stroke:#f59e0b,stroke-width:2px,color:#f8fafc;
+    class ETAPA1,ETAPA2 etapa;
+    class HITO_LLEGADA hito;
+    class FINALIZACION fin;
 ```
 
 ---
@@ -603,10 +672,16 @@ stateDiagram-v2
 - **Endpoint**: `POST /api/v1/extract` (Multipart con archivo binario).
 - **Configuración**: `OCR_BASE_URL=http://localhost:8080/api/v1`.
 
-### 4. Pusher Channels & Webhooks
-- **Propósito**: Emisión de eventos WebSockets en tiempo real (`cranes-radar`, `tow-channel-{uuid}`) y recepción de webhooks de presencia (`channel_occupied`, `channel_vacated`).
+### 4. Pusher Channels & WebSockets
+- **Propósito**: Emisión de eventos WebSockets en tiempo real (`cranes-radar`, `private-tow-{uuid}`) y recepción de webhooks de presencia (`channel_occupied`, `channel_vacated`).
 - **Autenticación**: Firmado criptográfico HMAC-SHA256 con `PUSHER_APP_KEY` y `PUSHER_APP_SECRET`.
 - **Endpoint Webhook**: `POST /api/v1/webhooks/pusher`.
+
+### 4-B. Pusher Beams (Notificaciones Push Móviles Nativas FCM / APNs)
+- **Propósito**: Despertar dispositivos móviles de grueros en segundo plano o con la aplicación cerrada ante una emergencia SOS (`cranes-radar`).
+- **Arquitectura y Ventaja vs. Firebase SDK Directo**: Pusher Beams actúa como un concentrador y enrutador cloud unificado sobre **Apple Push Notification service (APNs)** para iOS y **Firebase Cloud Messaging (FCM)** para Android.
+- **Cero Dependencias en PHP**: La Core API no necesita cargar el voluminoso SDK de Google Firebase en PHP. Consume directamente la API REST de Pusher Beams (`https://{instance_id}.pushnotifications.pusher.com/publish_api/v1/instances/{instance_id}/publishes`) mediante HTTP POST autenticado por Bearer Token (`PUSHER_BEAMS_SECRET_KEY`), enviando una carga útil unificada compatible con ambos sistemas operativos.
+- **Configuración**: `PUSHER_BEAMS_INSTANCE_ID` y `PUSHER_BEAMS_SECRET_KEY`. En la app móvil Kotlin Multiplatform (KMP), el SDK cliente de Beams se suscribe al interés `cranes-radar`.
 
 ### 5. Amazon Web Services (AWS S3)
 - **Propósito**: Almacenamiento seguro, inmutable y persistente de documentos KYC, licencias y banners publicitarios (bucket `ubik-go`).
@@ -680,6 +755,11 @@ stateDiagram-v2
 | **Grueros** | `GET` | `/api/v1/driver/cranes` | Bearer (`driver`) | Lista de unidades de grúa del operador |
 | **Grueros** | `POST` | `/api/v1/driver/license` | Bearer (`driver`) | Carga de Licencia de Conducir profesional del chofer |
 | **Grueros** | `GET` | `/api/v1/driver/status` | Bearer (`driver`) | Estado de flota y habilitación operativa (`can_operate`) |
+| **Grueros** | `POST` | `/api/v1/driver/shift/start` | Bearer (`driver`) | Inicia turno del chofer y activa grúa (Regla: 1 sola grúa activa a la vez) |
+| **Grueros** | `POST` | `/api/v1/driver/shift/end` | Bearer (`driver`) | Finaliza turno del chofer y desactiva grúa del radar |
+| **Grueros** | `POST` | `/api/v1/driver/cranes/{id}/activate` | Bearer (`driver`) | Activa grúa para el chofer asegurando exclusividad |
+| **Grueros** | `POST` | `/api/v1/driver/location` | Bearer (`driver`) | Latido GPS de telemetría de grúa en segundo plano (`GEOADD cranes:locations`) |
+| **SOS** | `POST` | `/api/v1/sos/quote` | Bearer | Pre-cotiza auxilio SOS: valida geocerca, OSRM, contrato vs. tarifa express y grúas en radar |
 | **SOS** | `POST` | `/api/v1/sos` | Bearer | Solicita auxilio SOS: valida geocerca, ruta OSRM y alerta al radar |
 | **SOS** | `GET` | `/api/v1/sos/radar` | Bearer (`driver`) | Radar geoespacial de emergencias pendientes para choferes |
 | **SOS** | `GET` | `/api/v1/radar` | Bearer (`driver`) | Alias de radar geoespacial |
@@ -902,26 +982,26 @@ PHPUnit 13.4.2 by Sebastian Bergmann and contributors.
 Runtime:       PHP 8.5.11
 Configuration: C:\Users\josep\Documents\vial-core-api\phpunit.xml
 
-...............................................................  63 / 282 ( 22%)
-............................................................... 126 / 294 ( 42%)
-............................................................... 189 / 294 ( 64%)
-............................................................... 252 / 294 ( 85%)
-..........................................                      294 / 294 (100%)
+...............................................................  63 / 308 ( 20%)
+............................................................... 126 / 308 ( 40%)
+............................................................... 189 / 308 ( 61%)
+............................................................... 252 / 308 ( 81%)
+........................................................        308 / 308 (100%)
 
-Time: 01:06.224, Memory: 42.00 MB
+Time: 00:31.638, Memory: 42.00 MB
 
-OK (294 tests, 1083 assertions) - 100% Passing (0 errores, 0 fallos, 0 avisos)
+OK (308 tests, 1139 assertions) - 100% Passing (0 errores, 0 fallos, 0 avisos)
 ```
 
 ### 📊 Desglose de Cobertura de la Suite de Pruebas
 
 | Capa Arquitectural | Componentes y Casos Evaluados | Tests / Aserciones |
 | :--- | :--- | :--- |
-| **Dominio y Core** | Entidades de Dominio, Agregados (`TowService`, `Policy`, `AffiliationContract`), Value Objects (`Uuid`, `Coordinates`, `Plate`, `Price`), Máquinas de Estados y Enums (`TowServiceStatus`, `OrderStatus`, `Role`), Servicios de Dominio (`VehicleMatcherService`). | 71 tests / 262 aserciones |
-| **Casos de Uso de Aplicación** | Registro multi-rol, Login JWT, KYC y OCR con La Venezolana, Registro Vehicular 3NF (OCR, Manual, Flotas de Grúa, Vendedora para Cliente), Emisión y Renovación de Pólizas, Cotización SOS, Despacho y Aceptación de Grúas, Conciliación de Pagos C2P Bancaribe, Retiro de Comisiones. | 123 tests / 455 aserciones |
-| **Seguridad y Autorización** | Auditoría OWASP API1:2023 (Protección BOLA en `/api/v1/sos/{uuid}`), Bloqueo de Bypass de Pago en SOS Express, Validación de firmas de canales privados Pusher (`/api/v1/broadcasting/auth`), Inmutabilidad y expiración de tokens. | 28 tests / 112 aserciones |
-| **Infraestructura y Adaptadores** | `MariaDbUserRepository`, `MariaDbTowServiceRepository`, `MariaDbVehicleRepository`, `CachedVehicleCatalogRepository`, Motor de Migraciones SQLite/MariaDB, `RedisRateLimiter`, `PusherBroadcaster`, `BancaribePaymentGateway`, `S3DocumentUploader`, `SmtpEmailDispatcher`. | 72 tests / 254 aserciones |
-| **Total General** | **Batería Automatizada Completa** | **294 tests / 1083 aserciones (100% OK)** |
+| **Dominio y Core** | Entidades de Dominio (`DriverShift`, `TowService`, `Policy`, `AffiliationContract`), Value Objects (`Uuid`, `Coordinates`, `Plate`, `Price`), Máquinas de Estados y Enums (`TowServiceStatus`, `OrderStatus`, `Role`), Servicios de Dominio (`VehicleMatcherService`, `PushNotificationInterface`). | 75 tests / 278 aserciones |
+| **Casos de Uso de Aplicación** | Pre-Cotización SOS con verificación de radares, Gestión de Turnos y Activación Exclusiva de Grúa, Registro multi-rol, Login JWT, KYC y OCR con La Venezolana, Registro Vehicular 3NF, Emisión de Pólizas, Despacho Dual (Pusher Beams + WebSockets), Hitos de Llegada y Finalización con Broadcasts, Conciliación C2P Bancaribe, Retiro de Comisiones. | 133 tests / 491 aserciones |
+| **Seguridad y Autorización** | Invariante de 1 grúa activa por chofer, Bloqueo de finalización de turno durante servicio activo, Auditoría OWASP API1:2023 (Protección BOLA en `/api/v1/sos/{uuid}`), Bloqueo de Bypass de Pago en SOS Express, Validación de firmas de canales privados Pusher (`/api/v1/broadcasting/auth`), Calificación bidireccional estricta. | 28 tests / 114 aserciones |
+| **Infraestructura y Adaptadores** | `MariaDbDriverShiftRepository`, `PusherBeamsService` (FCM + APNs push gateway), `MariaDbUserRepository`, `MariaDbTowServiceRepository`, `MariaDbVehicleRepository`, `CachedVehicleCatalogRepository`, Motor de Migraciones MariaDB, `RedisRateLimiter`, `PusherBroadcaster`, `BancaribePaymentGateway`, `S3DocumentUploader`, `SmtpEmailDispatcher`. | 72 tests / 256 aserciones |
+| **Total General** | **Batería Automatizada Completa** | **308 tests / 1139 aserciones (100% OK)** |
 
 ### 🔬 Scripts de Smoke Test de Integración en Vivo
 

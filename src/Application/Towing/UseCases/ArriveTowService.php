@@ -3,6 +3,7 @@
 namespace App\Application\Towing\UseCases;
 
 use App\Application\Towing\DTOs\TowServiceResponseDto;
+use App\Domain\Shared\Services\BroadcasterInterface;
 use App\Domain\Shared\ValueObjects\Uuid;
 use App\Domain\Towing\Entities\TowService;
 use App\Domain\Towing\Repositories\TowServiceRepositoryInterface;
@@ -13,7 +14,8 @@ use LogicException;
 class ArriveTowService
 {
     public function __construct(
-        private TowServiceRepositoryInterface $towServiceRepository
+        private TowServiceRepositoryInterface $towServiceRepository,
+        private ?BroadcasterInterface $broadcaster = null
     ) {}
 
     /**
@@ -45,6 +47,17 @@ class ArriveTowService
 
         $this->towServiceRepository->save($service);
 
-        return TowServiceResponseDto::fromEntity($service)->toArray();
+        $dto = TowServiceResponseDto::fromEntity($service)->toArray();
+
+        // Notificar en tiempo real al cliente vía WebSocket seguro (private-tow-{uuid})
+        $this->broadcaster?->broadcast(
+            channels: "private-tow-{$service->getUuid()->getValue()}",
+            event: 'service-arrived',
+            data: array_merge($dto, [
+                'message' => '¡Tu grúa ha llegado al punto de auxilio! El operador está realizando las maniobras de enganche.',
+            ])
+        );
+
+        return $dto;
     }
 }

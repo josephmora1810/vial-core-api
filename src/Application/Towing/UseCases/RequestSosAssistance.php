@@ -11,6 +11,7 @@ use App\Domain\Payments\Enums\OrderStatus;
 use App\Domain\Payments\Repositories\OrderRepositoryInterface;
 use App\Domain\Payments\Services\ExchangeRateServiceInterface;
 use App\Domain\Shared\Services\BroadcasterInterface;
+use App\Domain\Shared\Services\PushNotificationInterface;
 use App\Domain\Shared\ValueObjects\Coordinates;
 use App\Domain\Shared\ValueObjects\Uuid;
 use App\Domain\Towing\Entities\TowService;
@@ -35,6 +36,7 @@ class RequestSosAssistance
         private ExchangeRateServiceInterface $exchangeRateService,
         private ?SavedAddressRepositoryInterface $savedAddressRepository = null,
         private ?BroadcasterInterface $broadcaster = null,
+        private ?PushNotificationInterface $pushNotificationService = null,
         private float $costPerExtraKm = 2.00,
         private float $baseSosPriceUsd = 35.00
     ) {}
@@ -171,6 +173,18 @@ class RequestSosAssistance
                 channels: 'private-cranes-radar',
                 event: 'new-sos-request',
                 data: $serviceDto
+            );
+
+            // 8.1 Notificación Push nativa (Pusher Beams / FCM) si el chofer tiene la app en segundo plano
+            $this->pushNotificationService?->publishToInterests(
+                interests: ['cranes-radar'],
+                title: '🚨 ¡NUEVA SOLICITUD DE AUXILIO VIAL!',
+                body: "Avería reportada en {$service->getOriginAddress()}. Toca para ver la solicitud.",
+                data: [
+                    'service_uuid' => $service->getUuid()->getValue(),
+                    'origin_lat'   => (string)$origin->getLatitude(),
+                    'origin_lng'   => (string)$origin->getLongitude(),
+                ]
             );
         }
 

@@ -2,14 +2,20 @@
 
 namespace App\Controllers;
 
+use App\Application\Driver\UseCases\EndDriverShift;
 use App\Application\Driver\UseCases\GetDriverFleetStatus;
 use App\Application\Driver\UseCases\RegisterDriverCrane;
+use App\Application\Driver\UseCases\StartDriverShift;
+use App\Application\Driver\UseCases\UpdateDriverLocation;
 use App\Application\Driver\UseCases\UploadDriverLicense;
 use App\Application\Vehicles\DTOs\VehicleResponseDto;
 use App\Core\Request;
 use App\Core\Response;
+use App\Domain\Driver\Repositories\DriverShiftRepositoryInterface;
+use App\Domain\Shared\ValueObjects\Coordinates;
 use App\Domain\Users\Entities\User;
 use App\Domain\Vehicles\Repositories\VehicleRepositoryInterface;
+use DomainException;
 use Exception;
 
 class DriverController
@@ -18,7 +24,11 @@ class DriverController
         private RegisterDriverCrane $registerDriverCrane,
         private UploadDriverLicense $uploadDriverLicense,
         private GetDriverFleetStatus $getDriverFleetStatus,
-        private ?VehicleRepositoryInterface $vehicleRepository = null
+        private ?VehicleRepositoryInterface $vehicleRepository = null,
+        private ?StartDriverShift $startDriverShift = null,
+        private ?EndDriverShift $endDriverShift = null,
+        private ?UpdateDriverLocation $updateDriverLocation = null,
+        private ?DriverShiftRepositoryInterface $driverShiftRepository = null
     ) {}
 
     /**
@@ -219,5 +229,176 @@ class DriverController
         $dtos = array_map(fn($c) => VehicleResponseDto::fromEntity($c)->toArray(), $cranes);
 
         Response::json($dtos, 200, 'success', 'Grúas del operador consultadas con éxito.');
+    }
+
+    /**
+     * POST /api/v1/driver/shift/start
+     * Inicia turno de trabajo y activa una grúa de la flota.
+     */
+    public function startShift(Request $request): void
+    {
+        /** @var User|null $user */
+        $user = $request->user();
+        if ($user === null || $user->getId() === null) {
+            Response::json([], 401, 'fail', 'No autorizado.');
+            return;
+        }
+
+        if ($this->startDriverShift === null) {
+            Response::json([], 500, 'error', 'Servicio de turnos no configurado.');
+            return;
+        }
+
+        $craneId = $request->input('crane_id');
+        $lat = $request->input('latitude');
+        $lng = $request->input('longitude');
+
+        if (empty($craneId)) {
+            Response::json(['crane_id' => 'Debe seleccionar la grúa que operará durante este turno.'], 422, 'fail', 'Datos incompletos.');
+            return;
+        }
+
+        try {
+            $latVal = ($lat !== null && is_numeric($lat)) ? (float)$lat : null;
+            $lngVal = ($lng !== null && is_numeric($lng)) ? (float)$lng : null;
+
+            $result = $this->startDriverShift->execute(
+                driverUserId: (int)$user->getId(),
+                craneIdentifier: $craneId,
+                initialLatitude: $latVal,
+                initialLongitude: $lngVal
+            );
+
+            Response::json($result, 200, 'success', $result['message']);
+        } catch (DomainException $e) {
+            $code = $e->getCode();
+            $httpCode = (is_int($code) && $code >= 400 && $code < 600) ? $code : 422;
+            Response::json([], $httpCode, 'fail', $e->getMessage());
+        } catch (Exception $e) {
+            $code = $e->getCode();
+            $httpCode = (is_int($code) && $code >= 400 && $code < 600) ? $code : 500;
+            Response::json([], $httpCode, 'error', $e->getMessage());
+        }
+    }
+
+    /**
+     * POST /api/v1/driver/cranes/{id}/activate
+     * Activa una grúa específica para el turno del chofer (desactivando cualquier otra unidad de su flota).
+     */
+    public function activateCrane(Request $request, array $params = []): void
+    {
+        /** @var User|null $user */
+        $user = $request->user();
+        if ($user === null || $user->getId() === null) {
+            Response::json([], 401, 'fail', 'No autorizado.');
+            return;
+        }
+
+        if ($this->startDriverShift === null) {
+            Response::json([], 500, 'error', 'Servicio de activación de grúas no configurado.');
+            return;
+        }
+
+        $craneId = $params['id'] ?? $request->input('crane_id');
+        if (empty($craneId)) {
+            Response::json(['crane_id' => 'Identificador de la grúa requerido.'], 422, 'fail', 'Parámetro faltante.');
+            return;
+        }
+
+        try {
+            $result = $this->startDriverShift->execute(
+                driverUserId: (int)$user->getId(),
+                craneIdentifier: $craneId
+            );
+
+            Response::json($result, 200, 'success', 'Grúa activada como unidad de guardia para el chofer.');
+        } catch (DomainException $e) {
+            $code = $e->getCode();
+            $httpCode = (is_int($code) && $code >= 400 && $code < 600) ? $code : 409;
+            Response::json([], $httpCode, 'fail', $e->getMessage());
+        } catch (Exception $e) {
+            $code = $e->getCode();
+            $httpCode = (is_int($code) && $code >= 400 && $code < 600) ? $code : 500;
+            Response::json([], $httpCode, 'error', $e->getMessage());
+        }
+    }
+
+    /**
+     * POST /api/v1/driver/shift/end
+     * Finaliza el turno del chofer y lo desactiva del radar de emergencias.
+     */
+    public function endShift(Request $request): void
+    {
+        /** @var User|null $user */
+        $user = $request->user();
+        if ($user === null || $user->getId() === null) {
+            Response::json([], 401, 'fail', 'No autorizado.');
+            return;
+        }
+
+        if ($this->endDriverShift === null) {
+            Response::json([], 500, 'error', 'Servicio de turnos no configurado.');
+            return;
+        }
+
+        try {
+            $result = $this->endDriverShift->execute((int)$user->getId());
+            Response::json($result, 200, 'success', $result['message']);
+        } catch (DomainException $e) {
+            $code = $e->getCode();
+            $httpCode = (is_int($code) && $code >= 400 && $code < 600) ? $code : 409;
+            Response::json([], $httpCode, 'fail', $e->getMessage());
+        } catch (Exception $e) {
+            $code = $e->getCode();
+            $httpCode = (is_int($code) && $code >= 400 && $code < 600) ? $code : 500;
+            Response::json([], $httpCode, 'error', $e->getMessage());
+        }
+    }
+
+    /**
+     * POST /api/v1/driver/location
+     * Emite latido de ubicación en segundo plano para el radar geoespacial (NFR-14-B).
+     */
+    public function updateLocation(Request $request): void
+    {
+        /** @var User|null $user */
+        $user = $request->user();
+        if ($user === null || $user->getId() === null) {
+            Response::json([], 401, 'fail', 'No autorizado.');
+            return;
+        }
+
+        if ($this->updateDriverLocation === null) {
+            Response::json([], 500, 'error', 'Servicio de telemetría de radar no configurado.');
+            return;
+        }
+
+        $lat = $request->input('latitude') ?? $request->input('lat');
+        $lng = $request->input('longitude') ?? $request->input('lng');
+        $speed = (float)($request->input('speed_kmh') ?? 0.0);
+
+        if ($lat === null || $lng === null || !is_numeric($lat) || !is_numeric($lng)) {
+            Response::json(['coordinates' => 'Latitud y longitud numéricas son obligatorias.'], 422, 'fail', 'Coordenadas inválidas.');
+            return;
+        }
+
+        try {
+            $coords = new Coordinates((float)$lat, (float)$lng);
+            $result = $this->updateDriverLocation->execute(
+                driverUserId: (int)$user->getId(),
+                coordinates: $coords,
+                speedKmh: $speed
+            );
+
+            Response::json($result, 200, 'success', 'Ubicación de radar actualizada con éxito.');
+        } catch (DomainException $e) {
+            $code = $e->getCode();
+            $httpCode = (is_int($code) && $code >= 400 && $code < 600) ? $code : 400;
+            Response::json([], $httpCode, 'fail', $e->getMessage());
+        } catch (Exception $e) {
+            $code = $e->getCode();
+            $httpCode = (is_int($code) && $code >= 400 && $code < 600) ? $code : 500;
+            Response::json([], $httpCode, 'error', $e->getMessage());
+        }
     }
 }

@@ -100,10 +100,15 @@ $router->post($v1 . 'seller/contracts/{id}/renew', 'SellerController@renewContra
 // Módulo de Operadores de Grúas y Validación de Flota (FR-09, FR-10)
 $router->post($v1 . 'driver/cranes', 'DriverController@registerCrane', ['auth', 'role:driver']);
 $router->get($v1 . 'driver/cranes', 'DriverController@listCranes', ['auth', 'role:driver']);
+$router->post($v1 . 'driver/cranes/{id}/activate', 'DriverController@activateCrane', ['auth', 'role:driver']);
+$router->post($v1 . 'driver/shift/start', 'DriverController@startShift', ['auth', 'role:driver']);
+$router->post($v1 . 'driver/shift/end', 'DriverController@endShift', ['auth', 'role:driver']);
+$router->post($v1 . 'driver/location', 'DriverController@updateLocation', ['auth', 'role:driver']);
 $router->post($v1 . 'driver/license', 'DriverController@uploadLicense', ['auth', 'role:driver']);
 $router->get($v1 . 'driver/status', 'DriverController@status', ['auth', 'role:driver']);
 
 // Módulo de Asistencia Vial (SOS), Telemetría, Matching y Calificaciones (FR-20, FR-22, FR-23, FR-24, FR-25, FR-27)
+$router->post($v1 . 'sos/quote', 'TowingController@quote', ['auth']);
 $router->post($v1 . 'sos', 'TowingController@requestSos', ['auth']);
 $router->get($v1 . 'sos/radar', 'TowingController@radar', ['auth', 'role:driver']);
 $router->get($v1 . 'radar', 'TowingController@radar', ['auth', 'role:driver']);

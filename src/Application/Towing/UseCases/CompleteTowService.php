@@ -4,18 +4,23 @@ namespace App\Application\Towing\UseCases;
 
 use App\Application\Towing\DTOs\TowServiceResponseDto;
 use App\Domain\Contracts\Repositories\ServiceContractRepositoryInterface;
+use App\Domain\Shared\Services\BroadcasterInterface;
 use App\Domain\Shared\ValueObjects\Uuid;
 use App\Domain\Towing\Entities\TowService;
 use App\Domain\Towing\Repositories\TowServiceRepositoryInterface;
+use App\Infrastructure\Database\Redis;
 use DomainException;
 use Exception;
 use LogicException;
+use Throwable;
 
 class CompleteTowService
 {
     public function __construct(
         private TowServiceRepositoryInterface $towServiceRepository,
-        private ?ServiceContractRepositoryInterface $contractRepository = null
+        private ?ServiceContractRepositoryInterface $contractRepository = null,
+        private ?BroadcasterInterface $broadcaster = null,
+        private ?Redis $redis = null
     ) {}
 
     /**
@@ -57,6 +62,27 @@ class CompleteTowService
             }
         }
 
-        return TowServiceResponseDto::fromEntity($service)->toArray();
+        $dto = TowServiceResponseDto::fromEntity($service)->toArray();
+
+        // 1. Notificar en vivo al cliente vía WebSocket seguro (private-tow-{uuid})
+        $this->broadcaster?->broadcast(
+            channels: "private-tow-{$service->getUuid()->getValue()}",
+            event: 'service-completed',
+            data: array_merge($dto, [
+                'message' => 'Servicio de grúa culminado con éxito. Por favor califica la atención recibida.',
+                'can_rate' => true,
+            ])
+        );
+
+        // 2. Liberar el estado de disponibilidad del chofer en Redis
+        if ($this->redis !== null) {
+            try {
+                $this->redis->execute('SET', "driver:{$driverId}:status", 'available');
+            } catch (Throwable) {
+                // Silencioso
+            }
+        }
+
+        return $dto;
     }
 }
