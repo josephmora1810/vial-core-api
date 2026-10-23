@@ -803,18 +803,64 @@ Por defecto, la API utiliza el cluster oficial de demostración `https://router.
 docker run -t -i -p 5000:5000 -v "${PWD}:/data" osrm/osrm-backend osrm-routed --algorithm mld /data/venezuela-latest.osrm
 ```
 
-### 4. Migraciones de Base de Datos y Seeders
+### 4. Migraciones de Base de Datos y Seeders del Catálogo Maestro
 
+El sistema incluye un motor de migraciones y seeders nativo en PHP puro sin dependencias de librerías externas. La información maestra de marcas, modelos, clases y subclases está compilada en el archivo versionado `src/Infrastructure/Database/Seeders/data/vehicle_catalog_data.php`.
+
+#### A. Ejecutar Migraciones (Esquema DDL)
 ```bash
-# Aplicar todas las migraciones asignando el siguiente número de step
+# Aplicar todas las 34 migraciones hacia adelante en orden topológico estricto
 php scripts/migrate.php
 
-# Visualizar el estado histórico de migraciones
+# Consultar el estado y tabla de control de migraciones
 php scripts/migrate.php status
 
-# Cargar el catálogo vehicular maestro (clases, marcas y modelos)
+# Si se requiere resetear la base de datos completa a cero (Rollback total):
+php scripts/migrate.php rollback --all
+```
+
+#### B. Ejecutar Seeders (Carga de Datos Maestros)
+Para poblar una base de datos vacía en un nuevo servidor o entorno de producción/pruebas, ejecuta:
+```bash
+# Ejecuta todos los seeders registrados en orden secuencial
 php scripts/seed.php
 ```
+
+#### C. Detalle de los Seeders y Jerarquía Relacional 3NF
+Los seeders se ejecutan de manera transaccional e idempotente (`ON DUPLICATE KEY UPDATE`):
+
+| Seeder | Archivo | Descripción del Contenido y Volumen |
+| :--- | :--- | :--- |
+| **01** | `s000001_roles_and_permissions_seeder.php` | Roles (`client`, `driver`, `seller`, `admin`) y permisos del RBAC. |
+| **02** | `s000002_vehicle_classes_and_subclasses_seeder.php` | **17 Clases Maestras** (Automóvil, Camión, Autobús, Moto, Rústico, etc.) y **147 Subclases / Carrocerías** (Sedán, Coupé, Pick-up, Cava, Plataforma, etc.) enlazadas a su clase por `vehicle_class_id`. |
+| **03** | `s000003_vehicle_brands_seeder.php` | **612 Marcas Oficiales** (Toyota, Vera/Bera, Chevrolet, Ford, Hyundai, etc.) normalizadas e insertadas en `vehicle_brands`. |
+| **04** | `s000004_vehicle_models_seeder.php` | **5.413 Modelos** normalizados, vinculados de forma unívoca a su `brand_id`, su `vehicle_subclass_id` y su tipo vehicular (`type`: `CAR`, `SUV`, `MOTORCYCLE`, `CRANE`, `TRUCK`). |
+| **05** | `s000005_plans_seeder.php` | Planes comerciales de asistencia vial con límites de kilometraje y rescates. |
+| **06** | `s000006_banks_seeder.php` | Catálogo oficial de 23 bancos nacionales autorizados por Sudeban. |
+
+#### D. Ejecución de Seeders Específicos o Re-seeding Selectivo
+Si solo necesitas recargar o actualizar un catálogo particular sin tocar los demás:
+```bash
+# Ejecutar solo la carga de clases y subclases
+php scripts/seed.php s000002
+
+# Ejecutar solo la carga de marcas automotrices
+php scripts/seed.php s000003
+
+# Ejecutar solo la carga de modelos de vehículos
+php scripts/seed.php s000004
+```
+
+#### E. ¿Cómo agregar o extender nuevas Marcas y Modelos?
+1. **Archivo de Datos:** Los datos residen en `src/Infrastructure/Database/Seeders/data/vehicle_catalog_data.php`.
+   - Para añadir marcas: Agrégalas al array `'brands'`.
+   - Para añadir modelos: Agrégalas bajo la clave de su marca dentro de `'models'`:
+     ```php
+     'MarcaEjemplo' => [
+         ['ModeloEjemplo', 'Clase', 'Subclase', 'CAR'],
+     ],
+     ```
+2. **Re-ejecución Segura:** Al ejecutar nuevamente `php scripts/seed.php s000004`, el script verificará las marcas existentes, resolverá las claves foráneas correspondientes e insertará los nuevos registros sin duplicar los ya existentes.
 
 ### 5. Iniciar el Servidor de Desarrollo
 
