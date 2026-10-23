@@ -17,16 +17,24 @@ vial-core-api/
 │   ├── docs/                   # Swagger UI interactivo (/docs/index.html)
 │   ├── index.php               # Front Controller
 │   └── openapi.yaml            # Contrato canónico OpenAPI 3.0.3
-├── scripts/                    # Scripts de mantenimiento (migraciones, seeders, smoke tests)
-│   ├── migrate.php             # Ejecutor de migraciones de base de datos
-│   └── seed.php                # Seeder de clases, marcas y modelos de vehículos
+├── scripts/                    # Scripts de mantenimiento (migraciones, seeders, workers y cronjobs)
+│   ├── migrate.php             # Gestor de migraciones con soporte para steps y rollback controlado
+│   ├── seed.php                # Seeder de clases, marcas y modelos de vehículos
+│   ├── sync_bank_token.php     # Renovación proactiva de token OAuth2 Bancaribe
+│   ├── sync_exchange_rates.php # Sincronización de tasas oficiales BCV (USD/EUR)
+│   ├── expire_contracts.php    # Expiración automática de contratos de servicio vencidos
+│   ├── expire_sos_timeouts.php # Cancelación de auxilios SOS tras 10 min y reintegro a wallet (FR-24-C)
+│   ├── process_s3_queue.php    # Worker asíncrono de subida de documentos a AWS S3
+│   └── run_cronjobs.php        # Ejecutor maestro de tareas programadas
 ├── src/
 │   ├── Application/            # Casos de uso (Use Cases) y DTOs organizados por Subdominio
 │   │   ├── Auth/               # Login, Registro, Tokens, Recuperación, KYC & OCR
 │   │   ├── Users/              # Perfil y Libreta de Direcciones Guardadas
 │   │   ├── Vehicles/           # Registro, Escaneo OCR y Catálogo de Vehículos
 │   │   ├── Contracts/          # Planes, Membresías y Checkout de Contratos Anuales
-│   │   └── Payments/           # Procesamiento C2P, Pago Móvil Plus y Webhooks Bancaribe
+│   │   ├── Payments/           # Procesamiento C2P, Pago Móvil Plus y Webhooks Bancaribe
+│   │   ├── Commissions/        # Billetera de comisiones de vendedoras y retiros bancarios
+│   │   └── Towing/             # Auxilio SOS, matching con grúas, telemetría y timeouts (FR-20 - FR-27)
 │   ├── Controllers/            # Adaptadores primarios HTTP (REST Controllers)
 │   ├── Core/                   # Micro-framework nativo (Kernel, Router, Request, Response)
 │   ├── Domain/                 # Núcleo del negocio organizado por Subdominios (Bounded Contexts)
@@ -35,11 +43,14 @@ vial-core-api/
 │   │   ├── Users/              # Usuario, Direcciones y Value Objects de Identidad
 │   │   ├── Vehicles/           # Vehículos, Catálogo Maestro y Servicio de Matching OCR
 │   │   ├── Contracts/          # Planes y Contratos de Servicio Anual
-│   │   └── Payments/           # Órdenes Polimórficas, Pagos, Tasas BCV y Puertos Bancaribe
-│   ├── Infrastructure/         # Adaptadores secundarios (MariaDB, Redis, Bancaribe, OCR)
+│   │   ├── Payments/           # Órdenes Polimórficas, Pagos, Tasas BCV y Puertos Bancaribe
+│   │   ├── Commissions/        # Comisiones comerciales y perfiles de vendedoras
+│   │   └── Towing/             # Servicios de grúa, telemetría, geocercas y ratings
+│   ├── Infrastructure/         # Adaptadores secundarios (MariaDB, Redis, Bancaribe, Pusher, OCR)
+│   │   ├── Broadcasting/       # Adaptador Pusher Channels con firma HMAC-SHA256 en PHP puro
 │   │   ├── Database/
-│   │   │   ├── Migrations/     # Migraciones transaccionales (m000001 - m000023)
-│   │   │   ├── Repositories/   # Repositorios MariaDB/Redis por Subdominio (Auth, Users, Vehicles, Contracts, Payments)
+│   │   │   ├── Migrations/     # Migraciones transaccionales con control de steps (m000001 - m000032)
+│   │   │   ├── Repositories/   # Repositorios MariaDB/Redis por Subdominio (Auth, Users, Vehicles, Contracts, Payments, Towing)
 │   │   │   └── Seeders/        # Seeders de roles, catálogo automotriz, bancos y planes
 │   │   ├── Http/
 │   │   ├── Logging/            # IntegrationLogger para auditoría de servicios de terceros
@@ -82,9 +93,23 @@ vial-core-api/
    JWT_SECRET=super_secret_jwt_key_32_characters_minimum
    ```
 
-2. **Ejecutar Migraciones de Base de Datos**:
+2. **Gestión de Migraciones de Base de Datos (con Control de Steps)**:
+   La Core API cuenta con un migrador con control de lotes (`step`), garantizando que un `rollback` nunca borre toda la base de datos por accidente:
    ```bash
+   # Aplica todas las migraciones pendientes y les asigna el siguiente número de step
    php scripts/migrate.php
+
+   # Muestra la tabla histórica de migraciones ejecutadas con su ID, Step y fecha
+   php scripts/migrate.php status
+
+   # Revierte ÚNICAMENTE las migraciones aplicadas en el último step (conservando los datos previos)
+   php scripts/migrate.php rollback
+
+   # Revierte las migraciones correspondientes a los últimos N steps
+   php scripts/migrate.php rollback 2
+
+   # Revierte todas las migraciones registradas (rollback integral)
+   php scripts/migrate.php rollback --all
    ```
 
 3. **Ejecutar Seeders del Catálogo Automotriz**:
@@ -168,10 +193,11 @@ La documentación interactiva completa con Swagger UI está disponible directame
 | `GET`    | `/api/v1/exchange-rates` | No | Tasas oficiales de compra/venta BCV (USD y EUR) cacheadas en Redis |
 | `POST`   | `/api/v1/exchange-rates/sync` | Bearer (`admin`) | Forzar sincronización de tasas BCV con el API de Bancaribe |
 
-### 8. Contratos, Renovación, Canje y Pasarela Bancaribe (FR-12, FR-14, FR-28, FR-29, FR-30)
+### 8. Contratos de Asistencia Vial, Renovación, Canje y Verificación QR (`ContractController`, FR-12, FR-14, FR-30)
 | Método | Endpoint | Auth | Descripción |
 |---|---|---|---|
 | `POST` | `/api/v1/checkout` | Bearer | Genera contrato en `PENDING_PAYMENT` y orden polimórfica con tasa BCV |
+| `POST` | `/api/v1/contracts/checkout` | Bearer | Alias canónico de checkout de contratos de servicio |
 | `GET`  | `/api/v1/contracts` | Bearer | Listado de contratos del usuario con timestamps exactos (`starts_at`, `expires_at`) y cupos disponibles |
 | `GET`  | `/api/v1/contracts/verify/{code}` | Público | Validación autoritativa antifraude y cotejo de placa (`?plate=AB123CD`) con soporte Redis |
 | `GET`  | `/api/v1/contracts/{id}/pdf` | Público (UUID) / Bearer | Descarga o visualiza el Contrato en PDF (2 páginas con QR y marca de agua dinámica según estado) |
@@ -179,13 +205,17 @@ La documentación interactiva completa con Swagger UI está disponible directame
 | `POST` | `/api/v1/contracts/{id}/redeem` | Bearer | Canjea 1 servicio de grúa y descuenta los kilómetros recorridos sobre un contrato activo |
 | `POST` | `/api/v1/contracts/{id}/cancel` | Bearer | Cancela un contrato de servicio (aplica marca de agua `CANCELADO` conservando el sello de pago) |
 | `POST` | `/api/v1/admin/contracts/expire-overdue` | Bearer (`admin`) | Ejecuta barrido manual de expiración de contratos cuyo timestamp `expires_at` haya vencido |
+
+### 9. Pasarela Bancaria Bancaribe, Órdenes y Pagos C2P (`PaymentController`, FR-28, FR-29)
+| Método | Endpoint | Auth | Descripción |
+|---|---|---|---|
 | `GET`  | `/api/v1/orders` | Bearer | Historial de órdenes de pago del usuario |
 | `POST` | `/api/v1/payments/process` | Bearer | Procesa cobro `c2p` (solo cliente) o `pago_movil` (cliente y vendedora vía Operaciones Plus) y activa/renueva el contrato |
 | `POST` | `/api/v1/webhooks/bancaribe` | Firma HMAC | Webhook asíncrono de Bancaribe para confirmación/rechazo de pagos |
 | `GET`  | `/api/v1/admin/bank/balances` | Bearer (`admin`) | Consulta de saldos disponibles/bloqueados de las cuentas recaudadoras en Bancaribe |
-| `GET`  | `/api/v1/admin/integrations/logs` | Bearer (`role:admin`) | Visor de logs de integraciones de terceros (`bancaribe`, `ocr`, `mapbox`, `pusher`, `s3`) |
+| `GET`  | `/api/v1/admin/integrations/logs` | Bearer (`role:admin`) | Visor de logs de integraciones de terceros (`bancaribe`, `ocr`, `osrm`, `pusher`, `s3`) |
 
-### 9. Módulo Comercial de Vendedoras y Comisiones B2B (`role:seller`, FR-14, FR-15, FR-34)
+### 10. Módulo Comercial de Vendedoras y Comisiones B2B (`role:seller`, FR-14, FR-15, FR-34)
 | Método | Endpoint | Auth | Descripción |
 |---|---|---|---|
 | `GET`  | `/api/v1/seller/profile` | Bearer (`sell_service_contract`) | Perfil comercial, tasa de comisión asignada (`commission_rate`) y estado de datos bancarios |
@@ -202,7 +232,7 @@ La documentación interactiva completa con Swagger UI está disponible directame
 | `POST` | `/api/v1/admin/commissions/{id}/pay` | Bearer (`role:admin`) | Liquida comisión a la vendedora registrando la referencia de transferencia bancaria |
 | `PUT`  | `/api/v1/admin/sellers/{id}/commission-rate` | Bearer (`role:admin`) | Configura porcentaje de comisión personalizado acordado con la vendedora (ej: 15.00%) |
 
-### 10. Operadores de Grúa y Validación de Flota (`role:driver`, FR-09, FR-10)
+### 11. Operadores de Grúa y Validación de Flota (`role:driver`, FR-09, FR-10)
 | Método | Endpoint | Auth | Descripción |
 |---|---|---|---|
 | `POST` | `/api/v1/driver/cranes` | Bearer (`role:driver`) | Registra unidad de grúa (`type: CRANE`) con Carnet INTT vía OCR y encola a AWS S3 (FR-09) |
@@ -210,7 +240,7 @@ La documentación interactiva completa con Swagger UI está disponible directame
 | `POST` | `/api/v1/driver/license` | Bearer (`role:driver`) | Carga o actualiza Licencia de Conducir profesional del chofer y encola a AWS S3 (FR-09) |
 | `GET`  | `/api/v1/driver/status` | Bearer (`role:driver`) | Consulta estado integral de flota y habilitación (`can_operate`) para despacho SOS (FR-09, FR-10) |
 
-### 11. Landing Page y Moderación Administrativa (FR-35, FR-36)
+### 12. Landing Page y Moderación Administrativa (FR-35, FR-36)
 | Método | Endpoint | Auth | Descripción |
 |---|---|---|---|
 | `GET`    | `/api/v1/home-gallery` | Público | Lista los banners dinámicos activos para la Landing Page de Vue.js ordenados por prioridad |
@@ -222,7 +252,7 @@ La documentación interactiva completa con Swagger UI está disponible directame
 | `POST`   | `/api/v1/admin/users/{id}/suspend` | Bearer (`role:admin`) | Suspende/banea un usuario, revoca todos sus Refresh Tokens e inserta auditoría con motivo (FR-35) |
 | `POST`   | `/api/v1/admin/users/{id}/activate` | Bearer (`role:admin`) | Reactiva una cuenta de usuario previamente suspendida (FR-35) |
 
-### 12. Arquitectura de Almacenamiento y Caché de Imágenes (AWS S3 + Redis)
+### 13. Arquitectura de Almacenamiento y Caché de Imágenes (AWS S3 + Redis)
 1. **Ciclo de Vida de Imágenes y Purga Local**:
    * Las carpetas locales (`storage/documents`, `storage/temp`) operan únicamente como área de aterrizaje temporal para procesar el OCR y validar el archivo.
    * Al completarse la subida a **Amazon S3** (vía worker asíncrono o caso de uso directo), el archivo local es **eliminado de inmediato** (`unlink`), evitando el consumo innecesario de almacenamiento en disco en los servidores de la API.
@@ -237,6 +267,20 @@ La documentación interactiva completa con Swagger UI está disponible directame
    * Al igual que los planes y bancos, las rutas de imágenes se cachean en memoria en Redis con una vigencia TTL de 24 horas (`images:single:{type}:{id}`, `catalog:home_gallery:active`).
    * Cualquier actualización o eliminación invalida automáticamente la caché para reflejar los cambios en tiempo real.
    * La llamada `GET /api/v1/me` resuelve la clave `avatar_url` directamente desde Redis a velocidad de submilisegundos.
+
+### 14. Asistencia Vial SOS, Matching de Grúas, Telemetría y Calificaciones (`TowingController`, FR-20 al FR-27, NFR-11-B)
+| Método | Endpoint | Auth | Descripción |
+|---|---|---|---|
+| `POST` | `/api/v1/sos` | Bearer | Inicia auxilio SOS: valida geocerca Gran Caracas (FR-22), calcula distancia OSRM, valida cobertura de contrato anual o emite orden de excedente en USD/VES, y difunde `new-sos-request` al canal Pusher `cranes-radar` (FR-20, FR-23) |
+| `GET`  | `/api/v1/sos/radar` | Bearer (`role:driver`) | Radar geoespacial de solicitudes `PENDING` para choferes de grúa (Haversine optimizado en MariaDB < 200 ms, NFR-02) |
+| `GET`  | `/api/v1/radar` | Bearer (`role:driver`) | Alias abreviado de radar para la aplicación móvil |
+| `GET`  | `/api/v1/sos/{uuid}` | Bearer | Detalle y estado en tiempo real del auxilio (UUID v7 público, cero IDs internos) |
+| `POST` | `/api/v1/sos/{uuid}/accept` | Bearer (`role:driver`) | Aceptación de servicio con bloqueo pesimista MariaDB (`SELECT ... FOR UPDATE`, NFR-11-B): el primer chofer se lo adjudica (`IN_ROUTE`), los concurrentes reciben `409 Conflict` |
+| `PUT` / `POST` | `/api/v1/sos/{uuid}/telemetry` | Bearer (`role:driver`) | Emisión GPS de alta frecuencia (5-10 s), guarda historial en `tow_service_logs` y difunde `location-updated` al canal privado del cliente (`tow-channel-{uuid}`) |
+| `POST` | `/api/v1/sos/{uuid}/arrive` | Bearer (`role:driver`) | Notifica la llegada física de la grúa al punto de avería (`IN_PROGRESS`) |
+| `POST` | `/api/v1/sos/{uuid}/complete` | Bearer (`role:driver`) | Finaliza el remolque (`COMPLETED`), descuenta automáticamente 1 servicio y km del contrato de asistencia (`service_contracts`) y exige calificación mutua (FR-27) |
+| `POST` | `/api/v1/sos/{uuid}/cancel` | Bearer | Cancela el auxilio. Si el chofer cancela en ruta por avería con `reassign: true`, vuelve automáticamente a `PENDING` y reanuda el radar (FR-24-B) |
+| `POST` | `/api/v1/sos/{uuid}/rate` | Bearer | Calificación de 1 a 5 estrellas con comentario opcional e invalidación de caché de promedios en Redis (FR-27) |
 
 ---
 
@@ -317,7 +361,8 @@ Para evitar que los contratos de adhesión de UbikGo en PDF sean alterados, adul
 > 1. **`php scripts/sync_bank_token.php`**: Renueva proactivamente el token OAuth2 de Bancaribe en MariaDB (`bank_tokens`) y Redis (`bancaribe:access_token`).
 > 2. **`php scripts/sync_exchange_rates.php`**: Sincroniza las tasas oficiales BCV (USD y EUR) con Bancaribe en MariaDB y Redis e invalida la caché de planes.
 > 3. **`php scripts/expire_contracts.php`**: Transiciona automáticamente de `ACTIVE` a `EXPIRED` los contratos cuyo timestamp exacto `expires_at` (`YYYY-MM-DD HH:MM:SS`) haya vencido.
-> 4. **`php scripts/process_s3_queue.php`**: Procesa la cola en Redis (`queue:s3_document_uploads`), eliminando metadatos EXIF (NFR-17) y subiendo de forma persistente los documentos a AWS S3 (bucket `ubik-go`).
+> 4. **`php scripts/expire_sos_timeouts.php`**: Cancela solicitudes SOS pendientes con más de 10 min de inactividad, acredita el dinero pagado al `wallet_balance` del usuario y notifica vía Pusher (FR-24-C).
+> 5. **`php scripts/process_s3_queue.php`**: Procesa la cola en Redis (`queue:s3_document_uploads`), eliminando metadatos EXIF (NFR-17) y subiendo de forma persistente los documentos a AWS S3 (bucket `ubik-go`).
 
 ### Ejecución manual conjunta o individual por CLI:
 ```bash
@@ -326,6 +371,7 @@ php scripts/run_cronjobs.php
 php scripts/sync_bank_token.php
 php scripts/sync_exchange_rates.php
 php scripts/expire_contracts.php
+php scripts/expire_sos_timeouts.php        # Cancela SOS vencidos (tolerancia default: 10 min)
 php scripts/process_s3_queue.php          # Procesa lote de hasta 50 trabajos
 php scripts/process_s3_queue.php --daemon # Modo Daemon continuo en segundo plano
 php scripts/enqueue_existing_documents.php # Migra archivos locales existentes en storage/documents hacia S3
@@ -336,6 +382,7 @@ php scripts/enqueue_existing_documents.php # Migra archivos locales existentes e
 */25 * * * * /usr/bin/php /ruta/al/proyecto/vial-core-api/scripts/sync_bank_token.php >> /ruta/al/proyecto/vial-core-api/storage/logs/cron.log 2>&1
 0 * * * * /usr/bin/php /ruta/al/proyecto/vial-core-api/scripts/sync_exchange_rates.php >> /ruta/al/proyecto/vial-core-api/storage/logs/cron.log 2>&1
 */5 * * * * /usr/bin/php /ruta/al/proyecto/vial-core-api/scripts/expire_contracts.php >> /ruta/al/proyecto/vial-core-api/storage/logs/cron.log 2>&1
+*/2 * * * * /usr/bin/php /ruta/al/proyecto/vial-core-api/scripts/expire_sos_timeouts.php >> /ruta/al/proyecto/vial-core-api/storage/logs/cron.log 2>&1
 * * * * * /usr/bin/php /ruta/al/proyecto/vial-core-api/scripts/process_s3_queue.php >> /ruta/al/proyecto/vial-core-api/storage/logs/s3_worker.log 2>&1
 ```
 
@@ -343,16 +390,60 @@ php scripts/enqueue_existing_documents.php # Migra archivos locales existentes e
 
 ## 🧪 Pruebas Automatizadas
 
-El proyecto cuenta con una cobertura exhaustiva de pruebas unitarias y de arquitectura con PHPUnit:
+El proyecto cuenta con una cobertura exhaustiva de pruebas unitarias, de integración, arquitectura DDD y prevención de regresiones ejecutada con **PHPUnit 13+**:
 
 ```bash
+# Ejecutar todas las pruebas del proyecto
+php bin/phpunit.phar
+
+# En entornos Windows alternativos:
 .\phpunit.bat --colors=never
 ```
 
-**Resultado actual:**
+**Resultado de la Suite:**
+```text
+PHPUnit 13.4.2 by Sebastian Bergmann and contributors.
+Runtime:       PHP 8.5.11
+Configuration: phpunit.xml
+
+OK (274 tests, 1005 assertions) - 100% Passing
 ```
-OK (202 tests, 689 assertions) - 100% Passing
+
+### Cobertura de Pruebas por Módulo de Dominio:
+| Módulo / Capa | Tests | Aserciones | Aspectos Validados |
+|---|:---:|:---:|---|
+| **Shared & Primitivas DDD** | 18 | 72 | Inmutabilidad de `Uuid` v7, `Money` multimoneda, `Coordinates`, validaciones de `Currency`. |
+| **Identidad, Auth & JWT** | 35 | 134 | Login seguro Bcrypt, rotación atómica de Refresh Tokens, bloqueo por fuerza bruta (5 intentos), recuperación SMTP con OTP. |
+| **Documentos KYC & OCR** | 22 | 81 | Pre-escaneo Cédula y Carnet INTT con La Venezolana, auditoría manual por Admin, encolado a AWS S3. |
+| **Vehículos & Catálogo** | 24 | 93 | Registro con clase/marca/modelo, caché Redis, serial de motor/NIV, soft deletes. |
+| **Direcciones Guardadas** | 12 | 48 | Geocodificación de favoritos, unicidad por usuario, eliminación lógica. |
+| **Planes & Tasas BCV** | 20 | 79 | Catálogo multimoneda, conversión USD a VES según tasa oficial BCV, invalidación de caché Redis y guardrails de vigencia máxima de 1 día (HTTP 503 en caídas). |
+| **Contratos & Antifraude** | 38 | 145 | Checkout de contratos anuales, firmas criptográficas RSA-2048 / HMAC-SHA256, folios antifraude `UBKMMYY-XXXX-ZZZZ`, marcas de agua dinámicas y generación de PDF. |
+| **Pasarela Bancaribe & C2P** | 28 | 108 | Cobro C2P, conciliación Pago Móvil Plus, Webhook asíncrono con firma HMAC, órdenes polimórficas, consulta de saldos CtasSaldos y bloqueo de sandbox en producción. |
+| **Comisiones & Billetera B2B** | 26 | 97 | Tasa porcentual acordada, cálculo automático por contrato vendido, cuentas bancarias Sudeban de 20 dígitos y solicitud/pago de liquidación. |
+| **Asistencia SOS & Telemetría** | 30 | 113 | Geocerca Gran Caracas (FR-22), cálculo de ruta OSRM, emisión GPS continua, broadcast Pusher Channels con telemetría de latencia, calificaciones 1-5 estrellas y reasignación por avería (FR-24-B). |
+| **Timeouts SOS & Reintegro** | 14 | 52 | Cancelación automática tras 10 min de inactividad (`CANCELLED_BY_TIMEOUT`), reembolso financiero inmediato a `wallet_balance` y aviso WebSockets (FR-24-C). |
+| **Pusher Webhooks & Presencia** | 3 | 9 | Validación de firma criptográfica HMAC-SHA256, eventos de ciclo de vida de canales (`channel_occupied`, `channel_vacated`). |
+| **Infraestructura & Migrator** | 4 | 28 | Control de lotes por `step`, rollback granular del último lote sin destruir datos y migración atómica. |
+| **Total Consolidado** | **274** | **1005** | **100% Passing (0 errores, 0 fallos)** |
+
+---
+
+## 🏦 Verificación de Integración Bancaribe (Smoke Test)
+
+Para validar la comunicación con Bancaribe (requiere VPN bancaria activa en entornos de pruebas/QA):
+
+```bash
+# Ejecutar suite de pruebas de integración en vivo con Bancaribe
+php scripts/test_bancaribe_smoke.php
 ```
+
+Aspectos cubiertos por el smoke test:
+1. **OAuth2 Token:** Obtención contra el endpoint de producción (`oauth2/token`), guardado en `bank_tokens` y caché Redis.
+2. **Tasas Oficiales BCV:** Sincronización en vivo con `BCVMicro/1.0.0/consultaTasa/tasa`, guardado en `exchange_rates` y caché Redis.
+3. **Consulta de Saldos:** Llamada en vivo a `CtasSaldos/1.0.0/ctasConsultaSaldos` y normalización de cuentas sin exponer datos sensibles.
+4. **Pagos C2P y Operaciones Plus:** Simulación en modo sandbox verificando estructura de respuesta.
+5. **Guardrails de Producción:** Verificación de excepción `LogicException` si sandbox está activo fuera de `local`, y respuesta `HTTP 503` si las tasas caen y tienen más de 1 día de antigüedad.
 
 
 

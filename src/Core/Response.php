@@ -3,6 +3,7 @@
 namespace App\Core;
 
 class Response {
+	public static bool $shouldExit = true;
 	public static function json(
 		array $data = [],
 		int $code = 200, 
@@ -12,7 +13,9 @@ class Response {
 	){
 
 		http_response_code($code);
-		header('Content-type: application/json; charset=utf-8');
+		if (!headers_sent()) {
+			header('Content-type: application/json; charset=utf-8');
+		}
 
 		$response = [
 			'status' => $status,
@@ -24,6 +27,8 @@ class Response {
 		if($meta) $response['meta'] = $meta;
 
 		echo json_encode($response);
-		exit;
+		if (self::$shouldExit) {
+			exit;
+		}
 	}
 } 

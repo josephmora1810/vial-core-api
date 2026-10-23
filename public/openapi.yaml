@@ -28,11 +28,13 @@ tags:
   - name: Tasas BCV y Bancos
     description: Consulta y sincronización de tasas multimoneda BCV (USD/EUR) con Bancaribe en Redis y listado de bancos nacionales Sudeban (FR-13).
   - name: Contratos y Checkout
-    description: Creación de contratos de servicio anual y órdenes de pago polimórficas con congelamiento de tasa BCV (FR-12).
+    description: Creación de contratos de servicio anual, verificación antifraude QR, descarga de PDF y órdenes de pago polimórficas (ContractController, FR-12, FR-30).
   - name: Pagos Bancaribe
-    description: Pasarela bancaria Bancaribe OAuth2 para cobro directo C2P, conciliación Pago Móvil (Operaciones Plus), Webhook de notificación y consulta administrativa de saldos (FR-14, FR-28, FR-29, FR-30).
+    description: Pasarela bancaria Bancaribe OAuth2 para cobro directo C2P, conciliación Pago Móvil (Operaciones Plus), Webhook de notificación y consulta administrativa de saldos (PaymentController, FR-14, FR-28, FR-29, FR-30).
   - name: Operadores de Grúa (Flotas)
     description: Enrolamiento de unidades de grúa (CRANE), validación obligatoria dual de Carnet INTT y Licencia de Conducir profesional (FR-09, FR-10).
+  - name: Asistencia Vial y Telemetría
+    description: Solicitud de auxilio SOS, geocerca Gran Caracas, matching algorítmico, telemetría GPS continua con Pusher WebSockets y calificaciones (TowingController, FR-20 al FR-27, NFR-11-B).
 
 components:
   securitySchemes:
@@ -374,6 +376,123 @@ components:
         created_at:
           type: string
           example: 2026-10-20 18:22:00
+
+    TowServiceDto:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 0192b0c1-3456-7890-abcd-ef0123456789
+        origin:
+          type: object
+          properties:
+            latitude:
+              type: number
+              format: float
+              example: 10.4910
+            longitude:
+              type: number
+              format: float
+              example: -66.8530
+        origin_address:
+          type: string
+          example: Autopista Francisco Fajardo, Altamira
+        destination:
+          type: object
+          properties:
+            latitude:
+              type: number
+              format: float
+              example: 10.5000
+            longitude:
+              type: number
+              format: float
+              example: -66.9000
+        destination_address:
+          type: string
+          example: Taller Los Ruices, Calle Central
+        failure_description:
+          type: string
+          example: Falla en la bomba de gasolina y recalentamiento
+        estimated_distance_km:
+          type: number
+          format: float
+          example: 14.50
+        extra_km:
+          type: number
+          format: float
+          example: 0.00
+        status:
+          type: string
+          enum: [PENDING, IN_ROUTE, IN_PROGRESS, COMPLETED, CANCELLED_BY_CLIENT, CANCELLED_BY_DRIVER, CANCELLED_BY_TIMEOUT]
+          example: PENDING
+        vehicle_plate:
+          type: string
+          example: AB123CD
+        contract_code:
+          type: string
+          nullable: true
+          example: UBK1026-8F2A-99C1
+        extra_order_id:
+          type: string
+          format: uuid
+          nullable: true
+          example: 0192b0c2-7788-99aa-bbcc-ddeeff001122
+        cancellation_reason:
+          type: string
+          nullable: true
+          example: null
+        cancelled_by:
+          type: string
+          nullable: true
+          example: null
+        accepted_at:
+          type: string
+          nullable: true
+          example: null
+        arrived_at:
+          type: string
+          nullable: true
+          example: null
+        completed_at:
+          type: string
+          nullable: true
+          example: null
+        cancelled_at:
+          type: string
+          nullable: true
+          example: null
+        created_at:
+          type: string
+          example: 2026-10-22 22:30:00
+        updated_at:
+          type: string
+          example: 2026-10-22 22:30:00
+
+    RatingDto:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 0192b0c3-99aa-bbcc-ddeeff-001122334455
+        service_id:
+          type: string
+          format: uuid
+          example: 0192b0c1-3456-7890-abcd-ef0123456789
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+          example: 5
+        comment:
+          type: string
+          nullable: true
+          example: Excelente servicio, llegó en 15 minutos y remolcó el auto con mucho cuidado.
+        created_at:
+          type: string
+          example: 2026-10-22 23:15:00
 
 paths:
   # ==========================================
@@ -2623,6 +2742,57 @@ paths:
         '200':
           description: Webhook procesado exitosamente
 
+  /webhooks/pusher:
+    post:
+      summary: Webhook de Notificación de Existencia de Canales Pusher (Channel Existence)
+      description: |
+        Recibe notificaciones de ciclo de vida de canales emitidas por Pusher Channels (`channel_occupied`, `channel_vacated`).
+        Valida la firma criptográfica HMAC-SHA256 (`X-Pusher-Signature` con `PUSHER_APP_SECRET`) y registra la presencia o desconexión de unidades en el radar SOS.
+      tags:
+        - Asistencia SOS y Grúas
+      parameters:
+        - name: X-Pusher-Key
+          in: header
+          required: true
+          description: Clave pública de la aplicación Pusher
+          schema:
+            type: string
+        - name: X-Pusher-Signature
+          in: header
+          required: true
+          description: Firma criptográfica HMAC-SHA256 generada por Pusher sobre el cuerpo crudo de la petición
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - events
+              properties:
+                time_ms:
+                  type: integer
+                  example: 1729660000000
+                events:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                        enum: [channel_occupied, channel_vacated]
+                        example: channel_occupied
+                      channel:
+                        type: string
+                        example: cranes-radar
+      responses:
+        '200':
+          description: Webhook de Pusher procesado exitosamente
+        '401':
+          description: Firma criptográfica inválida o cabeceras ausentes
+
   /admin/bank/balances:
     get:
       summary: Consultar Saldos de Cuentas Recaudadoras Bancaribe (Admin)
@@ -3581,6 +3751,478 @@ paths:
       responses:
         '200':
           description: Usuario reactivado exitosamente
+
+  # ==========================================
+  # ASISTENCIA VIAL Y TELEMETRÍA (TOWING)
+  # ==========================================
+  /sos:
+    post:
+      summary: Solicitar Asistencia Vial de Emergencia SOS (FR-20, FR-22, FR-23-B)
+      description: |
+        Inicia un flujo de emergencia verificando geocerca operativa (Gran Caracas y Litoral Central),
+        calculando kilometraje mediante OSRM y validando cobertura de contrato anual.
+        Si la distancia excede el saldo o no posee contrato activo, emite una orden de cobro en USD/VES.
+        Dispara un evento WebSockets `new-sos-request` al canal `cranes-radar`.
+      tags:
+        - Asistencia Vial y Telemetría
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - vehicle_id
+                - origin_lat
+                - origin_lng
+                - origin_address
+                - dest_lat
+                - dest_lng
+                - dest_address
+                - failure_description
+              properties:
+                vehicle_id:
+                  type: string
+                  description: UUID v7 o ID numérico del vehículo registrado
+                  example: 01a13dc7-d5ab-7a6c-941c-34747ebaf549
+                origin_lat:
+                  type: number
+                  format: float
+                  example: 10.4910
+                origin_lng:
+                  type: number
+                  format: float
+                  example: -66.8530
+                origin_address:
+                  type: string
+                  example: Distribuidor Altamira, autopista sentido Este
+                dest_lat:
+                  type: number
+                  format: float
+                  example: 10.5000
+                dest_lng:
+                  type: number
+                  format: float
+                  example: -66.9000
+                dest_address:
+                  type: string
+                  example: Taller Los Ruices, Calle Central
+                failure_description:
+                  type: string
+                  example: Falla mecánica en alternador y batería descargada
+                saved_address_id:
+                  type: string
+                  nullable: true
+                  description: UUID o ID opcional de dirección guardada
+                  example: null
+      responses:
+        '201':
+          description: Solicitud de asistencia creada exitosamente en estado PENDING
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - properties:
+                      data:
+                        type: object
+                        properties:
+                          service:
+                            $ref: '#/components/schemas/TowServiceDto'
+                          requires_payment:
+                            type: boolean
+                            example: false
+                          order:
+                            type: object
+                            nullable: true
+                          route:
+                            type: object
+                            properties:
+                              distance_km:
+                                type: number
+                                example: 14.50
+                              duration_minutes:
+                                type: number
+                                example: 18.2
+        '400':
+          description: Fuera de geocerca operativa o datos de solicitud inválidos
+
+  /sos/radar:
+    get:
+      summary: Radar Geoespacial de Solicitudes SOS para Grúas (FR-23, NFR-02)
+      description: |
+        Retorna las solicitudes en estado `PENDING` ubicadas dentro del radio geoespacial indicado
+        utilizando la fórmula de Haversine optimizada en MariaDB (< 200 ms).
+      tags:
+        - Asistencia Vial y Telemetría
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: latitude
+          in: query
+          required: true
+          schema:
+            type: number
+            format: float
+            example: 10.4880
+        - name: longitude
+          in: query
+          required: true
+          schema:
+            type: number
+            format: float
+            example: -66.8500
+        - name: radius_km
+          in: query
+          required: false
+          schema:
+            type: number
+            format: float
+            default: 25.0
+            example: 25.0
+      responses:
+        '200':
+          description: Listado de asistencias pendientes ordenadas por cercanía
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/TowServiceDto'
+
+  /radar:
+    get:
+      summary: Alias del Radar Geoespacial de Grúas (/api/v1/radar)
+      description: Alias directo para compatibilidad con la ruta abreviada de la app móvil de grueros.
+      tags:
+        - Asistencia Vial y Telemetría
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: latitude
+          in: query
+          required: true
+          schema:
+            type: number
+            format: float
+            example: 10.4880
+        - name: longitude
+          in: query
+          required: true
+          schema:
+            type: number
+            format: float
+            example: -66.8500
+        - name: radius_km
+          in: query
+          required: false
+          schema:
+            type: number
+            format: float
+            default: 25.0
+      responses:
+        '200':
+          description: Listado de asistencias pendientes
+
+  /sos/{uuid}:
+    get:
+      summary: Consultar Estado y Detalle de Servicio SOS (UUID Público)
+      description: Retorna el estado en tiempo real de la asistencia vial. Nunca expone el identificador numérico interno.
+      tags:
+        - Asistencia Vial y Telemetría
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: uuid
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            example: 0192b0c1-3456-7890-abcd-ef0123456789
+      responses:
+        '200':
+          description: Detalle del servicio
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/TowServiceDto'
+        '404':
+          description: Servicio no encontrado
+
+  /sos/{uuid}/accept:
+    post:
+      summary: Aceptación Concurrente de Grúa (FR-24, NFR-11-B Pessimistic Locking)
+      description: |
+        El conductor de la grúa acepta el auxilio.
+        Aplica bloqueo pesimista en MariaDB (`SELECT ... FOR UPDATE`) para evitar condiciones de carrera:
+        el primer gruero se adjudica el servicio (cambia a `IN_ROUTE`) y los intentos concurrentes posteriores
+        reciben código HTTP `409 Conflict`.
+      tags:
+        - Asistencia Vial y Telemetría
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: uuid
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Servicio adjudicado exitosamente. Estado IN_ROUTE.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/TowServiceDto'
+        '409':
+          description: Conflicto de carrera - El servicio ya fue tomado por otro operador
+
+  /sos/{uuid}/telemetry:
+    put:
+      summary: Enviar Pulso GPS de Telemetría (FR-25, FR-26)
+      description: |
+        La app móvil del gruero emite su coordenada periódicamente (cada 5-10 s).
+        Persiste el registro en modo append en `tow_service_logs` y difunde `location-updated`
+        al canal WebSockets privado del cliente (`tow-channel-{uuid}`).
+      tags:
+        - Asistencia Vial y Telemetría
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: uuid
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - latitude
+                - longitude
+              properties:
+                latitude:
+                  type: number
+                  format: float
+                  example: 10.4925
+                longitude:
+                  type: number
+                  format: float
+                  example: -66.8540
+                speed_kmh:
+                  type: number
+                  format: float
+                  example: 45.0
+      responses:
+        '200':
+          description: Pulso de telemetría procesado y difundido exitosamente
+    post:
+      summary: Enviar Pulso GPS de Telemetría (Alias POST)
+      description: Soporte alternativo HTTP POST para dispositivos con librerías HTTP simplificadas.
+      tags:
+        - Asistencia Vial y Telemetría
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: uuid
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - latitude
+                - longitude
+              properties:
+                latitude:
+                  type: number
+                  format: float
+                longitude:
+                  type: number
+                  format: float
+                speed_kmh:
+                  type: number
+                  format: float
+      responses:
+        '200':
+          description: Pulso de telemetría procesado exitosamente
+
+  /sos/{uuid}/arrive:
+    post:
+      summary: Notificar Llegada de la Grúa al Lugar de Avería (FR-24)
+      description: Cambia el estado del servicio de `IN_ROUTE` a `IN_PROGRESS`.
+      tags:
+        - Asistencia Vial y Telemetría
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: uuid
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Estado actualizado a IN_PROGRESS
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/TowServiceDto'
+
+  /sos/{uuid}/complete:
+    post:
+      summary: Finalizar Servicio y Descontar Cobertura del Contrato (FR-27)
+      description: |
+        Marca el rescate como `COMPLETED`. Descuenta automáticamente 1 evento y los kilómetros
+        reales consumidos del saldo del Contrato de Asistencia del cliente (`service_contracts`).
+      tags:
+        - Asistencia Vial y Telemetría
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: uuid
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Servicio finalizado exitosamente. Requiere calificación mutua.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/TowServiceDto'
+
+  /sos/{uuid}/cancel:
+    post:
+      summary: Cancelar Servicio o Reasignar Grúa por Avería Mecánica (FR-24-B, FR-24-C)
+      description: |
+        Permite cancelar el auxilio a clientes o grueros.
+        Si el gruero cancela en ruta especificando `reassign: true` por desperfecto de su propia unidad,
+        el servicio regresa a estado `PENDING` y se emite de nuevo `new-sos-request` al radar de rescate.
+      tags:
+        - Asistencia Vial y Telemetría
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: uuid
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - reason
+              properties:
+                reason:
+                  type: string
+                  example: Desperfecto mecánico en sistema hidráulico de la grúa
+                reassign:
+                  type: boolean
+                  default: false
+                  description: Indica si debe reanudarse la búsqueda automática para otro operador
+                  example: true
+      responses:
+        '200':
+          description: Cancelación o reasignación procesada exitosamente
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/TowServiceDto'
+
+  /sos/{uuid}/rate:
+    post:
+      summary: Calificar Asistencia Vial de 1 a 5 Estrellas (FR-27)
+      description: |
+        Emite la calificación del servicio completado. Invalida la caché del promedio en Redis
+        para mantener las métricas actualizadas de inmediato.
+      tags:
+        - Asistencia Vial y Telemetría
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: uuid
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - rating
+              properties:
+                rating:
+                  type: integer
+                  minimum: 1
+                  maximum: 5
+                  example: 5
+                comment:
+                  type: string
+                  nullable: true
+                  example: Llegó rápido y prestó una atención impecable.
+      responses:
+        '201':
+          description: Calificación registrada exitosamente
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/RatingDto'
+
 
 
 

@@ -15,6 +15,9 @@ interface HttpClientInterface
     /** @param array<string, string> $headers */
     public function postJson(string $url, array $data, array $headers = []): HttpResponse;
 
+    /** @param array<string, string> $headers */
+    public function postForm(string $url, array $data, array $headers = []): HttpResponse;
+
     /**
      * Envía multipart/form-data (formularios con archivos).
      *

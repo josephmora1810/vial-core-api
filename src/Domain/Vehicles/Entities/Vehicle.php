@@ -219,6 +219,11 @@ class Vehicle
         return $this->isVerified;
     }
 
+    public function isActive(): bool
+    {
+        return $this->status === VehicleStatus::Active && !$this->isDeleted();
+    }
+
     public function verify(): self
     {
         $this->isVerified = true;

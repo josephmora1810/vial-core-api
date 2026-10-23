@@ -21,8 +21,13 @@ class BancaribeAuthService
         private string $oauth2Endpoint = 'oauth2/token',
         private string $customerKey = '',
         private string $customerSecret = '',
-        private bool $sandboxMode = false
-    ) {}
+        private bool $sandboxMode = false,
+        private bool $isLocalEnv = true
+    ) {
+        if ($this->sandboxMode && !$this->isLocalEnv) {
+            throw new \LogicException('El modo sandbox de autenticación Bancaribe no está permitido fuera del entorno local.');
+        }
+    }
 
     public function getAccessToken(): string
     {
@@ -66,7 +71,7 @@ class BancaribeAuthService
         $basicAuth = base64_encode("{$this->customerKey}:{$this->customerSecret}");
 
         try {
-            $response = $this->httpClient->postJson(
+            $response = $this->httpClient->postForm(
                 url: $url,
                 data: ['grant_type' => 'client_credentials'],
                 headers: [

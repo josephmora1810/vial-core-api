@@ -15,7 +15,7 @@ class IntegrationLogger
     }
 
     /**
-     * Registra una llamada a un servicio de terceros (OCR, Bancaribe, Mapbox, Pusher, S3, etc.)
+     * Registra una llamada a un servicio de terceros (OCR, Bancaribe, OSRM, Pusher, S3, etc.)
      *
      * @param array<string, mixed>|string|null $requestPayload
      * @param array<string, mixed>|string|null $responsePayload
@@ -58,28 +58,50 @@ class IntegrationLogger
         }
     }
 
+    /** @var array<string, list<string>> */
+    private static array $serviceKeywords = [
+        'bancaribe' => ['bancaribe', 'bcvmicro', 'c2p', 'consulta-operacion', 'ctasconsultasaldos'],
+        'ocr'       => ['extract', ':8080', 'ocr'],
+        'osrm'      => ['osrm', 'project-osrm.org', ':5000'],
+        'pusher'    => ['pusher'],
+        's3'        => ['amazonaws.com', 's3'],
+    ];
+
     /**
-     * Detecta el nombre del servicio externo a partir de su URL
+     * Permite a cualquier módulo registrar o extender los patrones de detección
+     * de servicios externos sin modificar esta clase (Principio Abierto/Cerrado - OCP).
+     *
+     * @param string $service Nombre clave del servicio (ej. 'osrm', 'twilio')
+     * @param list<string> $keywords Fragmentos de URL que identifican al servicio
+     */
+    public static function registerServicePattern(string $service, array $keywords): void
+    {
+        $service = strtolower(trim($service));
+        self::$serviceKeywords[$service] = array_values(array_unique(array_merge(
+            self::$serviceKeywords[$service] ?? [],
+            array_map('strtolower', $keywords)
+        )));
+    }
+
+    /**
+     * Detecta el nombre del servicio externo a partir de su URL.
+     * Si no coincide con ninguna palabra clave registrada, extrae el host (dominio)
+     * como fallback genérico resiliente.
      */
     public static function detectServiceFromUrl(string $url): string
     {
         $lower = strtolower($url);
-        if (str_contains($lower, 'bancaribe') || str_contains($lower, 'bcvmicro') || str_contains($lower, 'c2p') || str_contains($lower, 'consulta-operacion') || str_contains($lower, 'ctasconsultasaldos')) {
-            return 'bancaribe';
+
+        foreach (self::$serviceKeywords as $service => $keywords) {
+            foreach ($keywords as $keyword) {
+                if (str_contains($lower, $keyword)) {
+                    return $service;
+                }
+            }
         }
-        if (str_contains($lower, 'extract') || str_contains($lower, ':8080') || str_contains($lower, 'ocr')) {
-            return 'ocr';
-        }
-        if (str_contains($lower, 'mapbox')) {
-            return 'mapbox';
-        }
-        if (str_contains($lower, 'pusher')) {
-            return 'pusher';
-        }
-        if (str_contains($lower, 'amazonaws.com') || str_contains($lower, 's3')) {
-            return 's3';
-        }
-        return 'external_http';
+
+        $host = parse_url($url, PHP_URL_HOST);
+        return $host ? strtolower($host) : 'external_http';
     }
 
     /**

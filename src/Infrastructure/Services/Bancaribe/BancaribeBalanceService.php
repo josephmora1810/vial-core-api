@@ -19,8 +19,13 @@ class BancaribeBalanceService implements BalanceGatewayInterface
         private string $checkBalanceEndpoint = 'Cuentas/ConsultaSaldo/1.0.0/ctasConsultaSaldos',
         private string $checkBalanceHash = '',
         private string $rif = 'J502098500',
-        private bool $sandboxMode = false
-    ) {}
+        private bool $sandboxMode = false,
+        private bool $isLocalEnv = true
+    ) {
+        if ($this->sandboxMode && !$this->isLocalEnv) {
+            throw new \LogicException('El modo sandbox de consulta de saldos Bancaribe no está permitido fuera del entorno local.');
+        }
+    }
 
     public function getBalance(?string $accountNumber = null, bool $forceRefresh = false): array
     {

@@ -6,7 +6,9 @@ use App\Core\Router;
 
 $router = new Router();
 
-const API_V1 = '/api/v1/';
+if (!defined(__NAMESPACE__ . '\\API_V1')) {
+    define(__NAMESPACE__ . '\\API_V1', '/api/v1/');
+}
 
 // ==========================================
 // RUTAS PÚBLICAS
@@ -38,6 +40,9 @@ $router->get(API_V1 . 'home-gallery', 'LandingController@index');
 // Webhook Asíncrono de Bancaribe (FR-29)
 $router->post(API_V1 . 'webhooks/bancaribe', 'PaymentController@webhook');
 
+// Webhook de Pusher Channels (Eventos de existencia: channel_occupied, channel_vacated)
+$router->post(API_V1 . 'webhooks/pusher', 'PusherWebhookController@handle');
+
 // ==========================================
 // RUTAS PRIVADAS (Llevan ['auth'])
 // ==========================================
@@ -60,15 +65,15 @@ $router->post(API_V1 . 'vehicles/scan', 'VehicleController@scan', ['auth']);
 $router->post(API_V1 . 'vehicles', 'VehicleController@store', ['auth', 'permission:register_vehicle']);
 $router->delete(API_V1 . 'vehicles/{id}', 'VehicleController@destroy', ['auth']);
 
-// Suscripción de Contratos, Renovación, Canje, Órdenes, Descarga PDF QR y Pagos Bancaribe (FR-12, FR-14, FR-28, FR-30)
-$router->get(API_V1 . 'contracts/verify/{code}', 'PaymentController@verifyContract');
-$router->get(API_V1 . 'contracts/{id}/pdf', 'PaymentController@downloadContractPdf');
-$router->post(API_V1 . 'checkout', 'PaymentController@checkout', ['auth', 'permission:buy_service_contract']);
-$router->post(API_V1 . 'contracts/checkout', 'PaymentController@checkout', ['auth', 'permission:buy_service_contract']);
-$router->get(API_V1 . 'contracts', 'PaymentController@myContracts', ['auth']);
-$router->post(API_V1 . 'contracts/{id}/renew', 'PaymentController@renewContract', ['auth']);
-$router->post(API_V1 . 'contracts/{id}/redeem', 'PaymentController@redeemContract', ['auth']);
-$router->post(API_V1 . 'contracts/{id}/cancel', 'PaymentController@cancelContract', ['auth']);
+// Suscripción de Contratos, Renovación, Canje, Descarga PDF QR y Verificación (FR-12, FR-14, FR-28, FR-30)
+$router->get(API_V1 . 'contracts/verify/{code}', 'ContractController@verifyContract');
+$router->get(API_V1 . 'contracts/{id}/pdf', 'ContractController@downloadContractPdf');
+$router->post(API_V1 . 'checkout', 'ContractController@checkout', ['auth', 'permission:buy_service_contract']);
+$router->post(API_V1 . 'contracts/checkout', 'ContractController@checkout', ['auth', 'permission:buy_service_contract']);
+$router->get(API_V1 . 'contracts', 'ContractController@myContracts', ['auth']);
+$router->post(API_V1 . 'contracts/{id}/renew', 'ContractController@renewContract', ['auth']);
+$router->post(API_V1 . 'contracts/{id}/redeem', 'ContractController@redeemContract', ['auth']);
+$router->post(API_V1 . 'contracts/{id}/cancel', 'ContractController@cancelContract', ['auth']);
 $router->get(API_V1 . 'orders', 'PaymentController@myOrders', ['auth']);
 $router->post(API_V1 . 'payments/process', 'PaymentController@process', ['auth']);
 
@@ -91,6 +96,19 @@ $router->get(API_V1 . 'driver/cranes', 'DriverController@listCranes', ['auth', '
 $router->post(API_V1 . 'driver/license', 'DriverController@uploadLicense', ['auth', 'role:driver']);
 $router->get(API_V1 . 'driver/status', 'DriverController@status', ['auth', 'role:driver']);
 
+// Módulo de Asistencia Vial (SOS), Telemetría, Matching y Calificaciones (FR-20, FR-22, FR-23, FR-24, FR-25, FR-27)
+$router->post(API_V1 . 'sos', 'TowingController@requestSos', ['auth']);
+$router->get(API_V1 . 'sos/radar', 'TowingController@radar', ['auth', 'role:driver']);
+$router->get(API_V1 . 'radar', 'TowingController@radar', ['auth', 'role:driver']);
+$router->get(API_V1 . 'sos/{uuid}', 'TowingController@show', ['auth']);
+$router->post(API_V1 . 'sos/{uuid}/accept', 'TowingController@accept', ['auth', 'role:driver']);
+$router->put(API_V1 . 'sos/{uuid}/telemetry', 'TowingController@telemetry', ['auth', 'role:driver']);
+$router->post(API_V1 . 'sos/{uuid}/telemetry', 'TowingController@telemetry', ['auth', 'role:driver']);
+$router->post(API_V1 . 'sos/{uuid}/arrive', 'TowingController@arrive', ['auth', 'role:driver']);
+$router->post(API_V1 . 'sos/{uuid}/complete', 'TowingController@complete', ['auth', 'role:driver']);
+$router->post(API_V1 . 'sos/{uuid}/cancel', 'TowingController@cancel', ['auth']);
+$router->post(API_V1 . 'sos/{uuid}/rate', 'TowingController@rate', ['auth']);
+
 // Administración de Planes, Auditoría KYC y Finanzas Bancaribe (Solo Admin / Permisos de Gestión)
 $router->post(API_V1 . 'admin/users/{id}/suspend', 'UserModerationController@suspend', ['auth', 'role:admin']);
 $router->post(API_V1 . 'admin/users/{id}/activate', 'UserModerationController@activate', ['auth', 'role:admin']);
@@ -106,7 +124,7 @@ $router->delete(API_V1 . 'plans/{id}', 'PlanController@destroy', ['auth', 'permi
 $router->post(API_V1 . 'exchange-rates/sync', 'PaymentController@syncExchangeRates', ['auth', 'role:admin']);
 $router->get(API_V1 . 'admin/bank/balances', 'PaymentController@adminBankBalances', ['auth', 'role:admin']);
 $router->get(API_V1 . 'admin/integrations/logs', 'PaymentController@adminIntegrationLogs', ['auth', 'role:admin']);
-$router->post(API_V1 . 'admin/contracts/expire-overdue', 'PaymentController@expireOverdueContracts', ['auth', 'role:admin']);
+$router->post(API_V1 . 'admin/contracts/expire-overdue', 'ContractController@expireOverdueContracts', ['auth', 'role:admin']);
 
 // Módulo Administrativo de Comisiones y Billeteras B2B (FR-14, FR-15, FR-34)
 $router->get(API_V1 . 'admin/commissions', 'AdminCommissionController@listCommissions', ['auth', 'role:admin']);

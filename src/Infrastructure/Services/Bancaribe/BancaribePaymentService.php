@@ -27,8 +27,12 @@ class BancaribePaymentService implements PaymentGatewayInterface
         private string $telefonoComercio = '04267536320',
         private string $nombreComercio = 'UbikGo',
         private bool $sandboxMode = false,
-        ?IntegrationLogger $logger = null
+        ?IntegrationLogger $logger = null,
+        private bool $isLocalEnv = true
     ) {
+        if ($this->sandboxMode && !$this->isLocalEnv) {
+            throw new \LogicException('El modo sandbox de pagos Bancaribe no está permitido fuera del entorno local.');
+        }
         $this->logger = $logger ?? new IntegrationLogger();
     }
 

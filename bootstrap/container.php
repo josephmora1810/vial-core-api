@@ -36,6 +36,7 @@ use App\Application\Users\UseCases\SuspendUser;
 use App\Application\Users\UseCases\UploadUserAvatar;
 use App\Controllers\AdminCommissionController;
 use App\Controllers\AuthController;
+use App\Controllers\ContractController;
 use App\Controllers\DocumentController;
 use App\Controllers\DriverController;
 use App\Controllers\HomeController;
@@ -43,16 +44,33 @@ use App\Controllers\LandingController;
 use App\Controllers\PaymentController;
 use App\Controllers\PlanController;
 use App\Controllers\SavedAddressController;
+use App\Controllers\TowingController;
 use App\Controllers\UserModerationController;
 use App\Controllers\VehicleController;
+use App\Application\Towing\UseCases\AcceptSosService;
+use App\Application\Towing\UseCases\ArriveTowService;
+use App\Application\Towing\UseCases\CancelTowService;
+use App\Application\Towing\UseCases\CompleteTowService;
+use App\Application\Towing\UseCases\ExpireOverdueSosServices;
+use App\Application\Towing\UseCases\FindNearbyPendingServices;
+use App\Application\Towing\UseCases\GetTowService;
+use App\Application\Towing\UseCases\RateTowService;
+use App\Application\Towing\UseCases\RequestSosAssistance;
+use App\Application\Towing\UseCases\UpdateCraneTelemetry;
+use App\Infrastructure\Database\Repositories\Towing\MariaDbRatingRepository;
+use App\Infrastructure\Database\Repositories\Towing\MariaDbTowServiceLogRepository;
+use App\Infrastructure\Database\Repositories\Towing\MariaDbTowServiceRepository;
 use App\Core\JwtService;
+use App\Domain\Shared\Services\BroadcasterInterface;
 use App\Domain\Shared\Services\QueueServiceInterface;
 use App\Domain\Shared\Services\StorageServiceInterface;
+use App\Infrastructure\Broadcasting\PusherBroadcaster;
 use App\Domain\Vehicles\Services\VehicleMatcherService;
 use App\Infrastructure\Database\Database;
 use App\Infrastructure\Database\Redis;
 use App\Infrastructure\Logging\IntegrationLogger;
 use App\Infrastructure\Queue\RedisQueueService;
+use App\Infrastructure\Services\Towing\InMemoryCoverageZoneRepository;
 use App\Infrastructure\Storage\AwsS3StorageService;
 use App\Infrastructure\Database\Repositories\Commissions\MariaDbCommissionRepository;
 use App\Infrastructure\Database\Repositories\Commissions\MariaDbSellerProfileRepository;
@@ -89,6 +107,7 @@ use App\Middlewares\EnsureKycVerifiedMiddleware;
 use App\Middlewares\ThrottleMiddleware;
 use App\Infrastructure\Pdf\FpdfContractPdfGenerator;
 use App\Application\Contracts\UseCases\CancelServiceContract;
+use App\Infrastructure\Services\Towing\OsrmRoutingService;
 
 // Conexiones con MariaDB y Redis
 // instanciadas de manera lazy para no abrir conexiones innecesarias en rutas públicas
@@ -115,6 +134,10 @@ $httpClient = new CurlHttpClient(
     timeout: (int) ($_ENV['HTTP_TIMEOUT'] ?? 30),
     connectTimeout: (int) ($_ENV['HTTP_CONNECT_TIMEOUT'] ?? 5)
 );
+
+// Registrar patrones de servicios externos en IntegrationLogger (Cumple OCP)
+IntegrationLogger::registerServicePattern('osrm', ['osrm', 'project-osrm.org', ':5000']);
+IntegrationLogger::registerServicePattern('pusher', ['pusher.com', 'pusherapp.com']);
 
 // Servicio OCR de extracción de documentos (La Venezolana Document Extraction API)
 $documentExtractor = new LaVenezolanaDocumentExtractor(
@@ -148,6 +171,27 @@ $getCatalogRepo = fn() => new CachedVehicleCatalogRepository(
     $getRedis()
 );
 
+$getCoverageZones = fn() => new InMemoryCoverageZoneRepository();
+$getRoutingService = fn() => new OsrmRoutingService(
+    httpClient: $httpClient,
+    baseUrl: $_ENV['OSRM_BASE_URL'] ?? null
+);
+$getTowServiceRepo = fn() => new MariaDbTowServiceRepository($getDb());
+$getTowServiceLogRepo = fn() => new MariaDbTowServiceLogRepository($getDb());
+$getRatingRepo = fn() => new MariaDbRatingRepository($getDb());
+
+// Servicio de WebSockets / Broadcasting (Pusher Channels)
+$getBroadcaster = fn() => new PusherBroadcaster(
+    httpClient: $httpClient,
+    appId: $_ENV['PUSHER_APP_ID'] ?? '',
+    appKey: $_ENV['PUSHER_APP_KEY'] ?? '',
+    appSecret: $_ENV['PUSHER_APP_SECRET'] ?? '',
+    cluster: $_ENV['PUSHER_APP_CLUSTER'] ?? 'sa1',
+    port: (int)($_ENV['PUSHER_PORT'] ?? 443),
+    scheme: $_ENV['PUSHER_SCHEME'] ?? 'https',
+    logger: $integrationLogger
+);
+
 // Repositorios y Servicios Bancarios / Planes (Dominio 2 y 5)
 $getBankTokenRepo = fn() => new MariaDbBankTokenRepository($getDb());
 $getExchangeRateRepo = fn() => new MariaDbExchangeRateRepository($getDb());
@@ -173,7 +217,15 @@ $getGenerateOrderCommission = fn() => new \App\Application\Commissions\UseCases\
 );
 
 $isSandbox = filter_var($_ENV['BANCARIBE_SANDBOX'] ?? false, FILTER_VALIDATE_BOOLEAN);
-$isLocalEnv = ($_ENV['APP_ENV'] ?? 'local') === 'local';
+$isPaymentSandbox = filter_var($_ENV['BANCARIBE_PAYMENT_SANDBOX'] ?? true, FILTER_VALIDATE_BOOLEAN);
+$appEnv = $_ENV['APP_ENV'] ?? 'local';
+$isLocalEnv = ($appEnv === 'local');
+
+if (!$isLocalEnv && ($isSandbox || $isPaymentSandbox)) {
+    throw new \LogicException(
+        "Configuración inválida de seguridad: BANCARIBE_SANDBOX y BANCARIBE_PAYMENT_SANDBOX no pueden estar habilitados cuando APP_ENV no es 'local' (entorno actual: '{$appEnv}')."
+    );
+}
 
 $getBancaribeAuth = fn() => new BancaribeAuthService(
     httpClient: $httpClient,
@@ -183,7 +235,8 @@ $getBancaribeAuth = fn() => new BancaribeAuthService(
     oauth2Endpoint: $_ENV['BANCARIBE_OAUTH2_ENDPOINT'] ?? 'oauth2/token',
     customerKey: $_ENV['BANCARIBE_COSTUMER_KEY'] ?? '',
     customerSecret: $_ENV['BANCARIBE_COSTUMER_SECRET'] ?? '',
-    sandboxMode: $isSandbox
+    sandboxMode: $isSandbox,
+    isLocalEnv: $isLocalEnv
 );
 
 $getExchangeService = fn() => new BancaribeExchangeService(
@@ -211,7 +264,8 @@ $getPaymentGateway = fn() => new BancaribePaymentService(
     rifComercio: $_ENV['APP_RIF'] ?? 'J502098500',
     telefonoComercio: $_ENV['APP_TELEFONO'] ?? '04267536320',
     nombreComercio: $_ENV['APP_NAME'] ?? 'UbikGo',
-    sandboxMode: $isSandbox
+    sandboxMode: $isPaymentSandbox,
+    isLocalEnv: $isLocalEnv
 );
 
 $getBalanceGateway = fn() => new BancaribeBalanceService(
@@ -219,10 +273,11 @@ $getBalanceGateway = fn() => new BancaribeBalanceService(
     httpClient: $httpClient,
     redis: $getRedis(),
     baseUrl: $_ENV['BANCARIBE_BASE_URL'] ?? '',
-    checkBalanceEndpoint: $_ENV['BANCARIBE_CHECK_BALANCE_ENDPOINT'] ?? 'Cuentas/ConsultaSaldo/1.0.0/ctasConsultaSaldos',
+    checkBalanceEndpoint: $_ENV['BANCARIBE_CHECK_BALANCE_ENDPOINT'] ?? 'CtasSaldos/1.0.0/ctasConsultaSaldos',
     checkBalanceHash: $_ENV['BANCARIBE_CHECK_BALANCE_HASH'] ?? '',
     rif: $_ENV['APP_RIF'] ?? 'J502098500',
-    sandboxMode: $isSandbox
+    sandboxMode: $isSandbox,
+    isLocalEnv: $isLocalEnv
 );
 
 // Servicios de Almacenamiento S3 y Colas en Redis (NFR-20-B)
@@ -272,8 +327,8 @@ return [
             new ManagePlan($getPlanRepo(), $getExchangeService()),
             $getPlanRepo()
         ),
-        PaymentController::class => fn() => new PaymentController(
-            new CheckoutServiceContract(
+        ContractController::class => fn() => new ContractController(
+            checkoutServiceContract: new CheckoutServiceContract(
                 $getPlanRepo(),
                 $getVehicleRepo(),
                 $getContractRepo(),
@@ -283,33 +338,14 @@ return [
                 $_ENV['APP_TELEFONO'] ?? '04267536320',
                 $_ENV['APP_NAME'] ?? 'UbikGo'
             ),
-            new ProcessPayment(
-                $getOrderRepo(),
-                $getPaymentRepo(),
-                $getContractRepo(),
-                $getPlanRepo(),
-                $getPaymentGateway(),
-                $getExchangeService(),
-                $getGenerateOrderCommission()
-            ),
-            new HandleBancaribeWebhook(
-                $getOrderRepo(),
-                $getPaymentRepo(),
-                $getContractRepo(),
-                $getPlanRepo(),
-                !empty($_ENV['BANCARIBE_WEBHOOK_SECRET']) ? $_ENV['BANCARIBE_WEBHOOK_SECRET'] : null,
-                $getGenerateOrderCommission()
-            ),
-            new ListUserContractsAndOrders(
+            listContractsAndOrders: new ListUserContractsAndOrders(
                 $getContractRepo(),
                 $getOrderRepo(),
                 $getPlanRepo(),
                 $getVehicleRepo(),
                 $getExchangeService()
             ),
-            $getExchangeService(),
-            $getBalanceGateway(),
-            new GenerateServiceContractPdf(
+            generateContractPdf: new GenerateServiceContractPdf(
                 $getContractRepo(),
                 $getPlanRepo(),
                 $getUserRepo(),
@@ -318,15 +354,15 @@ return [
                 $getCatalogRepo(),
                 new FpdfContractPdfGenerator()
             ),
-            new CancelServiceContract(
+            cancelContractUseCase: new CancelServiceContract(
                 $getContractRepo(),
                 $getPlanRepo(),
                 $getVehicleRepo()
             ),
-            new \App\Application\Contracts\UseCases\ExpireOverdueContracts(
+            expireOverdueContractsUseCase: new \App\Application\Contracts\UseCases\ExpireOverdueContracts(
                 $getContractRepo()
             ),
-            new \App\Application\Contracts\UseCases\RenewServiceContract(
+            renewContractUseCase: new \App\Application\Contracts\UseCases\RenewServiceContract(
                 $getContractRepo(),
                 $getPlanRepo(),
                 $getVehicleRepo(),
@@ -336,18 +372,46 @@ return [
                 $_ENV['APP_TELEFONO'] ?? '04267536320',
                 $_ENV['APP_NAME'] ?? 'UbikGo'
             ),
-            new \App\Application\Contracts\UseCases\RedeemServiceContract(
+            redeemContractUseCase: new \App\Application\Contracts\UseCases\RedeemServiceContract(
                 $getContractRepo(),
                 $getPlanRepo(),
                 $getVehicleRepo()
             ),
-            new \App\Application\Contracts\UseCases\VerifyServiceContract(
+            verifyContractUseCase: new \App\Application\Contracts\UseCases\VerifyServiceContract(
                 $getContractRepo(),
                 $getPlanRepo(),
                 $getUserRepo(),
                 $getVehicleRepo(),
                 $getRedis()
             )
+        ),
+        PaymentController::class => fn() => new PaymentController(
+            processPayment: new ProcessPayment(
+                $getOrderRepo(),
+                $getPaymentRepo(),
+                $getContractRepo(),
+                $getPlanRepo(),
+                $getPaymentGateway(),
+                $getExchangeService(),
+                $getGenerateOrderCommission()
+            ),
+            handleWebhook: new HandleBancaribeWebhook(
+                $getOrderRepo(),
+                $getPaymentRepo(),
+                $getContractRepo(),
+                $getPlanRepo(),
+                !empty($_ENV['BANCARIBE_WEBHOOK_SECRET']) ? $_ENV['BANCARIBE_WEBHOOK_SECRET'] : null,
+                $getGenerateOrderCommission()
+            ),
+            listContractsAndOrders: new ListUserContractsAndOrders(
+                $getContractRepo(),
+                $getOrderRepo(),
+                $getPlanRepo(),
+                $getVehicleRepo(),
+                $getExchangeService()
+            ),
+            exchangeRateService: $getExchangeService(),
+            balanceGateway: $getBalanceGateway()
         ),
         \App\Controllers\SellerController::class => fn() => new \App\Controllers\SellerController(
             new \App\Application\Users\UseCases\SearchClientByNationalId(
@@ -446,12 +510,46 @@ return [
             new ActivateUser($getUserRepo(), $integrationLogger),
             new UploadUserAvatar($getUserRepo(), $getStorageService(), $getImageRepo())
         ),
+        TowingController::class => fn() => new TowingController(
+            new RequestSosAssistance(
+                $getCoverageZones(),
+                $getVehicleRepo(),
+                $getRoutingService(),
+                $getContractRepo(),
+                $getTowServiceRepo(),
+                $getOrderRepo(),
+                $getExchangeService(),
+                $getSavedAddressRepo(),
+                $getBroadcaster()
+            ),
+            new AcceptSosService($getTowServiceRepo(), $getBroadcaster()),
+            new UpdateCraneTelemetry($getTowServiceRepo(), $getTowServiceLogRepo(), $getBroadcaster()),
+            new ArriveTowService($getTowServiceRepo()),
+            new CompleteTowService($getTowServiceRepo(), $getContractRepo()),
+            new CancelTowService($getTowServiceRepo(), $getBroadcaster()),
+            new RateTowService($getTowServiceRepo(), $getRatingRepo(), $getRedis()),
+            new GetTowService($getTowServiceRepo(), $getVehicleRepo()),
+            new FindNearbyPendingServices($getTowServiceRepo(), $getVehicleRepo())
+        ),
+        \App\Controllers\PusherWebhookController::class => fn() => new \App\Controllers\PusherWebhookController(
+            appKey: $_ENV['PUSHER_APP_KEY'] ?? '',
+            appSecret: $_ENV['PUSHER_APP_SECRET'] ?? '',
+            logger: $integrationLogger
+        ),
     ],
     'services' => [
+        BroadcasterInterface::class       => $getBroadcaster,
         QueueServiceInterface::class      => $getQueueService,
         StorageServiceInterface::class    => $getStorageService,
         EnqueueDocumentS3Upload::class    => $getEnqueueS3,
         ProcessDocumentS3UploadJob::class => $getProcessS3,
+        ExpireOverdueSosServices::class   => fn() => new ExpireOverdueSosServices(
+            $getTowServiceRepo(),
+            $getOrderRepo(),
+            $getUserRepo(),
+            $getContractRepo(),
+            $getBroadcaster()
+        ),
     ],
     'route_middlewares' => [
         // Lazy: si la ruta es pública, no instanciamos AuthMiddleware ni tocamos la BD

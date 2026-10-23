@@ -61,10 +61,9 @@ class BancaribeExchangeService implements ExchangeRateServiceInterface
             // Si Bancaribe no responde, continuar a fallback en BD
         }
 
-        // 4. Buscar última tasa registrada desde ayer o histórica reciente
-        $yesterday = (new DateTimeImmutable('today'))->modify('-7 days');
-        $fallbackDbRate = $this->rateRepository->findLatest($currency, $type, $yesterday)
-            ?? $this->rateRepository->findLatest($currency, $type);
+        // 4. Buscar última tasa registrada reciente (máximo 1 día: hoy o ayer)
+        $recentThreshold = (new DateTimeImmutable('today'))->modify('-1 day');
+        $fallbackDbRate = $this->rateRepository->findLatest($currency, $type, $recentThreshold);
 
         if ($fallbackDbRate !== null) {
             $this->putInCache($cacheKey, $fallbackDbRate->getRate());
@@ -73,6 +72,12 @@ class BancaribeExchangeService implements ExchangeRateServiceInterface
 
         // 5. Fallback en entorno local para no bloquear desarrollo cuando la VPN bancaria no está activa
         if ($this->isLocalEnv) {
+            $historicalDbRate = $this->rateRepository->findLatest($currency, $type);
+            if ($historicalDbRate !== null) {
+                $this->putInCache($cacheKey, $historicalDbRate->getRate());
+                return $historicalDbRate->getRate();
+            }
+
             $rateValue = $currency === 'EUR' ? round($this->fallbackRate * 1.08, 4) : $this->fallbackRate;
             $entity = new ExchangeRate($currency, $type, $rateValue, $today);
             $this->rateRepository->upsert($entity);
@@ -80,7 +85,7 @@ class BancaribeExchangeService implements ExchangeRateServiceInterface
             return $rateValue;
         }
 
-        throw new RuntimeException("Las tasas BCV están desactualizadas y no se pudo obtener la tasa para {$currency} ({$type}).", 503);
+        throw new RuntimeException("Las tasas BCV no están disponibles en este momento. Intente más tarde.", 503);
     }
 
     public function fetchAndSaveTodayRates(): array

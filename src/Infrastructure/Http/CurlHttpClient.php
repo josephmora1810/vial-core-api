@@ -42,6 +42,14 @@ class CurlHttpClient implements HttpClientInterface
         return $this->send('POST', $url, $headers, json_encode($data, JSON_THROW_ON_ERROR));
     }
 
+    public function postForm(string $url, array $data, array $headers = []): HttpResponse
+    {
+        $headers['Content-Type'] = 'application/x-www-form-urlencoded';
+        $headers['Accept'] ??= 'application/json';
+
+        return $this->send('POST', $url, $headers, http_build_query($data));
+    }
+
     public function postMultipart(string $url, array $fields, array $files, array $headers = []): HttpResponse
     {
         $body = $fields;
