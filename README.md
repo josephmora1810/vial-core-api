@@ -857,14 +857,49 @@ Time: 00:26.154, Memory: 42.00 MB
 OK (274 tests, 1005 assertions) - 100% Passing (0 errores, 0 fallos)
 ```
 
-### Smoke Test de Integración en Vivo con Bancaribe
-Para validar la conectividad en vivo con la pasarela Bancaribe (requiere VPN activa):
+### 🔬 Scripts de Smoke Test de Integración en Vivo
+
+El directorio `scripts/` incluye utilidades CLI ejecutables de forma independiente para verificar la conectividad y el funcionamiento de los servicios externos:
+
+#### 1. Smoke Test de Integración Bancaria (Bancaribe)
+Valida la conectividad contra los endpoints seguros de Bancaribe (requiere VPN activa en QA/Testing):
 ```bash
 php scripts/test_bancaribe_smoke.php
 ```
 Valida de forma integral:
-1. Obtención de token OAuth2 Bearer y almacenamiento en `bank_tokens` y Redis.
-2. Descarga de tasas oficiales BCV (USD Venta, Compra, EUR) y persistencia en MariaDB/Redis.
-3. Consulta de saldos reales de cuentas en `CtasSaldos/1.0.0/ctasConsultaSaldos` (HTTP 200).
-4. Simulación de pagos C2P y conciliación de Pago Móvil Plus.
-5. Verificación de los guardrails de producción (bloqueo de sandbox y respuesta HTTP 503 en caídas de tasas mayores a 1 día).
+1. **OAuth2 Token:** Obtención contra el endpoint de producción (`oauth2/token`), guardado en `bank_tokens` y caché Redis.
+2. **Tasas Oficiales BCV:** Sincronización en vivo con `BCVMicro/1.0.0/consultaTasa/tasa`, guardado en `exchange_rates` y caché Redis.
+3. **Consulta de Saldos:** Llamada en vivo a `CtasSaldos/1.0.0/ctasConsultaSaldos` y normalización de cuentas sin exponer datos sensibles.
+4. **Pagos C2P y Operaciones Plus:** Simulación en modo sandbox verificando estructura de respuesta.
+5. **Guardrails de Producción:** Verificación de excepción `LogicException` si sandbox está activo fuera de `local`, y respuesta `HTTP 503` si las tasas caen y tienen más de 1 día de antigüedad.
+
+#### 2. Smoke Test de Servidor de Correo (SMTP)
+Prueba la conexión por sockets SSL/TLS contra el servidor de correo corporativo para validar el flujo de recuperación de contraseñas con OTP (FR-06):
+```bash
+php scripts/test_email.php tu_correo@dominio.com
+```
+Valida:
+1. Negociación de cifrado SSL/TLS en el puerto 465 (o TLS en puerto 587).
+2. Autenticación con credenciales cPanel/SMTP configuradas en `.env`.
+3. Despacho exitoso de un correo HTML transaccional de prueba con marcas de tiempo.
+
+#### 3. Smoke Test de WebSockets en Vivo (Pusher Channels)
+Prueba la emisión de eventos en tiempo real mediante la REST API oficial de Pusher Channels, permitiendo auditar la telemetría y el radar de grúas (FR-20, FR-23, FR-25):
+```bash
+# Transmite un evento de prueba al canal cranes-radar
+php scripts/test_pusher_smoke.php
+
+# O transmitiendo a un canal y evento personalizados:
+php scripts/test_pusher_smoke.php canal-personalizado nombre-evento
+```
+Valida:
+1. Lectura de credenciales `PUSHER_APP_ID`, `PUSHER_APP_KEY`, `PUSHER_APP_SECRET` y cluster `sa1`.
+2. Cálculo criptográfico de la firma HMAC-SHA256 y del hash `body_md5` idéntico al cuerpo JSON transmitido.
+3. Envío HTTP hacia `api-{cluster}.pusher.com` con respuesta `HTTP 200 OK`.
+4. El evento puede visualizarse de forma inmediata en el **Pusher Dashboard -> Tu App -> Debug Console**.
+
+#### 4. Smoke Test de HTTP / Micro-Kernel
+Prueba rápida de inicialización del Front Controller y respuesta JSON:
+```bash
+php scripts/http_smoke.php
+```

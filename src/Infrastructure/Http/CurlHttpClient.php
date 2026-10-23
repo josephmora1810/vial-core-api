@@ -39,7 +39,7 @@ class CurlHttpClient implements HttpClientInterface
         $headers['Content-Type'] = 'application/json';
         $headers['Accept'] ??= 'application/json';
 
-        return $this->send('POST', $url, $headers, json_encode($data, JSON_THROW_ON_ERROR));
+        return $this->send('POST', $url, $headers, json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
     }
 
     public function postForm(string $url, array $data, array $headers = []): HttpResponse

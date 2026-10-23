@@ -48,7 +48,7 @@ class PusherBroadcaster implements BroadcasterInterface
                 'data'     => $encodedData,
             ];
 
-            $body = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            $body = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
             $bodyMd5 = md5($body);
             $timestamp = (string)time();
             $path = "/apps/{$this->appId}/events";
