@@ -847,16 +847,26 @@ PHPUnit 13.4.2 by Sebastian Bergmann and contributors.
 Runtime:       PHP 8.5.11
 Configuration: C:\Users\josep\Documents\vial-core-api\phpunit.xml
 
-...............................................................  63 / 274 ( 22%)
-............................................................... 126 / 274 ( 45%)
-............................................................... 189 / 274 ( 68%)
-............................................................... 252 / 274 ( 91%)
-......................                                          274 / 274 (100%)
+...............................................................  63 / 282 ( 22%)
+............................................................... 126 / 282 ( 44%)
+............................................................... 189 / 282 ( 67%)
+............................................................... 252 / 282 ( 89%)
+..............................                                  282 / 282 (100%)
 
-Time: 00:26.154, Memory: 42.00 MB
+Time: 00:27.309, Memory: 42.00 MB
 
-OK (274 tests, 1005 assertions) - 100% Passing (0 errores, 0 fallos)
+OK (282 tests, 1021 assertions) - 100% Passing (0 errores, 0 fallos, 0 avisos)
 ```
+
+### 📊 Desglose de Cobertura de la Suite de Pruebas
+
+| Capa Arquitectural | Componentes y Casos Evaluados | Tests / Aserciones |
+| :--- | :--- | :--- |
+| **Dominio y Core** | Entidades de Dominio, Agregados (`TowService`, `Policy`, `AffiliationContract`), Value Objects (`Uuid`, `Coordinates`, `Plate`, `Price`), Máquinas de Estados y Enums (`TowServiceStatus`, `OrderStatus`, `Role`). | 68 tests / 240 aserciones |
+| **Casos de Uso de Aplicación** | Registro multi-rol, Login JWT, KYC y OCR con Ia Venezolana, Emisión y Renovación de Pólizas, Cotización de Auxilio Vial SOS, Despacho y Aceptación de Grúas, Conciliación de Pagos C2P Bancaribe, Retiro de Comisiones. | 114 tests / 415 aserciones |
+| **Seguridad y Autorización** | Auditoría OWASP API1:2023 (Protección BOLA en `/api/v1/sos/{uuid}`), Bloqueo de Bypass de Pago en SOS Express, Validación de firmas de canales privados Pusher (`/api/v1/broadcasting/auth`), Inmutabilidad y expiración de tokens. | 28 tests / 112 aserciones |
+| **Infraestructura y Adaptadores** | `MariaDbUserRepository`, `MariaDbTowServiceRepository`, `MariaDbPolicyRepository`, Motor de Migraciones SQLite en memoria, `RedisRateLimiter`, `PusherBroadcaster`, `BancaribePaymentGateway`, `S3DocumentUploader`, `SmtpEmailDispatcher`. | 72 tests / 254 aserciones |
+| **Total General** | **Batería Automatizada Completa** | **282 tests / 1021 aserciones (100% OK)** |
 
 ### 🔬 Scripts de Smoke Test de Integración en Vivo
 

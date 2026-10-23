@@ -120,9 +120,9 @@ class PusherBroadcasterTest extends TestCase
 
     public function testAuthorizePrivateChannelGeneratesValidSignature(): void
     {
-        $mockHttpClient = $this->createMock(HttpClientInterface::class);
+        $stubHttpClient = $this->createStub(HttpClientInterface::class);
         $broadcaster = new PusherBroadcaster(
-            httpClient: $mockHttpClient,
+            httpClient: $stubHttpClient,
             appId: '12345',
             appKey: 'my-key',
             appSecret: 'my-secret',
@@ -138,9 +138,9 @@ class PusherBroadcasterTest extends TestCase
 
     public function testAuthorizePresenceChannelIncludesChannelData(): void
     {
-        $mockHttpClient = $this->createMock(HttpClientInterface::class);
+        $stubHttpClient = $this->createStub(HttpClientInterface::class);
         $broadcaster = new PusherBroadcaster(
-            httpClient: $mockHttpClient,
+            httpClient: $stubHttpClient,
             appId: '12345',
             appKey: 'my-key',
             appSecret: 'my-secret',
