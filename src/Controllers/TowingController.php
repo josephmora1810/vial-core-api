@@ -7,6 +7,9 @@ use App\Application\Towing\UseCases\ArriveTowService;
 use App\Application\Towing\UseCases\CancelTowService;
 use App\Application\Towing\UseCases\CompleteTowService;
 use App\Application\Towing\UseCases\FindNearbyPendingServices;
+use App\Domain\Towing\Enums\CancellationReason;
+use App\Application\Towing\UseCases\GetActiveTowService;
+use App\Application\Towing\UseCases\ListTowServiceHistory;
 use App\Application\Towing\UseCases\GetTowService;
 use App\Application\Towing\UseCases\QuoteSosAssistance;
 use App\Application\Towing\UseCases\RateTowService;
@@ -32,7 +35,9 @@ class TowingController
         private RateTowService $rateTowService,
         private GetTowService $getTowService,
         private FindNearbyPendingServices $findNearbyPendingServices,
-        private ?QuoteSosAssistance $quoteSosAssistance = null
+        private ?QuoteSosAssistance $quoteSosAssistance = null,
+        private ?GetActiveTowService $getActiveTowService = null,
+        private ?ListTowServiceHistory $listTowServiceHistory = null
     ) {}
 
     /**
@@ -202,6 +207,80 @@ class TowingController
     }
 
     /**
+     * GET /api/v1/sos/history
+     * GET /api/v1/sos (alias)
+     * Retorna el historial paginado de servicios de asistencia vial del usuario autenticado.
+     */
+    public function history(Request $request): void
+    {
+        /** @var User|null $user */
+        $user = $request->user();
+        if ($user === null || $user->getId() === null) {
+            Response::json([], 401, 'fail', 'No autorizado.');
+            return;
+        }
+
+        if ($this->listTowServiceHistory === null) {
+            Response::json([], 500, 'error', 'Servicio de historial no configurado.');
+            return;
+        }
+
+        $page = max(1, (int)($request->query('page') ?? 1));
+        $limit = max(1, min(100, (int)($request->query('limit') ?? 10)));
+        $status = $request->query('status');
+        $role = $user->getRole()?->getName() ?? 'client';
+
+        try {
+            $history = $this->listTowServiceHistory->execute(
+                userId: $user->getId(),
+                role: $role,
+                page: $page,
+                limit: $limit,
+                status: $status
+            );
+
+            Response::json($history, 200, 'success', 'Historial de asistencia vial consultado exitosamente.');
+        } catch (Exception $e) {
+            $code = (is_int($e->getCode()) && $e->getCode() >= 400 && $e->getCode() < 600) ? $e->getCode() : 400;
+            Response::json([], $code, 'fail', $e->getMessage());
+        }
+    }
+
+    /**
+     * GET /api/v1/sos/active
+     * Retorna el servicio de asistencia vial en curso del usuario autenticado (Cliente o Conductor).
+     * Devuelve data: null si no tiene ningún auxilio activo.
+     */
+    public function active(Request $request): void
+    {
+        /** @var User|null $user */
+        $user = $request->user();
+        if ($user === null || $user->getId() === null) {
+            Response::json([], 401, 'fail', 'No autorizado.');
+            return;
+        }
+
+        if ($this->getActiveTowService === null) {
+            Response::json([], 500, 'error', 'Servicio de consulta activa no configurado.');
+            return;
+        }
+
+        try {
+            $role = $user->getRole()?->getName() ?? 'client';
+            $activeService = $this->getActiveTowService->execute($user->getId(), $role);
+
+            $message = ($activeService !== null)
+                ? 'Servicio de asistencia vial activo recuperado exitosamente.'
+                : 'No tienes ningún servicio de asistencia vial activo en este momento.';
+
+            Response::json($activeService, 200, 'success', $message);
+        } catch (Exception $e) {
+            $code = (is_int($e->getCode()) && $e->getCode() >= 400 && $e->getCode() < 600) ? $e->getCode() : 400;
+            Response::json([], $code, 'fail', $e->getMessage());
+        }
+    }
+
+    /**
      * GET /api/v1/sos/{uuid}
      * Consulta el detalle y estado actual de un servicio de asistencia vial (FR-20, OWASP API1:2023 BOLA protection).
      */
@@ -332,6 +411,22 @@ class TowingController
             $code = (is_int($e->getCode()) && $e->getCode() >= 400 && $e->getCode() < 600) ? $e->getCode() : 400;
             Response::json([], $code, 'fail', $e->getMessage());
         }
+    }
+
+    /**
+     * GET /api/v1/sos/cancellation-reasons
+     * Retorna el catálogo estructurado de motivos de cancelación para Clientes y Choferes.
+     */
+    public function cancellationReasons(Request $request): void
+    {
+        $role = $request->query('role');
+        $catalog = match (strtolower(trim((string)$role))) {
+            'client' => ['reasons' => CancellationReason::forClient()],
+            'driver' => ['reasons' => CancellationReason::forDriver()],
+            default  => CancellationReason::catalog(),
+        };
+
+        Response::json($catalog, 200, 'success', 'Catálogo de motivos de cancelación consultado exitosamente.');
     }
 
     /**

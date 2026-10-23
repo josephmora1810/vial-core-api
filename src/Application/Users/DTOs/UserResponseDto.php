@@ -28,7 +28,8 @@ readonly class UserResponseDto
         public bool $isActive,
         public string $createdAt,
         public ?string $consentAt = null,
-        public ?string $avatarUrl = null
+        public ?string $avatarUrl = null,
+        public ?string $initials = null
     ) {}
 
     public static function fromEntity(User $user, ?string $avatarUrl = null): self
@@ -48,7 +49,8 @@ readonly class UserResponseDto
             isActive: $user->isActive(),
             createdAt: $user->getCreatedAt()->format('Y-m-d H:i:s'),
             consentAt: $user->getConsentAt()?->format('Y-m-d H:i:s'),
-            avatarUrl: $avatarUrl
+            avatarUrl: $avatarUrl,
+            initials: $user->getInitials()
         );
     }
 
@@ -68,6 +70,7 @@ readonly class UserResponseDto
             'wallet_balance'      => $this->walletBalance,
             'is_active'           => $this->isActive,
             'avatar_url'          => $this->avatarUrl,
+            'initials'            => $this->initials,
             'created_at'          => $this->createdAt,
             'consent_at'          => $this->consentAt,
         ];

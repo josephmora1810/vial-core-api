@@ -6,6 +6,7 @@ use App\Domain\Auth\Exceptions\DocumentExtractionException;
 use App\Domain\Auth\Services\DocumentExtractorInterface;
 use App\Domain\Users\ValueObjects\BirthDate;
 use App\Domain\Auth\ValueObjects\ExtractedIdentity;
+use App\Domain\Auth\ValueObjects\ExtractedVehicleRegistration;
 use App\Domain\ValueObjects\LastNames;
 use App\Domain\Users\ValueObjects\Names;
 use App\Domain\Users\ValueObjects\NationalId;
@@ -98,7 +99,7 @@ class LaVenezolanaDocumentExtractor implements DocumentExtractorInterface
         );
     }
 
-    public function extractVehicleRegistration(string $filePath, ?string $documentType = null): array
+    public function extractVehicleRegistration(string $filePath, ?string $documentType = null): ExtractedVehicleRegistration
     {
         $url = rtrim($this->baseUrl, '/') . '/extractions';
 

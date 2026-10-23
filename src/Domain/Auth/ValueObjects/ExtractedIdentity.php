@@ -2,11 +2,12 @@
 
 namespace App\Domain\Auth\ValueObjects;
 
+use App\Domain\Users\ValueObjects\Surnames;
+use App\Domain\Users\ValueObjects\NationalId;
+use App\Domain\Users\ValueObjects\Names;
+use App\Domain\Users\ValueObjects\BirthDate;
 
-
-
-
-use App\Domain\Users\ValueObjects\Surnames;use App\Domain\Users\ValueObjects\NationalId;use App\Domain\Users\ValueObjects\Names;use App\Domain\Users\ValueObjects\BirthDate;readonly class ExtractedIdentity
+readonly class ExtractedIdentity
 {
     public function __construct(
         private NationalId $nationalId,

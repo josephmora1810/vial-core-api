@@ -3,6 +3,7 @@
 namespace App\Domain\Auth\Services;
 
 use App\Domain\Auth\ValueObjects\ExtractedIdentity;
+use App\Domain\Auth\ValueObjects\ExtractedVehicleRegistration;
 
 /**
  * Puerto de Dominio para extracción de documentos legales.
@@ -23,7 +24,7 @@ interface DocumentExtractorInterface
      *
      * @param string $filePath Ruta local del archivo de imagen
      * @param string|null $documentType 'vehicle_registration' (Carnet) o 'vehicle_title' (Título / NIV)
-     * @return array
+     * @return ExtractedVehicleRegistration
      */
-    public function extractVehicleRegistration(string $filePath, ?string $documentType = null): array;
+    public function extractVehicleRegistration(string $filePath, ?string $documentType = null): ExtractedVehicleRegistration;
 }

@@ -138,6 +138,7 @@ class UserModerationController
                 userId: $user->getId(),
                 localFilePath: $avatarPath
             );
+            $result['initials'] = $user->getInitials();
 
             Response::json($result, 200, 'success', 'Foto de perfil actualizada exitosamente.');
         } catch (Exception $e) {

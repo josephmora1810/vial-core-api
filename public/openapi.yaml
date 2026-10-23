@@ -3489,6 +3489,19 @@ paths:
         '200':
           description: Estado de flota y documentación consultado con éxito
 
+  /driver/shift/current:
+    get:
+      summary: Consultar Turno y Grúa Activa del Chofer (App Móvil)
+      description: |
+        Retorna el estado de jornada actual del chofer autenticado, indicando si está en línea (is_active: true/false), la grúa asignada y su última telemetría.
+      tags:
+        - Operadores de Grúa (Flotas)
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Estado de turno consultado exitosamente.
+
   /driver/shift/start:
     post:
       summary: Iniciar Turno de Chofer y Activar Grúa (Regla 1 Sola Grúa Activa)
@@ -3770,6 +3783,30 @@ paths:
   # ==========================================
   # MODERACIÓN DE USUARIOS Y AVATARES (FR-35, FR-36)
   # ==========================================
+  /profile/avatar:
+    post:
+      summary: Cargar o Actualizar Foto de Perfil / Avatar (Alias /api/v1/profile/avatar)
+      description: Alias directo para la carga y actualización del avatar en AWS S3.
+      tags:
+        - Usuarios
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - avatar
+              properties:
+                avatar:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: Foto de perfil actualizada con URL e iniciales del usuario.
+
   /users/avatar:
     post:
       summary: Cargar o Actualizar Foto de Perfil / Avatar (FR-36 / SRS pág. 38)
@@ -4091,6 +4128,85 @@ paths:
       responses:
         '200':
           description: Listado de asistencias pendientes
+
+  /sos/active:
+    get:
+      summary: Recuperar Servicio de Asistencia Vial Activo (Bootstrap App Móvil)
+      description: |
+        Retorna el servicio de auxilio vial en curso para el usuario autenticado (Cliente o Conductor).
+        Permite que la app móvil reconstruya su estado reactivo tras un reinicio, reconexión o cierre accidental, mostrando la pantalla correcta según el estatus (PENDING, EN_ROUTE o IN_PROGRESS).
+        Si el usuario no tiene ningún auxilio activo, retorna data: null.
+      tags:
+        - Asistencia Vial y Telemetría
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Servicio activo recuperado o null si no existe.
+
+  /sos/cancellation-reasons:
+    get:
+      summary: Catálogo de Motivos Estandarizados de Cancelación (FR-24-B)
+      description: |
+        Retorna los motivos de cancelación clasificados para Clientes y Choferes, listos para modales de un solo toque (One-Tap) en la app móvil.
+      tags:
+        - Asistencia Vial y Telemetría
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: role
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [client, driver]
+      responses:
+        '200':
+          description: Catálogo de motivos retornado exitosamente.
+
+  /sos/history:
+    get:
+      summary: Historial Paginado de Auxilios Viales del Usuario
+      description: |
+        Lista el historial de servicios de grúa del usuario autenticado (rescatado como cliente o atendido como gruero), con soporte de paginación y filtro opcional por estado.
+      tags:
+        - Asistencia Vial y Telemetría
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 10
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            example: COMPLETED
+      responses:
+        '200':
+          description: Historial paginado consultado exitosamente.
+
+  /sos:
+    get:
+      summary: Alias de Historial Paginado (/api/v1/sos)
+      description: Retorna el mismo historial paginado que /sos/history.
+      tags:
+        - Asistencia Vial y Telemetría
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Historial paginado.
 
   /sos/{uuid}:
     get:

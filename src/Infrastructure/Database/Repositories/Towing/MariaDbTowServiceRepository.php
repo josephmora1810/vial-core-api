@@ -283,6 +283,64 @@ class MariaDbTowServiceRepository implements TowServiceRepositoryInterface
         return $services;
     }
 
+    public function findHistoryByUserId(
+        int $userId,
+        string $role = 'client',
+        int $page = 1,
+        int $limit = 10,
+        ?string $status = null
+    ): array {
+        $page = max(1, $page);
+        $limit = max(1, min(100, $limit));
+        $offset = ($page - 1) * $limit;
+
+        $userColumn = ($role === 'driver') ? 'driver_id' : 'client_id';
+
+        $where = "WHERE {$userColumn} = :user_id";
+        $params = [':user_id' => $userId];
+
+        if ($status !== null && trim($status) !== '') {
+            $where .= " AND status = :status";
+            $params[':status'] = strtoupper(trim($status));
+        }
+
+        // Count total
+        $countSql = "SELECT COUNT(*) FROM tow_services {$where}";
+        $countStmt = $this->db->prepare($countSql);
+        $countStmt->execute($params);
+        $total = (int)$countStmt->fetchColumn();
+
+        // Query page
+        $sql = "
+            SELECT * FROM tow_services
+            {$where}
+            ORDER BY id DESC
+            LIMIT :limit OFFSET :offset
+        ";
+        $stmt = $this->db->prepare($sql);
+        foreach ($params as $k => $v) {
+            $stmt->bindValue($k, $v);
+        }
+        $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+        $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+        $stmt->execute();
+
+        $items = [];
+        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+            $items[] = $this->mapRow($row);
+        }
+
+        $totalPages = $total > 0 ? (int)ceil($total / $limit) : 1;
+
+        return [
+            'items'       => $items,
+            'total'       => $total,
+            'page'        => $page,
+            'limit'       => $limit,
+            'total_pages' => $totalPages,
+        ];
+    }
+
     private function mapRow(array $row): TowService
     {
         return new TowService(

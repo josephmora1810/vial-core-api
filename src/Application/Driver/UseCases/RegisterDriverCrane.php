@@ -96,13 +96,17 @@ class RegisterDriverCrane
         }
 
         // 3. Resolver campos prioritarios (formulario manual o lectura de OCR)
-        $finalPlate = !empty($rawPlate) ? trim($rawPlate) : ($extractedCarnet['plate_number'] ?? null);
-        $finalNiv = !empty($rawNiv) ? trim($rawNiv) : ($extractedCarnet['niv'] ?? null);
-        $finalYear = !empty($rawYear) ? (int)$rawYear : ($extractedCarnet['year'] ?? null);
-        $finalColor = !empty($rawColor) ? trim($rawColor) : ($extractedCarnet['color'] ?? 'BLANCO');
-        $finalEngine = !empty($rawEngineSerial) ? trim($rawEngineSerial) : ($extractedCarnet['engine_serial'] ?? null);
-        $finalBrandName = !empty($rawBrand) ? trim($rawBrand) : ($extractedCarnet['brand'] ?? 'CHEVROLET');
-        $finalModelName = !empty($rawModel) ? trim($rawModel) : ($extractedCarnet['model'] ?? 'F-350 GRUA');
+        $carnetData = $extractedCarnet instanceof \App\Domain\Auth\ValueObjects\ExtractedVehicleRegistration 
+            ? $extractedCarnet->toArray() 
+            : (is_array($extractedCarnet) ? $extractedCarnet : []);
+
+        $finalPlate = !empty($rawPlate) ? trim($rawPlate) : ($carnetData['plate_number'] ?? null);
+        $finalNiv = !empty($rawNiv) ? trim($rawNiv) : ($carnetData['niv'] ?? null);
+        $finalYear = !empty($rawYear) ? (int)$rawYear : ($carnetData['year'] ?? null);
+        $finalColor = !empty($rawColor) ? trim($rawColor) : ($carnetData['color'] ?? 'BLANCO');
+        $finalEngine = !empty($rawEngineSerial) ? trim($rawEngineSerial) : ($carnetData['engine_serial'] ?? null);
+        $finalBrandName = !empty($rawBrand) ? trim($rawBrand) : ($carnetData['brand'] ?? 'CHEVROLET');
+        $finalModelName = !empty($rawModel) ? trim($rawModel) : ($carnetData['model'] ?? 'F-350 GRUA');
 
         if (empty($finalPlate) || empty($finalNiv) || empty($finalYear)) {
             throw new Exception(

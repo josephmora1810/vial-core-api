@@ -38,4 +38,16 @@ interface TowServiceRepositoryInterface
      * @return list<TowService>
      */
     public function findOverduePendingServices(int $timeoutMinutes = 10): array;
+
+    /**
+     * Retorna el historial paginado de servicios de asistencia vial para un usuario (Cliente o Conductor).
+     * @return array{items: list<TowService>, total: int, page: int, limit: int, total_pages: int}
+     */
+    public function findHistoryByUserId(
+        int $userId,
+        string $role = 'client',
+        int $page = 1,
+        int $limit = 10,
+        ?string $status = null
+    ): array;
 }

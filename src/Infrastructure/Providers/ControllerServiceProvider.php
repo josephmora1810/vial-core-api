@@ -41,6 +41,7 @@ use App\Application\Driver\UseCases\{
     EndDriverShift,
     GetDriverFleetStatus,
     RegisterDriverCrane,
+    GetCurrentDriverShift,
     StartDriverShift,
     UpdateDriverLocation,
     UploadDriverLicense
@@ -59,7 +60,9 @@ use App\Application\Towing\UseCases\{
     CancelTowService,
     CompleteTowService,
     FindNearbyPendingServices,
+    GetActiveTowService,
     GetTowService,
+    ListTowServiceHistory,
     QuoteSosAssistance,
     RateTowService,
     RequestSosAssistance,
@@ -370,40 +373,53 @@ final class ControllerServiceProvider
                 new StartDriverShift($repos['driver_shift'](), $repos['user'](), $repos['vehicle'](), $repos['tow_service'](), $infra['redis']()),
                 new EndDriverShift($repos['driver_shift'](), $repos['user'](), $repos['tow_service'](), $infra['redis']()),
                 new UpdateDriverLocation($repos['driver_shift'](), $repos['user'](), $infra['redis']()),
-                $repos['driver_shift']()
+                $repos['driver_shift'](),
+                new GetCurrentDriverShift($repos['driver_shift'](), $repos['vehicle']())
             ),
-            TowingController::class => fn() => new TowingController(
-                new RequestSosAssistance(
-                    $infra['coverage_zones'](),
-                    $repos['vehicle'](),
-                    $infra['routing_service'](),
-                    $repos['contract'](),
+            TowingController::class => function () use ($repos, $infra) {
+                $getTowService = new GetTowService(
                     $repos['tow_service'](),
-                    $repos['order'](),
-                    $infra['bancaribe_exchange']($repos),
-                    $repos['saved_address'](),
-                    $infra['broadcaster'](),
-                    $infra['push_notification']()
-                ),
-                new AcceptSosService($repos['tow_service'](), $infra['broadcaster'](), $repos['order']()),
-                new UpdateCraneTelemetry($repos['tow_service'](), $repos['tow_service_log'](), $infra['broadcaster']()),
-                new ArriveTowService($repos['tow_service'](), $infra['broadcaster']()),
-                new CompleteTowService($repos['tow_service'](), $repos['contract'](), $infra['broadcaster'](), $infra['redis']()),
-                new CancelTowService($repos['tow_service'](), $infra['broadcaster']()),
-                new RateTowService($repos['tow_service'](), $repos['rating'](), $infra['redis']()),
-                new GetTowService($repos['tow_service'](), $repos['vehicle']()),
-                new FindNearbyPendingServices($repos['tow_service'](), $repos['vehicle']()),
-                new QuoteSosAssistance(
-                    $infra['coverage_zones'](),
                     $repos['vehicle'](),
-                    $infra['routing_service'](),
-                    $repos['contract'](),
+                    $repos['user'](),
                     $repos['driver_shift'](),
-                    $infra['bancaribe_exchange']($repos),
-                    $infra['redis'](),
-                    $repos['saved_address']()
-                )
-            ),
+                    $repos['rating']()
+                );
+
+                return new TowingController(
+                    new RequestSosAssistance(
+                        $infra['coverage_zones'](),
+                        $repos['vehicle'](),
+                        $infra['routing_service'](),
+                        $repos['contract'](),
+                        $repos['tow_service'](),
+                        $repos['order'](),
+                        $infra['bancaribe_exchange']($repos),
+                        $repos['saved_address'](),
+                        $infra['broadcaster'](),
+                        $infra['push_notification']()
+                    ),
+                    new AcceptSosService($repos['tow_service'](), $infra['broadcaster'](), $repos['order'](), $getTowService),
+                    new UpdateCraneTelemetry($repos['tow_service'](), $repos['tow_service_log'](), $infra['broadcaster']()),
+                    new ArriveTowService($repos['tow_service'](), $infra['broadcaster']()),
+                    new CompleteTowService($repos['tow_service'](), $repos['contract'](), $infra['broadcaster'](), $infra['redis']()),
+                    new CancelTowService($repos['tow_service'](), $infra['broadcaster']()),
+                    new RateTowService($repos['tow_service'](), $repos['rating'](), $infra['redis']()),
+                    $getTowService,
+                    new FindNearbyPendingServices($repos['tow_service'](), $repos['vehicle']()),
+                    new QuoteSosAssistance(
+                        $infra['coverage_zones'](),
+                        $repos['vehicle'](),
+                        $infra['routing_service'](),
+                        $repos['contract'](),
+                        $repos['driver_shift'](),
+                        $infra['bancaribe_exchange']($repos),
+                        $infra['redis'](),
+                        $repos['saved_address']()
+                    ),
+                    new GetActiveTowService($repos['tow_service'](), $getTowService),
+                    new ListTowServiceHistory($repos['tow_service'](), $repos['vehicle']())
+                );
+            },
             PusherWebhookController::class => fn() => new PusherWebhookController(
                 appKey: $_ENV['PUSHER_APP_KEY'] ?? '',
                 appSecret: $_ENV['PUSHER_APP_SECRET'] ?? '',

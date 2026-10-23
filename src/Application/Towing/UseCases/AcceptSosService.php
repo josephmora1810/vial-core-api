@@ -17,7 +17,8 @@ class AcceptSosService
     public function __construct(
         private TowServiceRepositoryInterface $towServiceRepository,
         private ?BroadcasterInterface $broadcaster = null,
-        private ?OrderRepositoryInterface $orderRepository = null
+        private ?OrderRepositoryInterface $orderRepository = null,
+        private ?GetTowService $getTowService = null
     ) {}
 
     /**
@@ -73,12 +74,19 @@ class AcceptSosService
         $service->accept($driverId);
         $this->towServiceRepository->save($service);
 
-        $dto = TowServiceResponseDto::fromEntity($service)->toArray();
+        $dto = ($this->getTowService !== null)
+            ? $this->getTowService->execute($service->getUuid()->getValue(), $driverId, true)
+            : TowServiceResponseDto::fromEntity($service)->toArray();
 
         // 5. Notificar al cliente por WebSocket seguro que la grúa va en camino (FR-24, FR-26)
         $this->broadcaster?->broadcast(
             channels: "private-tow-{$service->getUuid()->getValue()}",
             event: 'service-accepted',
+            data: $dto
+        );
+        $this->broadcaster?->broadcast(
+            channels: "private-tow-{$service->getUuid()->getValue()}",
+            event: 'tow-assigned',
             data: $dto
         );
 

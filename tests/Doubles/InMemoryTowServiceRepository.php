@@ -100,6 +100,49 @@ class InMemoryTowServiceRepository implements TowServiceRepositoryInterface
         return $results;
     }
 
+    public function findHistoryByUserId(
+        int $userId,
+        string $role = 'client',
+        int $page = 1,
+        int $limit = 10,
+        ?string $status = null
+    ): array {
+        $page = max(1, $page);
+        $limit = max(1, min(100, $limit));
+        $offset = ($page - 1) * $limit;
+
+        $filtered = array_filter($this->items, function (TowService $service) use ($userId, $role, $status) {
+            $matchUser = ($role === 'driver')
+                ? ($service->getDriverId() === $userId)
+                : ($service->getClientId() === $userId);
+
+            if (!$matchUser) {
+                return false;
+            }
+
+            if ($status !== null && trim($status) !== '') {
+                return strtoupper($service->getStatus()->value) === strtoupper(trim($status));
+            }
+
+            return true;
+        });
+
+        // Orden descendente por id
+        usort($filtered, fn(TowService $a, TowService $b) => ($b->getId() ?? 0) <=> ($a->getId() ?? 0));
+
+        $total = count($filtered);
+        $items = array_values(array_slice($filtered, $offset, $limit));
+        $totalPages = $total > 0 ? (int)ceil($total / $limit) : 1;
+
+        return [
+            'items'       => $items,
+            'total'       => $total,
+            'page'        => $page,
+            'limit'       => $limit,
+            'total_pages' => $totalPages,
+        ];
+    }
+
     private function haversineKm(Coordinates $c1, Coordinates $c2): float
     {
         $r = 6371.0;

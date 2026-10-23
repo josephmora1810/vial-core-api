@@ -6,6 +6,7 @@ use App\Application\Driver\UseCases\EndDriverShift;
 use App\Application\Driver\UseCases\GetDriverFleetStatus;
 use App\Application\Driver\UseCases\RegisterDriverCrane;
 use App\Application\Driver\UseCases\StartDriverShift;
+use App\Application\Driver\UseCases\GetCurrentDriverShift;
 use App\Application\Driver\UseCases\UpdateDriverLocation;
 use App\Application\Driver\UseCases\UploadDriverLicense;
 use App\Application\Vehicles\DTOs\VehicleResponseDto;
@@ -28,7 +29,8 @@ class DriverController
         private ?StartDriverShift $startDriverShift = null,
         private ?EndDriverShift $endDriverShift = null,
         private ?UpdateDriverLocation $updateDriverLocation = null,
-        private ?DriverShiftRepositoryInterface $driverShiftRepository = null
+        private ?DriverShiftRepositoryInterface $driverShiftRepository = null,
+        private ?GetCurrentDriverShift $getCurrentDriverShift = null
     ) {}
 
     /**

@@ -15,7 +15,7 @@ class FakePaymentGateway implements PaymentGatewayInterface
         $this->nextResult = $result;
     }
 
-    public function processC2p(Order $order, array $paymentData): PaymentResult
+    public function processC2p(Order $_, array $paymentData): PaymentResult
     {
         if ($this->nextResult !== null) {
             return $this->nextResult;
@@ -60,6 +60,7 @@ class FakePaymentGateway implements PaymentGatewayInterface
                 'fecha'                => $date,
                 'monto'                => $amount,
                 'identificadorPersona' => $identificadorPersona,
+                'telefono'             => $telefono ?? 'telefono no ingresado'
             ],
             responsePayload: ['status' => 'SUCCESS', 'secuencial' => $reference, 'monto' => $amount]
         );

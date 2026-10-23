@@ -38,14 +38,18 @@ class ScanVehicleRegistration
             }
         }
 
+        $ocrData = $rawOcr instanceof \App\Domain\Auth\ValueObjects\ExtractedVehicleRegistration
+            ? $rawOcr->toArray()
+            : (is_array($rawOcr) ? $rawOcr : []);
+
         // Hacer coincidir contra el catálogo maestro de la base de datos
-        $suggested = $this->matcherService->match($rawOcr);
+        $suggested = $this->matcherService->match($ocrData);
 
         return [
             'suggested_vehicle' => $suggested,
-            'document_type'     => $rawOcr['document_type'] ?? ($documentType ?: 'vehicle_registration'),
-            'warnings'          => $rawOcr['warnings'] ?? [],
-            'raw_ocr'           => $rawOcr,
+            'document_type'     => $ocrData['document_type'] ?? ($documentType ?: 'vehicle_registration'),
+            'warnings'          => $ocrData['warnings'] ?? [],
+            'raw_ocr'           => $ocrData,
             'file_path'         => $filePath,
             'message'           => 'Documento escaneado. Por favor verifique los campos sugeridos antes de confirmar.'
         ];

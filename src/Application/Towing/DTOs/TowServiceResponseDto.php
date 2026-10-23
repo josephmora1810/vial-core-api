@@ -30,14 +30,22 @@ readonly class TowServiceResponseDto
         public ?string $completed_at = null,
         public ?string $cancelled_at = null,
         public ?string $created_at = null,
-        public ?string $updated_at = null
+        public ?string $updated_at = null,
+        public ?array $driver = null,
+        public ?array $crane = null,
+        public ?array $client = null,
+        public ?array $vehicle = null
     ) {}
 
     public static function fromEntity(
         TowService $service,
         ?string $vehiclePlate = null,
         ?string $contractCode = null,
-        ?string $extraOrderUuid = null
+        ?string $extraOrderUuid = null,
+        ?array $driver = null,
+        ?array $crane = null,
+        ?array $client = null,
+        ?array $vehicle = null
     ): self {
         return new self(
             id: $service->getUuid()->getValue(),
@@ -65,7 +73,11 @@ readonly class TowServiceResponseDto
             completed_at: $service->getCompletedAt()?->format('Y-m-d H:i:s'),
             cancelled_at: $service->getCancelledAt()?->format('Y-m-d H:i:s'),
             created_at: $service->getCreatedAt()?->format('Y-m-d H:i:s'),
-            updated_at: $service->getUpdatedAt()?->format('Y-m-d H:i:s')
+            updated_at: $service->getUpdatedAt()?->format('Y-m-d H:i:s'),
+            driver: $driver,
+            crane: $crane,
+            client: $client,
+            vehicle: $vehicle
         );
     }
 
@@ -95,6 +107,10 @@ readonly class TowServiceResponseDto
             'cancelled_at'          => $this->cancelled_at,
             'created_at'            => $this->created_at,
             'updated_at'            => $this->updated_at,
+            'driver'                => $this->driver,
+            'crane'                 => $this->crane,
+            'client'                => $this->client,
+            'vehicle'               => $this->vehicle,
         ];
     }
 }

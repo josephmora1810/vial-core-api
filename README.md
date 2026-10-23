@@ -3,8 +3,8 @@
 <!-- <p align="center">
   <img src="https://img.shields.io/badge/PHP-8.5%2B%20Puro-777BB4?style=for-the-badge&logo=php&logoColor=white" alt="PHP 8.5+" />
   <img src="https://img.shields.io/badge/Architecture-Hexagonal%20%2F%20DDD-blue?style=for-the-badge" alt="Hexagonal DDD" />
-  <img src="https://img.shields.io/badge/Tests-308%20Passing-success?style=for-the-badge&logo=phpunit&logoColor=white" alt="308 Tests Passing" />
-  <img src="https://img.shields.io/badge/Assertions-1139%20Verified-brightgreen?style=for-the-badge" alt="1139 Assertions" />
+  <img src="https://img.shields.io/badge/Tests-320%20Passing-success?style=for-the-badge&logo=phpunit&logoColor=white" alt="320 Tests Passing" />
+  <img src="https://img.shields.io/badge/Assertions-1218%20Verified-brightgreen?style=for-the-badge" alt="1218 Assertions" />
   <img src="https://img.shields.io/badge/Database-MariaDB%2010.11%2B-003545?style=for-the-badge&logo=mariadb&logoColor=white" alt="MariaDB" />
   <img src="https://img.shields.io/badge/Cache%20%26%20Queues-Redis%206%2B-DC382D?style=for-the-badge&logo=redis&logoColor=white" alt="Redis" />
   <img src="https://img.shields.io/badge/Broadcasting-Pusher%20WebSockets-300D4F?style=for-the-badge&logo=pusher&logoColor=white" alt="Pusher" />
@@ -710,6 +710,7 @@ stateDiagram-v2
 | **Auth** | `POST` | `/api/v1/reset-password` | Público | Restablecimiento de contraseña con OTP |
 | **KYC** | `POST` | `/api/v1/documents/upload` | Bearer | Carga de documentos de identidad o vehículos |
 | **KYC** | `GET` | `/api/v1/documents/kyc-status` | Bearer | Estado consolidado de verificación KYC del usuario |
+| **Perfil** | `POST` | `/api/v1/profile/avatar` | Bearer | Carga foto de perfil en AWS S3 retornando URL segura e iniciales |
 | **Direcciones** | `GET` | `/api/v1/addresses` | Bearer | Lista de ubicaciones GPS favoritas del usuario |
 | **Direcciones** | `POST` | `/api/v1/addresses` | Bearer | Creación de nueva dirección favorita con coordenadas |
 | **Direcciones** | `DELETE` | `/api/v1/addresses/{id}` | Bearer | Eliminación lógica de dirección por UUID |
@@ -755,6 +756,7 @@ stateDiagram-v2
 | **Grueros** | `GET` | `/api/v1/driver/cranes` | Bearer (`driver`) | Lista de unidades de grúa del operador |
 | **Grueros** | `POST` | `/api/v1/driver/license` | Bearer (`driver`) | Carga de Licencia de Conducir profesional del chofer |
 | **Grueros** | `GET` | `/api/v1/driver/status` | Bearer (`driver`) | Estado de flota y habilitación operativa (`can_operate`) |
+| **Grueros** | `GET` | `/api/v1/driver/shift/current` | Bearer (`driver`) | Consulta turno activo del chofer, grúa asociada y telemetría de radar |
 | **Grueros** | `POST` | `/api/v1/driver/shift/start` | Bearer (`driver`) | Inicia turno del chofer y activa grúa (Regla: 1 sola grúa activa a la vez) |
 | **Grueros** | `POST` | `/api/v1/driver/shift/end` | Bearer (`driver`) | Finaliza turno del chofer y desactiva grúa del radar |
 | **Grueros** | `POST` | `/api/v1/driver/cranes/{id}/activate` | Bearer (`driver`) | Activa grúa para el chofer asegurando exclusividad |
@@ -763,7 +765,11 @@ stateDiagram-v2
 | **SOS** | `POST` | `/api/v1/sos` | Bearer | Solicita auxilio SOS: valida geocerca, ruta OSRM y alerta al radar |
 | **SOS** | `GET` | `/api/v1/sos/radar` | Bearer (`driver`) | Radar geoespacial de emergencias pendientes para choferes |
 | **SOS** | `GET` | `/api/v1/radar` | Bearer (`driver`) | Alias de radar geoespacial |
-| **SOS** | `GET` | `/api/v1/sos/{uuid}` | Bearer | Detalle y seguimiento en tiempo real del auxilio |
+| **SOS** | `GET` | `/api/v1/sos/active` | Bearer | Retorna auxilio vial activo del usuario (bootstrap y reanudación de sesión en app móvil) |
+| **SOS** | `GET` | `/api/v1/sos/cancellation-reasons` | Bearer | Catálogo estructurado de motivos de cancelación para modal One-Tap |
+| **SOS** | `GET` | `/api/v1/sos/history` | Bearer | Historial paginado de auxilios viales del usuario (cliente o chofer) |
+| **SOS** | `GET` | `/api/v1/sos` | Bearer | Alias del historial paginado de auxilios viales |
+| **SOS** | `GET` | `/api/v1/sos/{uuid}` | Bearer | Detalle enriquecido en tiempo real del auxilio (chofer, grúa, cliente, vehículo) |
 | **SOS** | `POST` | `/api/v1/sos/{uuid}/accept` | Bearer (`driver`) | Aceptación de servicio con Pessimistic Locking MariaDB |
 | **SOS** | `PUT` / `POST` | `/api/v1/sos/{uuid}/telemetry` | Bearer (`driver`) | Envío GPS de alta frecuencia (5-10s) con broadcast Pusher |
 | **SOS** | `POST` | `/api/v1/sos/{uuid}/arrive` | Bearer (`driver`) | Notificación de llegada física al punto del accidente |
@@ -982,26 +988,27 @@ PHPUnit 13.4.2 by Sebastian Bergmann and contributors.
 Runtime:       PHP 8.5.11
 Configuration: C:\Users\josep\Documents\vial-core-api\phpunit.xml
 
-...............................................................  63 / 308 ( 20%)
-............................................................... 126 / 308 ( 40%)
-............................................................... 189 / 308 ( 61%)
-............................................................... 252 / 308 ( 81%)
-........................................................        308 / 308 (100%)
+...............................................................  63 / 320 ( 19%)
+............................................................... 126 / 320 ( 39%)
+............................................................... 189 / 320 ( 59%)
+............................................................... 252 / 320 ( 78%)
+............................................................... 315 / 320 ( 98%)
+.....                                                           320 / 320 (100%)
 
-Time: 00:31.638, Memory: 42.00 MB
+Time: 00:34.218, Memory: 44.00 MB
 
-OK (308 tests, 1139 assertions) - 100% Passing (0 errores, 0 fallos, 0 avisos)
+OK (320 tests, 1218 assertions) - 100% Passing (0 errores, 0 fallos, 0 avisos)
 ```
 
 ### 📊 Desglose de Cobertura de la Suite de Pruebas
 
 | Capa Arquitectural | Componentes y Casos Evaluados | Tests / Aserciones |
 | :--- | :--- | :--- |
-| **Dominio y Core** | Entidades de Dominio (`DriverShift`, `TowService`, `Policy`, `AffiliationContract`), Value Objects (`Uuid`, `Coordinates`, `Plate`, `Price`), Máquinas de Estados y Enums (`TowServiceStatus`, `OrderStatus`, `Role`), Servicios de Dominio (`VehicleMatcherService`, `PushNotificationInterface`). | 75 tests / 278 aserciones |
-| **Casos de Uso de Aplicación** | Pre-Cotización SOS con verificación de radares, Gestión de Turnos y Activación Exclusiva de Grúa, Registro multi-rol, Login JWT, KYC y OCR con La Venezolana, Registro Vehicular 3NF, Emisión de Pólizas, Despacho Dual (Pusher Beams + WebSockets), Hitos de Llegada y Finalización con Broadcasts, Conciliación C2P Bancaribe, Retiro de Comisiones. | 133 tests / 491 aserciones |
+| **Dominio y Core** | Entidades de Dominio (`DriverShift`, `TowService`, `Policy`, `AffiliationContract`), Value Objects (`ExtractedVehicleRegistration`, `CancellationReason`, `Uuid`, `Coordinates`, `Plate`, `Price`), Máquinas de Estados y Enums (`TowServiceStatus`, `OrderStatus`, `Role`), Servicios de Dominio (`VehicleMatcherService`, `PushNotificationInterface`). | 78 tests / 310 aserciones |
+| **Casos de Uso de Aplicación** | Reanudación reactiva de sesión SOS (`GetActiveTowService`), DTOs Enriquecidos (Chofer, Grúa, Cliente, Vehículo), Consulta de Turno Actual (`GetCurrentDriverShift`), Historial Paginado (`ListTowServiceHistory`), Pre-Cotización SOS con verificación de radares, Gestión de Turnos y Activación Exclusiva de Grúa, Registro multi-rol, Login JWT, KYC y OCR con La Venezolana, Registro Vehicular 3NF, Emisión de Pólizas, Despacho Dual (Pusher Beams + WebSockets), Hitos de Llegada y Finalización con Broadcasts, Conciliación C2P Bancaribe, Retiro de Comisiones. | 142 tests / 538 aserciones |
 | **Seguridad y Autorización** | Invariante de 1 grúa activa por chofer, Bloqueo de finalización de turno durante servicio activo, Auditoría OWASP API1:2023 (Protección BOLA en `/api/v1/sos/{uuid}`), Bloqueo de Bypass de Pago en SOS Express, Validación de firmas de canales privados Pusher (`/api/v1/broadcasting/auth`), Calificación bidireccional estricta. | 28 tests / 114 aserciones |
 | **Infraestructura y Adaptadores** | `MariaDbDriverShiftRepository`, `PusherBeamsService` (FCM + APNs push gateway), `MariaDbUserRepository`, `MariaDbTowServiceRepository`, `MariaDbVehicleRepository`, `CachedVehicleCatalogRepository`, Motor de Migraciones MariaDB, `RedisRateLimiter`, `PusherBroadcaster`, `BancaribePaymentGateway`, `S3DocumentUploader`, `SmtpEmailDispatcher`. | 72 tests / 256 aserciones |
-| **Total General** | **Batería Automatizada Completa** | **308 tests / 1139 aserciones (100% OK)** |
+| **Total General** | **Batería Automatizada Completa** | **320 tests / 1218 aserciones (100% OK)** |
 
 ### 🔬 Scripts de Smoke Test de Integración en Vivo
 
