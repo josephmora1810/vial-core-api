@@ -65,8 +65,9 @@ class ProcessDocumentS3UploadJob
             ];
         }
 
-        // 2. Intentar subida a S3
+        // 2. Limpieza de metadatos EXIF/GPS para privacidad (NFR-17) e intento de subida a S3
         try {
+            $this->stripExifMetadata($localFilePath);
             $s3Url = $this->storageService->upload($localFilePath, $s3Key);
 
             // Eliminar archivo local temporal tras subida exitosa a AWS S3
@@ -140,5 +141,25 @@ class ProcessDocumentS3UploadJob
             responsePayload: null,
             error: $error
         );
+    }
+
+    /**
+     * Elimina metadatos EXIF y coordenadas GPS de fotografías cargadas (NFR-17).
+     */
+    private function stripExifMetadata(string $filePath): void
+    {
+        if (!function_exists('imagecreatefromjpeg') || !is_file($filePath)) {
+            return;
+        }
+
+        $mime = @mime_content_type($filePath);
+        if ($mime === 'image/jpeg' || $mime === 'image/jpg') {
+            $image = @imagecreatefromjpeg($filePath);
+            if ($image !== false) {
+                // Re-encodifica la imagen sin metadatos EXIF ni cabeceras GPS pasivas
+                @imagejpeg($image, $filePath, 92);
+                @imagedestroy($image);
+            }
+        }
     }
 }
