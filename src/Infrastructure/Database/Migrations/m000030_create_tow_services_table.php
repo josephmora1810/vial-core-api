@@ -10,7 +10,6 @@ class m000030_create_tow_services_table
     {
         $sql = "
             CREATE TABLE IF NOT EXISTS tow_services (
-                
                 id BIGINT AUTO_INCREMENT PRIMARY KEY,
                 uuid CHAR(36) NOT NULL UNIQUE,
                 client_id BIGINT NOT NULL COMMENT 'ID del cliente que solicita el servicio',
@@ -32,7 +31,7 @@ class m000030_create_tow_services_table
                 extra_order_id BIGINT NULL COMMENT 'FK a orders.id para cobrar el excedente de km',
                 status VARCHAR(50) NOT NULL DEFAULT 'PENDING' COMMENT 'PENDING, EN_ROUTE, IN_PROGRESS, COMPLETED, CANCELLED_BY_CLIENT, CANCELLED_BY_DRIVER, CANCELLED_BY_TIMEOUT',
                 cancel_reason VARCHAR(255) NULL COMMENT 'Motivo de la cancelación',
-                cancelled_by ENUM('CLIENT', 'DRIVER', 'SYSTEM_TIMEOUT') NULL COMMENT 'Quién canceló el servicio'
+                cancelled_by ENUM('CLIENT', 'DRIVER', 'SYSTEM_TIMEOUT') NULL COMMENT 'Quién canceló el servicio',
                 
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -51,7 +50,7 @@ class m000030_create_tow_services_table
                 CONSTRAINT fk_tow_services_saved_address FOREIGN KEY (saved_address_id) REFERENCES saved_addresses (id) ON DELETE SET NULL,
                 CONSTRAINT fk_tow_services_order FOREIGN KEY (extra_order_id) REFERENCES orders (id) ON DELETE SET NULL
 
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
         ";
         $db->exec($sql);
     }

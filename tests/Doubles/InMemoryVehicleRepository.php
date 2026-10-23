@@ -2,11 +2,11 @@
 
 namespace Tests\Doubles;
 
+use App\Domain\Shared\ValueObjects\Uuid;
 use App\Domain\Vehicles\Entities\Vehicle;
 use App\Domain\Vehicles\Repositories\VehicleRepositoryInterface;
 use App\Domain\Vehicles\ValueObjects\Niv;
 use App\Domain\Vehicles\ValueObjects\PlateNumber;
-use App\Domain\Shared\ValueObjects\Uuid;
 
 class InMemoryVehicleRepository implements VehicleRepositoryInterface
 {
@@ -41,7 +41,7 @@ class InMemoryVehicleRepository implements VehicleRepositoryInterface
     public function findByPlateNumber(PlateNumber $plateNumber): ?Vehicle
     {
         foreach ($this->vehicles as $vehicle) {
-            if ($vehicle->getPlateNumber()->equals($plateNumber) && !$vehicle->isDeleted()) {
+            if ($vehicle->getPlateNumber() !== null && $vehicle->getPlateNumber()->equals($plateNumber) && !$vehicle->isDeleted()) {
                 return $vehicle;
             }
         }
@@ -51,7 +51,7 @@ class InMemoryVehicleRepository implements VehicleRepositoryInterface
     public function findByNiv(Niv $niv): ?Vehicle
     {
         foreach ($this->vehicles as $vehicle) {
-            if ($vehicle->getNiv()->equals($niv) && !$vehicle->isDeleted()) {
+            if ($vehicle->getNiv() !== null && $vehicle->getNiv()->equals($niv) && !$vehicle->isDeleted()) {
                 return $vehicle;
             }
         }
@@ -89,5 +89,59 @@ class InMemoryVehicleRepository implements VehicleRepositoryInterface
             }
         }
         return false;
+    }
+
+    public function findDetailedByUuid(Uuid $uuid): ?array
+    {
+        $v = $this->findByUuid($uuid);
+        if ($v === null) {
+            return null;
+        }
+
+        return [
+            'id'                  => $v->getId(),
+            'uuid'                => $v->getUuid()->getValue(),
+            'user_id'             => $v->getUserId(),
+            'model_id'            => $v->getModelId(),
+            'plate_number'        => $v->getPlateNumber()?->getValue(),
+            'niv'                 => $v->getNiv()?->getValue(),
+            'engine_serial'       => $v->getEngineSerial()?->getValue(),
+            'year'                => $v->getYear(),
+            'color'               => $v->getColor(),
+            'vehicle_type'        => $v->getType()->getValue(),
+            'vehicle_status'      => $v->getStatus()->getValue(),
+            'is_verified'         => $v->isVerified(),
+            'created_at'          => $v->getCreatedAt()->format('Y-m-d H:i:s'),
+            'updated_at'          => $v->getUpdatedAt()?->format('Y-m-d H:i:s'),
+            'owner_names'         => 'Test',
+            'owner_surnames'      => 'User',
+            'owner_national_id'   => 'V12345678',
+            'owner_phone'         => '04141234567',
+            'owner_email'         => 'test@example.com',
+            'brand_id'            => 1,
+            'brand_name'          => $v->getBrandName() ?? 'Toyota',
+            'model_name'          => $v->getModelName() ?? 'Corolla',
+            'vehicle_subclass_id' => 1,
+            'subclass_name'       => $v->getSubclassName() ?? 'Sedan',
+            'vehicle_class_id'    => 1,
+            'class_name'          => $v->getClassName() ?? 'Automovil',
+            'class_code'          => 'AUTOMOVIL',
+            'document_id'         => null,
+            'document_type'       => null,
+            'document_file_path'  => null,
+            'document_status'     => null,
+        ];
+    }
+
+    public function findDetailedByPlateNumber(PlateNumber $plateNumber): ?array
+    {
+        $v = $this->findByPlateNumber($plateNumber);
+        return $v ? $this->findDetailedByUuid($v->getUuid()) : null;
+    }
+
+    public function findDetailedByUserId(int $userId): array
+    {
+        $vehicles = $this->findAllByUserId($userId);
+        return array_map(fn($v) => $this->findDetailedByUuid($v->getUuid()), $vehicles);
     }
 }

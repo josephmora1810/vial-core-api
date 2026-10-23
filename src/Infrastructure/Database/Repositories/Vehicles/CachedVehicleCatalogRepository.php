@@ -93,9 +93,11 @@ class CachedVehicleCatalogRepository implements VehicleCatalogRepositoryInterfac
             }
         }
 
-        // Coincidencia por subcadena (ej: "TOYOTA DE VENEZUELA" -> "Toyota")
-        foreach ($allBrands as $b) {
-            if (stripos($cleanName, $b['name']) !== false) {
+        // Coincidencia por subcadena (ej: "TOYOTA DE VENEZUELA" -> "Toyota"), priorizando mayor longitud
+        $sortedBrands = $allBrands;
+        usort($sortedBrands, static fn(array $a, array $b): int => strlen($b['name']) <=> strlen($a['name']));
+        foreach ($sortedBrands as $b) {
+            if ($b['name'] !== '' && stripos($cleanName, $b['name']) !== false) {
                 return $b;
             }
         }
@@ -146,9 +148,11 @@ class CachedVehicleCatalogRepository implements VehicleCatalogRepositoryInterfac
             }
         }
 
-        // Coincidencia por subcadena (ej: "COROLLA GLI" -> "Corolla")
-        foreach ($allModels as $m) {
-            if (stripos($cleanModel, $m['name']) !== false) {
+        // Coincidencia por subcadena (ej: "COROLLA GLI" -> "Corolla"), priorizando mayor longitud
+        $sortedModels = $allModels;
+        usort($sortedModels, static fn(array $a, array $b): int => strlen($b['name']) <=> strlen($a['name']));
+        foreach ($sortedModels as $m) {
+            if ($m['name'] !== '' && stripos($cleanModel, $m['name']) !== false) {
                 return $m;
             }
         }

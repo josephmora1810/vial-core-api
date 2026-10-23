@@ -339,7 +339,8 @@ final class ControllerServiceProvider
                 new ListUserVehicles($repos['vehicle'](), $repos['user']()),
                 new DeleteVehicle($repos['vehicle']()),
                 new ScanVehicleRegistration($infra['document_extractor'], new VehicleMatcherService($repos['catalog']())),
-                $repos['catalog']()
+                $repos['catalog'](),
+                $repos['vehicle']()
             ),
             DriverController::class => fn() => new DriverController(
                 new RegisterDriverCrane(

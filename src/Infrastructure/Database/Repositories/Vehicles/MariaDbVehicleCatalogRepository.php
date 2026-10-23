@@ -60,7 +60,7 @@ class MariaDbVehicleCatalogRepository implements VehicleCatalogRepositoryInterfa
     {
         if (!empty($search)) {
             $stmt = $this->db->prepare("
-                SELECT id, brand_id, vehicle_class_id, name 
+                SELECT id, brand_id, vehicle_class_id, vehicle_subclass_id, type, name 
                 FROM vehicle_models 
                 WHERE brand_id = :brand_id AND name LIKE :search 
                 ORDER BY name ASC
@@ -71,7 +71,7 @@ class MariaDbVehicleCatalogRepository implements VehicleCatalogRepositoryInterfa
             ]);
         } else {
             $stmt = $this->db->prepare("
-                SELECT id, brand_id, vehicle_class_id, name 
+                SELECT id, brand_id, vehicle_class_id, vehicle_subclass_id, type, name 
                 FROM vehicle_models 
                 WHERE brand_id = :brand_id 
                 ORDER BY name ASC
@@ -86,7 +86,7 @@ class MariaDbVehicleCatalogRepository implements VehicleCatalogRepositoryInterfa
     {
         $cleanModel = trim($modelName);
         $stmt = $this->db->prepare("
-            SELECT id, brand_id, vehicle_class_id, name 
+            SELECT id, brand_id, vehicle_class_id, vehicle_subclass_id, type, name 
             FROM vehicle_models 
             WHERE brand_id = :brand_id AND LOWER(name) = LOWER(:name) 
             LIMIT 1
@@ -103,7 +103,7 @@ class MariaDbVehicleCatalogRepository implements VehicleCatalogRepositoryInterfa
 
         // Búsqueda por similitud/subcadena (ej: "COROLLA GLI" -> "COROLLA")
         $stmtLike = $this->db->prepare("
-            SELECT id, brand_id, vehicle_class_id, name 
+            SELECT id, brand_id, vehicle_class_id, vehicle_subclass_id, type, name 
             FROM vehicle_models 
             WHERE brand_id = :brand_id AND :model LIKE CONCAT('%', name, '%') 
             ORDER BY LENGTH(name) DESC 

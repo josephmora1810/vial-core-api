@@ -55,11 +55,34 @@ class MariaDbTowingRepositoriesTest extends TestCase
         $userStmt = $this->pdo->query('SELECT id FROM users ORDER BY id ASC LIMIT 2');
         $users = $userStmt->fetchAll(PDO::FETCH_COLUMN);
 
-        $this->clientId = (int)($users[0] ?? 1);
+        if (count($users) < 2) {
+            $this->pdo->exec("INSERT INTO users (uuid, names, surnames, identification_card, birth_date, phone, email, password) VALUES 
+                ('00000000-0000-0000-0000-000000000001', 'Client', 'Test', 'V-11111111', '1990-01-01', '+584120000001', 'client.towing@example.com', 'hash'),
+                ('00000000-0000-0000-0000-000000000002', 'Driver', 'Test', 'V-22222222', '1990-01-01', '+584120000002', 'driver.towing@example.com', 'hash')
+                ON DUPLICATE KEY UPDATE id=LAST_INSERT_ID(id)");
+            $userStmt = $this->pdo->query('SELECT id FROM users ORDER BY id ASC LIMIT 2');
+            $users = $userStmt->fetchAll(PDO::FETCH_COLUMN);
+        }
+
+        $this->clientId = (int)$users[0];
         $this->driverId = (int)($users[1] ?? $this->clientId);
 
         $vehStmt = $this->pdo->query('SELECT id FROM vehicles ORDER BY id ASC LIMIT 1');
-        $this->vehicleId = (int)($vehStmt->fetchColumn() ?: 1);
+        $vehId = $vehStmt->fetchColumn();
+
+        if (!$vehId) {
+            $modelId = (int)$this->pdo->query('SELECT id FROM vehicle_models LIMIT 1')->fetchColumn();
+            if (!$modelId) {
+                $modelId = 1;
+            }
+            $this->pdo->exec("INSERT INTO vehicles (uuid, user_id, model_id, plate_number, niv, year, color, status, is_verified) 
+                VALUES ('00000000-0000-0000-0000-000000000010', {$this->clientId}, $modelId, 'TEST-123', 'TESTNIV1234567890', 2020, 'Blanco', 'active', 1)
+                ON DUPLICATE KEY UPDATE id=LAST_INSERT_ID(id)");
+            $vehStmt = $this->pdo->query('SELECT id FROM vehicles ORDER BY id ASC LIMIT 1');
+            $vehId = $vehStmt->fetchColumn();
+        }
+
+        $this->vehicleId = (int)$vehId;
     }
 
     protected function tearDown(): void

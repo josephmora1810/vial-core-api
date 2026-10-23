@@ -30,4 +30,22 @@ interface VehicleRepositoryInterface
     public function findCranesByUserId(int $userId): array;
 
     public function softDeleteByUuid(Uuid $uuid, int $userId): bool;
+
+    /**
+     * Consulta la vista vw_vehicle_details por UUID público
+     * @return array<string, mixed>|null
+     */
+    public function findDetailedByUuid(Uuid $uuid): ?array;
+
+    /**
+     * Consulta la vista vw_vehicle_details por Placa única
+     * @return array<string, mixed>|null
+     */
+    public function findDetailedByPlateNumber(PlateNumber $plateNumber): ?array;
+
+    /**
+     * Consulta la vista vw_vehicle_details para todos los vehículos del usuario
+     * @return array<array<string, mixed>>
+     */
+    public function findDetailedByUserId(int $userId): array;
 }

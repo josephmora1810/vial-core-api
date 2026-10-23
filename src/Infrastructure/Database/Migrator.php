@@ -85,27 +85,38 @@ class Migrator {
         }
 
         $rolledBack = [];
-        foreach ($toRollback as $migration) {
-            if ($migration === '.' || $migration === '..') continue;
+        $driver = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
+        if ($driver !== 'sqlite') {
+            $pdo->exec("SET FOREIGN_KEY_CHECKS = 0;");
+        }
 
-            $file = $this->migrationsPath . '/' . $migration;
-            if (!file_exists($file)) {
-                $this->log("Warning: Migration file {$migration} not found, skipping down() execution.\n");
-                $rolledBack[] = $migration;
-                continue;
-            }
+        try {
+            foreach ($toRollback as $migration) {
+                if ($migration === '.' || $migration === '..') continue;
 
-            require_once $file;
-            $className = pathinfo($migration, PATHINFO_FILENAME);
-            $class = "App\\Infrastructure\\Database\\Migrations\\" . $className;
-            if (class_exists($class)) {
-                $instance = new $class($this->db);
-                if (method_exists($instance, 'down')) {
-                    $instance->down($pdo);
+                $file = $this->migrationsPath . '/' . $migration;
+                if (!file_exists($file)) {
+                    $this->log("Warning: Migration file {$migration} not found, skipping down() execution.\n");
+                    $rolledBack[] = $migration;
+                    continue;
                 }
+
+                require_once $file;
+                $className = pathinfo($migration, PATHINFO_FILENAME);
+                $class = "App\\Infrastructure\\Database\\Migrations\\" . $className;
+                if (class_exists($class)) {
+                    $instance = new $class($this->db);
+                    if (method_exists($instance, 'down')) {
+                        $instance->down($pdo);
+                    }
+                }
+                $this->log("Rolled back: {$migration}\n");
+                $rolledBack[] = $migration;
             }
-            $this->log("Rolled back: {$migration}\n");
-            $rolledBack[] = $migration;
+        } finally {
+            if ($driver !== 'sqlite') {
+                $pdo->exec("SET FOREIGN_KEY_CHECKS = 1;");
+            }
         }
 
         if (!empty($rolledBack)) {

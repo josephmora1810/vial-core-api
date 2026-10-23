@@ -124,23 +124,33 @@ class RegisterDriverCrane
             throw new Exception("Ya existe una unidad registrada con el NIV/Serial de Carrocería {$niv->getValue()}.", 409);
         }
 
-        // 5. Crear la entidad Vehicle con tipo CRANE y estado PENDING (requiere revisión administrativa)
+        // 5. Resolver model_id oficial de la grúa en el catálogo
+        $resolvedModelId = $modelId;
+        if ($resolvedModelId === null && $this->catalogRepository !== null) {
+            $brand = $this->catalogRepository->findBrandByName($finalBrandName);
+            if ($brand !== null) {
+                $m = $this->catalogRepository->findModelByNameAndBrand($finalModelName, (int)$brand['id']);
+                if ($m !== null) {
+                    $resolvedModelId = (int)$m['id'];
+                }
+            }
+        }
+        $resolvedModelId ??= 1;
+
+        // Crear la entidad Vehicle 3NF con tipo CRANE y estado PENDING (requiere revisión administrativa)
         $crane = Vehicle::create(
             userId: $driverUserId,
+            modelId: $resolvedModelId,
             plateNumber: $plate,
             niv: $niv,
             engineSerial: $engineSerial,
             year: $finalYear,
             color: $finalColor,
-            vehicleClassId: null,
-            vehicleSubclassId: null,
-            brandId: $brandId,
-            modelId: $modelId,
-            brandName: $finalBrandName,
-            modelName: $finalModelName,
             isVerified: false,
             status: VehicleStatus::Pending,
-            type: VehicleType::Crane
+            type: VehicleType::Crane,
+            brandName: $finalBrandName,
+            modelName: $finalModelName
         );
 
         $this->vehicleRepository->save($crane);

@@ -28,6 +28,7 @@ $router->post($v1 . 'reset-password', 'AuthController@resetPassword');
 
 // Catálogo de Vehículos (Lectura para selectores de formulario)
 $router->get($v1 . 'vehicles/catalog/classes', 'VehicleController@classes');
+$router->get($v1 . 'vehicles/catalog/subclasses', 'VehicleController@subclasses');
 $router->get($v1 . 'vehicles/catalog/brands', 'VehicleController@brands');
 $router->get($v1 . 'vehicles/catalog/models', 'VehicleController@models');
 
@@ -66,6 +67,7 @@ $router->delete($v1 . 'addresses/{id}', 'SavedAddressController@destroy', ['auth
 
 // Gestión de Vehículos (FR-18)
 $router->get($v1 . 'vehicles', 'VehicleController@index', ['auth']);
+$router->get($v1 . 'vehicles/{id}', 'VehicleController@show', ['auth']);
 $router->post($v1 . 'vehicles/scan', 'VehicleController@scan', ['auth']);
 $router->post($v1 . 'vehicles', 'VehicleController@store', ['auth', 'permission:register_vehicle']);
 $router->delete($v1 . 'vehicles/{id}', 'VehicleController@destroy', ['auth']);

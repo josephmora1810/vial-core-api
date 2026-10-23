@@ -37,5 +37,6 @@ if (!class_exists(__NAMESPACE__ . '\\TestCase')) {
         public static function assertIsFloat(mixed $actual, string $message = ''): void {}
         public static function assertIsBool(mixed $actual, string $message = ''): void {}
         public static function fail(string $message = ''): void {}
+        
     }
 }

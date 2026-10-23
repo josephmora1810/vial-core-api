@@ -26,7 +26,7 @@ class SeederRunner
                 continue;
             }
 
-            if (in_array($file, $appliedSeeders, true)) {
+            if ($specificSeeder === null && in_array($file, $appliedSeeders, true)) {
                 echo "Already seeded: {$file}\n";
                 continue;
             }

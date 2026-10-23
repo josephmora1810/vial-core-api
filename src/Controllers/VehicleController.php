@@ -2,14 +2,17 @@
 
 namespace App\Controllers;
 
+use App\Application\Vehicles\DTOs\VehicleDetailedResponseDto;
 use App\Application\Vehicles\UseCases\DeleteVehicle;
 use App\Application\Vehicles\UseCases\ListUserVehicles;
 use App\Application\Vehicles\UseCases\RegisterVehicle;
 use App\Application\Vehicles\UseCases\ScanVehicleRegistration;
 use App\Core\Request;
 use App\Core\Response;
+use App\Domain\Shared\ValueObjects\Uuid;
 use App\Domain\Users\Entities\User;
 use App\Domain\Vehicles\Repositories\VehicleCatalogRepositoryInterface;
+use App\Domain\Vehicles\Repositories\VehicleRepositoryInterface;
 use Exception;
 
 class VehicleController
@@ -19,7 +22,8 @@ class VehicleController
         private ListUserVehicles $listUserVehicles,
         private DeleteVehicle $deleteVehicle,
         private ScanVehicleRegistration $scanVehicleRegistration,
-        private VehicleCatalogRepositoryInterface $catalogRepository
+        private VehicleCatalogRepositoryInterface $catalogRepository,
+        private ?VehicleRepositoryInterface $vehicleRepository = null
     ) {}
 
     /**
@@ -38,6 +42,40 @@ class VehicleController
         try {
             $vehicles = $this->listUserVehicles->execute($user->getId());
             Response::json($vehicles, 200, 'success', 'Vehículos consultados con éxito.');
+        } catch (Exception $e) {
+            Response::json([], 400, 'fail', $e->getMessage());
+        }
+    }
+
+    /**
+     * GET /api/v1/vehicles/{id}
+     * Obtiene el detalle completo del vehículo mediante la vista vw_vehicle_details.
+     * Solo expone el UUID público, nunca el ID numérico interno.
+     */
+    public function show(Request $request, string $id): void
+    {
+        /** @var User|null $user */
+        $user = $request->user();
+        if ($user === null || $user->getId() === null) {
+            Response::json([], 401, 'fail', 'No autorizado.');
+            return;
+        }
+
+        try {
+            $uuid = new Uuid($id);
+            $row = $this->vehicleRepository?->findDetailedByUuid($uuid);
+            if ($row === null) {
+                Response::json([], 404, 'fail', 'Vehículo no encontrado.');
+                return;
+            }
+
+            if ((int)$row['user_id'] !== $user->getId() && !$user->hasRole('admin')) {
+                Response::json([], 403, 'fail', 'No tienes autorización para consultar este vehículo.');
+                return;
+            }
+
+            $dto = VehicleDetailedResponseDto::fromViewRow($row);
+            Response::json($dto->toArray(), 200, 'success', 'Detalle de vehículo consultado.');
         } catch (Exception $e) {
             Response::json([], 400, 'fail', $e->getMessage());
         }
@@ -101,15 +139,15 @@ class VehicleController
             return;
         }
 
-        $plate = (string)$request->input('plate_number', '');
-        $niv = (string)$request->input('niv', '');
+        $plate = $request->input('plate_number') ? trim((string)$request->input('plate_number')) : null;
+        $niv = $request->input('niv') ? trim((string)$request->input('niv')) : null;
         $year = (int)$request->input('year', 0);
         $color = (string)$request->input('color', '');
 
-        if (empty($plate) || empty($niv) || $year <= 0 || empty($color)) {
+        if (($plate === null && $niv === null) || $year <= 0 || empty($color)) {
             Response::json([
-                'plate_number' => empty($plate) ? 'La placa es obligatoria.' : null,
-                'niv'          => empty($niv) ? 'El N.I.V / Serial de carrocería es obligatorio.' : null,
+                'plate_number' => ($plate === null && $niv === null) ? 'Debe suministrar al menos la Placa o el N.I.V. del vehículo.' : null,
+                'niv'          => ($plate === null && $niv === null) ? 'Debe suministrar al menos la Placa o el N.I.V. del vehículo.' : null,
                 'year'         => $year <= 0 ? 'El año del vehículo es obligatorio.' : null,
                 'color'        => empty($color) ? 'El color del vehículo es obligatorio.' : null,
             ], 422, 'fail', 'Datos de vehículo incompletos.');
@@ -174,6 +212,16 @@ class VehicleController
     {
         $classes = $this->catalogRepository->getClasses();
         Response::json($classes, 200, 'success', 'Clases de vehículos consultadas.');
+    }
+
+    /**
+     * GET /api/v1/vehicles/catalog/subclasses?class_id=1
+     */
+    public function subclasses(Request $request): void
+    {
+        $classId = $request->input('class_id') !== null ? (int)$request->input('class_id') : null;
+        $subclasses = $this->catalogRepository->getSubclasses($classId);
+        Response::json($subclasses, 200, 'success', 'Subclases de vehículos consultadas.');
     }
 
     /**

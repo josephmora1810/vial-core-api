@@ -22,7 +22,7 @@ interface VehicleCatalogRepositoryInterface
     public function findBrandByName(string $name): ?array;
 
     /**
-     * @return array<array{id: int, brand_id: int, vehicle_class_id: ?int, name: string}>
+     * @return array<array{id: int, brand_id: int, vehicle_class_id: ?int, vehicle_subclass_id: ?int, type: ?string, name: string}>
      */
     public function getModelsByBrand(int $brandId, ?string $search = null): array;
 

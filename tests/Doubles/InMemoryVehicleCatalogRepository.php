@@ -12,17 +12,25 @@ class InMemoryVehicleCatalogRepository implements VehicleCatalogRepositoryInterf
         ['id' => 3, 'code' => 'MOTO',      'name' => 'Moto',      'description' => 'Motocicletas'],
     ];
 
+    public array $subclasses = [
+        ['id' => 1, 'vehicle_class_id' => 1, 'name' => 'Sedan',            'description' => null],
+        ['id' => 2, 'vehicle_class_id' => 2, 'name' => 'Pick/Up/D/Cabina', 'description' => null],
+        ['id' => 3, 'vehicle_class_id' => 3, 'name' => 'Motocicleta',      'description' => null],
+    ];
+
     public array $brands = [
         ['id' => 1, 'name' => 'Toyota'],
         ['id' => 2, 'name' => 'Chevrolet'],
         ['id' => 3, 'name' => 'Ford'],
+        ['id' => 4, 'name' => 'Bera'],
     ];
 
     public array $models = [
-        ['id' => 1, 'brand_id' => 1, 'vehicle_class_id' => 1, 'name' => 'Corolla'],
-        ['id' => 2, 'brand_id' => 1, 'vehicle_class_id' => 2, 'name' => 'Hilux'],
-        ['id' => 3, 'brand_id' => 2, 'vehicle_class_id' => 1, 'name' => 'Aveo'],
-        ['id' => 4, 'brand_id' => 2, 'vehicle_class_id' => 1, 'name' => 'Corsa'],
+        ['id' => 1, 'brand_id' => 1, 'vehicle_class_id' => 1, 'vehicle_subclass_id' => 1, 'type' => 'CAR', 'name' => 'Corolla'],
+        ['id' => 2, 'brand_id' => 1, 'vehicle_class_id' => 2, 'vehicle_subclass_id' => 2, 'type' => 'SUV', 'name' => 'Hilux'],
+        ['id' => 3, 'brand_id' => 2, 'vehicle_class_id' => 1, 'vehicle_subclass_id' => 1, 'type' => 'CAR', 'name' => 'Aveo'],
+        ['id' => 4, 'brand_id' => 2, 'vehicle_class_id' => 1, 'vehicle_subclass_id' => 1, 'type' => 'CAR', 'name' => 'Corsa'],
+        ['id' => 5, 'brand_id' => 4, 'vehicle_class_id' => 3, 'vehicle_subclass_id' => 3, 'type' => 'MOTORCYCLE', 'name' => '150'],
     ];
 
     public function getClasses(): array
@@ -32,7 +40,10 @@ class InMemoryVehicleCatalogRepository implements VehicleCatalogRepositoryInterf
 
     public function getSubclasses(?int $classId = null): array
     {
-        return [];
+        if ($classId !== null) {
+            return array_values(array_filter($this->subclasses, fn($s) => $s['vehicle_class_id'] === $classId));
+        }
+        return $this->subclasses;
     }
 
     public function getBrands(?string $search = null): array

@@ -178,8 +178,8 @@ class SellerController
         try {
             $result = $this->registerVehicle->execute(
                 userId: $clientId,
-                rawPlate: (string)($request->input('plate_number') ?? ''),
-                rawNiv: (string)($request->input('niv') ?? ''),
+                rawPlate: $request->input('plate_number') ? (string)$request->input('plate_number') : null,
+                rawNiv: $request->input('niv') ? (string)$request->input('niv') : null,
                 year: (int)($request->input('year') ?? 0),
                 color: (string)($request->input('color') ?? ''),
                 rawEngineSerial: $request->input('engine_serial') ? (string)$request->input('engine_serial') : null,

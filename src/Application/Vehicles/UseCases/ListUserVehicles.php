@@ -24,6 +24,15 @@ class ListUserVehicles
             throw new Exception("Usuario no encontrado.", 404);
         }
 
+        $rows = $this->vehicleRepository->findDetailedByUserId($userId);
+
+        if (!empty($rows)) {
+            return array_map(
+                fn($row) => VehicleResponseDto::fromDetailedRow($row)->toArray(),
+                $rows
+            );
+        }
+
         $vehicles = $this->vehicleRepository->findAllByUserId($userId);
 
         return array_map(

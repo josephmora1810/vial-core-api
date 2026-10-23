@@ -146,4 +146,79 @@ class RegisterVehicleTest extends TestCase
             color: 'Azul'
         );
     }
+
+    public function test_registers_vehicle_with_plate_only_when_carnet_lacks_niv(): void
+    {
+        $result = $this->useCase->execute(
+            userId: 1,
+            rawPlate: 'AB123CD',
+            rawNiv: null,
+            year: 2018,
+            color: 'Gris',
+            modelId: 1
+        );
+
+        $this->assertNotEmpty($result['uuid']);
+        $this->assertSame($result['uuid'], $result['id']); // Ambos devuelven el UUID
+        $this->assertSame('AB123CD', $result['plate_number']);
+        $this->assertNull($result['niv']);
+    }
+
+    public function test_registers_vehicle_with_niv_only_when_plate_is_unassigned(): void
+    {
+        $result = $this->useCase->execute(
+            userId: 1,
+            rawPlate: null,
+            rawNiv: '8X998877665544332',
+            year: 2024,
+            color: 'Rojo',
+            modelId: 1
+        );
+
+        $this->assertNotEmpty($result['uuid']);
+        $this->assertSame($result['uuid'], $result['id']);
+        $this->assertNull($result['plate_number']);
+        $this->assertSame('8X998877665544332', $result['niv']);
+    }
+
+    public function test_fails_with_422_when_both_plate_and_niv_are_empty(): void
+    {
+        $this->expectException(Exception::class);
+        $this->expectExceptionCode(422);
+        $this->expectExceptionMessage('Debe suministrar al menos la Placa o el N.I.V. del vehículo.');
+
+        $this->useCase->execute(
+            userId: 1,
+            rawPlate: null,
+            rawNiv: null,
+            year: 2020,
+            color: 'Negro',
+            modelId: 1
+        );
+    }
+
+    public function test_allows_single_client_to_register_multiple_vehicles(): void
+    {
+        $veh1 = $this->useCase->execute(
+            userId: 1,
+            rawPlate: 'AC456DF',
+            rawNiv: null,
+            year: 2021,
+            color: 'Rojo',
+            modelId: 1
+        );
+
+        $veh2 = $this->useCase->execute(
+            userId: 1,
+            rawPlate: 'AD789GH',
+            rawNiv: '8XCARRO0000000002',
+            year: 2022,
+            color: 'Plata',
+            modelId: 1
+        );
+
+        $userVehicles = $this->vehicleRepo->findAllByUserId(1);
+        $this->assertCount(2, $userVehicles);
+        $this->assertNotSame($veh1['uuid'], $veh2['uuid']);
+    }
 }

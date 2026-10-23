@@ -152,6 +152,6 @@ class CachedVehicleCatalogRepositoryTest extends TestCase
         $this->assertCount(3, $classes);
 
         $brands = $cachedRepo->getBrands();
-        $this->assertCount(3, $brands);
+        $this->assertCount(count($this->inner->brands), $brands);
     }
 }

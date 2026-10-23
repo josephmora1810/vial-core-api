@@ -1,6 +1,6 @@
 # UbikGo Core API (`vial-core-api`)
 
-<p align="center">
+<!-- <p align="center">
   <img src="https://img.shields.io/badge/PHP-8.5%2B%20Puro-777BB4?style=for-the-badge&logo=php&logoColor=white" alt="PHP 8.5+" />
   <img src="https://img.shields.io/badge/Architecture-Hexagonal%20%2F%20DDD-blue?style=for-the-badge" alt="Hexagonal DDD" />
   <img src="https://img.shields.io/badge/Tests-282%20Passing-success?style=for-the-badge&logo=phpunit&logoColor=white" alt="282 Tests Passing" />
@@ -9,7 +9,7 @@
   <img src="https://img.shields.io/badge/Cache%20%26%20Queues-Redis%206%2B-DC382D?style=for-the-badge&logo=redis&logoColor=white" alt="Redis" />
   <img src="https://img.shields.io/badge/Broadcasting-Pusher%20WebSockets-300D4F?style=for-the-badge&logo=pusher&logoColor=white" alt="Pusher" />
   <img src="https://img.shields.io/badge/OpenAPI-3.0.3%20Swagger-85EA2D?style=for-the-badge&logo=swagger&logoColor=black" alt="OpenAPI 3.0" />
-</p>
+</p> -->
 
 ---
 
@@ -140,12 +140,20 @@ A continuación se detalla la transcripción completa de los requerimientos func
 
 ### Dominio 3: Perfil, Vehículos y Direcciones Personales
 
-#### **FR-18: Gestión de Vehículos de Clientes** *(Prioridad: CRÍTICA)*
-* **Definición SRS**: El usuario Cliente DEBE poder registrar y almacenar los vehículos que posee (Placa, Marca, Modelo, Año, Color) en la base de datos para facilitar las solicitudes de servicio.
+#### **FR-18: Gestión de Vehículos de Clientes y Flotas (Arquitectura 3NF)** *(Prioridad: CRÍTICA)*
+* **Definición SRS**: El sistema DEBE permitir registrar y almacenar los vehículos de clientes y flotas (Placa, Marca, Modelo, Año, Color, NIV) en la base de datos bajo estrictos criterios de integridad relacional para respaldar solicitudes de auxilio vial y contratos de póliza.
 * **Implementación en Core API**:
-  - **Dominio**: Entidad `Vehicle`, Value Objects `PlateNumber`, `VehicleClass`, `Color`.
-  - **Infraestructura**: `MariaDbVehicleRepository`. Permite registro manual validado o escaneo asistido con OCR de títulos de propiedad y carnets de circulación.
-  - **Endpoints**: `GET /api/v1/vehicles`, `POST /api/v1/vehicles`, `POST /api/v1/vehicles/scan`, `DELETE /api/v1/vehicles/{id}`.
+  - **Normalización Estricta (3NF)**: La tabla `vehicles` erradica columnas redundantes de texto (`brand_name`, `model_name`) y foráneas cíclicas. El vínculo relacional es unívoco: `vehicles.model_id` $\rightarrow$ `vehicle_models` $\rightarrow$ `vehicle_brands` y `vehicle_subclasses` $\rightarrow$ `vehicle_classes`. Clases, subclases y marcas se derivan determinísticamente sin duplicación.
+  - **Reglas de Nulabilidad (Carnet de Circulación vs Título / Certificado NIV)**:
+    - `model_id`, `year`, `color`, `user_id`, `status`, `is_verified`: Mandatorios (`NOT NULL`).
+    - `plate_number`: Anulable (`NULLABLE`) para vehículos nuevos registrados mediante Certificado de Origen o Título de Propiedad sin placas asignadas aún por el INTT.
+    - `niv`: Anulable (`NULLABLE`) para carnets de circulación donde el serial de carrocería no figura o se encuentra ilegible.
+    - **Invariante de Dominio**: Al menos uno de los dos (`plate_number` o `niv`) es estrictamente requerido (error `422 Unprocessable Entity` si ambos faltan).
+    - `engine_serial`: Opcional (`NULLABLE`).
+  - **Protección de Datos en DTOs**: Las respuestas (`VehicleResponseDto`, `VehicleDetailedResponseDto`) exponen única y exclusivamente identificadores públicos UUID v7 (`uuid` y su alias `id`). Los IDs numéricos secuenciales de MariaDB nunca son expuestos.
+  - **Motor OCR Asistido con Filtro Anti-Basura (Anti-Garbage Quality Guardrail)**: Al escanear un documento vía `POST /api/v1/vehicles/scan`, si la marca o modelo presenta fallos tipográficos del OCR (ej: lee "Berr" en lugar de "Bera"), el sistema **nunca** crea registros en caliente en la base de datos. Responde con `is_matched: false` y `model_id: null` para que la UI despliegue el autocompletado contra el catálogo oficial (`/api/v1/vehicles/catalog/brands`, `/api/v1/vehicles/catalog/models`).
+  - **Vista SQL de Alto Rendimiento (`vw_vehicle_details`)**: Vista MariaDB con `INNER JOIN` normalizado que consolida en una sola lectura indexada los datos del vehículo, propietario, clase, subclase y soporte documental probatorio.
+  - **Endpoints**: `GET /api/v1/vehicles`, `GET /api/v1/vehicles/{id}`, `POST /api/v1/vehicles`, `POST /api/v1/vehicles/scan`, `DELETE /api/v1/vehicles/{id}`, `GET /api/v1/vehicles/catalog/classes`, `GET /api/v1/vehicles/catalog/brands`, `GET /api/v1/vehicles/catalog/models`.
 
 #### **FR-19: Libreta de Direcciones Georreferenciadas** *(Prioridad: ALTA)*
 * **Definición SRS**: El Cliente DEBE poder guardar coordenadas GPS personalizadas seleccionando un punto en el mapa (ej. "Mi Casa", "Taller Mecánico de Confianza"), guardando nombre, latitud y longitud, independientemente de si el lugar existe en bases de datos públicas.
@@ -635,6 +643,7 @@ stateDiagram-v2
 | **Catálogo** | `GET` | `/api/v1/vehicles/catalog/models` | Público | Catálogo y búsqueda de modelos por marca |
 | **Vehículos** | `POST` | `/api/v1/vehicles/scan` | Bearer | Escaneo OCR de Carnet INTT con normalización de catálogo |
 | **Vehículos** | `GET` | `/api/v1/vehicles` | Bearer | Lista de vehículos propios del usuario |
+| **Vehículos** | `GET` | `/api/v1/vehicles/{id}` | Bearer | Detalle completo de vehículo por UUID (consulta optimizada a vista) |
 | **Vehículos** | `POST` | `/api/v1/vehicles` | Bearer | Registro de vehículo propio |
 | **Vehículos** | `DELETE` | `/api/v1/vehicles/{id}` | Bearer | Desactivación lógica (Soft Delete) de vehículo |
 | **Planes** | `GET` | `/api/v1/plans` | Público | Catálogo de planes anuales en USD con conversión a VES |
@@ -848,25 +857,25 @@ Runtime:       PHP 8.5.11
 Configuration: C:\Users\josep\Documents\vial-core-api\phpunit.xml
 
 ...............................................................  63 / 282 ( 22%)
-............................................................... 126 / 282 ( 44%)
-............................................................... 189 / 282 ( 67%)
-............................................................... 252 / 282 ( 89%)
-..............................                                  282 / 282 (100%)
+............................................................... 126 / 294 ( 42%)
+............................................................... 189 / 294 ( 64%)
+............................................................... 252 / 294 ( 85%)
+..........................................                      294 / 294 (100%)
 
-Time: 00:27.309, Memory: 42.00 MB
+Time: 01:06.224, Memory: 42.00 MB
 
-OK (282 tests, 1021 assertions) - 100% Passing (0 errores, 0 fallos, 0 avisos)
+OK (294 tests, 1083 assertions) - 100% Passing (0 errores, 0 fallos, 0 avisos)
 ```
 
 ### 📊 Desglose de Cobertura de la Suite de Pruebas
 
 | Capa Arquitectural | Componentes y Casos Evaluados | Tests / Aserciones |
 | :--- | :--- | :--- |
-| **Dominio y Core** | Entidades de Dominio, Agregados (`TowService`, `Policy`, `AffiliationContract`), Value Objects (`Uuid`, `Coordinates`, `Plate`, `Price`), Máquinas de Estados y Enums (`TowServiceStatus`, `OrderStatus`, `Role`). | 68 tests / 240 aserciones |
-| **Casos de Uso de Aplicación** | Registro multi-rol, Login JWT, KYC y OCR con Ia Venezolana, Emisión y Renovación de Pólizas, Cotización de Auxilio Vial SOS, Despacho y Aceptación de Grúas, Conciliación de Pagos C2P Bancaribe, Retiro de Comisiones. | 114 tests / 415 aserciones |
+| **Dominio y Core** | Entidades de Dominio, Agregados (`TowService`, `Policy`, `AffiliationContract`), Value Objects (`Uuid`, `Coordinates`, `Plate`, `Price`), Máquinas de Estados y Enums (`TowServiceStatus`, `OrderStatus`, `Role`), Servicios de Dominio (`VehicleMatcherService`). | 71 tests / 262 aserciones |
+| **Casos de Uso de Aplicación** | Registro multi-rol, Login JWT, KYC y OCR con La Venezolana, Registro Vehicular 3NF (OCR, Manual, Flotas de Grúa, Vendedora para Cliente), Emisión y Renovación de Pólizas, Cotización SOS, Despacho y Aceptación de Grúas, Conciliación de Pagos C2P Bancaribe, Retiro de Comisiones. | 123 tests / 455 aserciones |
 | **Seguridad y Autorización** | Auditoría OWASP API1:2023 (Protección BOLA en `/api/v1/sos/{uuid}`), Bloqueo de Bypass de Pago en SOS Express, Validación de firmas de canales privados Pusher (`/api/v1/broadcasting/auth`), Inmutabilidad y expiración de tokens. | 28 tests / 112 aserciones |
-| **Infraestructura y Adaptadores** | `MariaDbUserRepository`, `MariaDbTowServiceRepository`, `MariaDbPolicyRepository`, Motor de Migraciones SQLite en memoria, `RedisRateLimiter`, `PusherBroadcaster`, `BancaribePaymentGateway`, `S3DocumentUploader`, `SmtpEmailDispatcher`. | 72 tests / 254 aserciones |
-| **Total General** | **Batería Automatizada Completa** | **282 tests / 1021 aserciones (100% OK)** |
+| **Infraestructura y Adaptadores** | `MariaDbUserRepository`, `MariaDbTowServiceRepository`, `MariaDbVehicleRepository`, `CachedVehicleCatalogRepository`, Motor de Migraciones SQLite/MariaDB, `RedisRateLimiter`, `PusherBroadcaster`, `BancaribePaymentGateway`, `S3DocumentUploader`, `SmtpEmailDispatcher`. | 72 tests / 254 aserciones |
+| **Total General** | **Batería Automatizada Completa** | **294 tests / 1083 aserciones (100% OK)** |
 
 ### 🔬 Scripts de Smoke Test de Integración en Vivo
 

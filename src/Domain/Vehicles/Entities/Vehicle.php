@@ -2,25 +2,31 @@
 
 namespace App\Domain\Vehicles\Entities;
 
+use App\Domain\Shared\ValueObjects\Uuid;
 use App\Domain\Vehicles\Enums\VehicleStatus;
 use App\Domain\Vehicles\Enums\VehicleType;
 use App\Domain\Vehicles\ValueObjects\EngineSerial;
 use App\Domain\Vehicles\ValueObjects\Niv;
 use App\Domain\Vehicles\ValueObjects\PlateNumber;
-use App\Domain\Shared\ValueObjects\Uuid;
 use DateTimeImmutable;
+use DomainException;
 
+/**
+ * Entidad de Dominio Vehicle.
+ * Normalizada en 3FN: en la base de datos se relaciona únicamente con su Modelo (model_id).
+ * Para mantener compatibilidad con el dominio y DTOs, expone getters de marca, modelo, clase y tipo.
+ */
 class Vehicle
 {
     public function __construct(
         private ?int $id,
         private Uuid $uuid,
         private int $userId,
-        private PlateNumber $plateNumber,
-        private Niv $niv,
-        private ?EngineSerial $engineSerial,
-        private int $year,
-        private string $color,
+        private ?PlateNumber $plateNumber = null,
+        private ?Niv $niv = null,
+        private ?EngineSerial $engineSerial = null,
+        private int $year = 2000,
+        private string $color = 'Blanco',
         private ?int $vehicleClassId = null,
         private ?int $vehicleSubclassId = null,
         private ?int $brandId = null,
@@ -30,20 +36,23 @@ class Vehicle
         private VehicleType $type = VehicleType::Car,
         private VehicleStatus $status = VehicleStatus::Pending,
         private bool $isVerified = false,
+        private ?string $className = null,
+        private ?string $subclassName = null,
         private ?DateTimeImmutable $createdAt = null,
         private ?DateTimeImmutable $updatedAt = null,
         private ?DateTimeImmutable $deletedAt = null
     ) {
+        $this->modelId ??= 1;
         $this->createdAt ??= new DateTimeImmutable();
     }
 
     public static function create(
         int $userId,
-        PlateNumber $plateNumber,
-        Niv $niv,
-        ?EngineSerial $engineSerial,
-        int $year,
-        string $color,
+        ?PlateNumber $plateNumber = null,
+        ?Niv $niv = null,
+        ?EngineSerial $engineSerial = null,
+        int $year = 2000,
+        string $color = 'Blanco',
         ?int $vehicleClassId = null,
         ?int $vehicleSubclassId = null,
         ?int $brandId = null,
@@ -53,7 +62,9 @@ class Vehicle
         bool $isVerified = false,
         ?VehicleStatus $status = null,
         ?Uuid $uuid = null,
-        ?VehicleType $type = null
+        ?VehicleType $type = null,
+        ?string $className = null,
+        ?string $subclassName = null
     ): self {
         return new self(
             id: null,
@@ -67,12 +78,14 @@ class Vehicle
             vehicleClassId: $vehicleClassId,
             vehicleSubclassId: $vehicleSubclassId,
             brandId: $brandId,
-            modelId: $modelId,
+            modelId: $modelId ?? 1,
             brandName: $brandName ? trim($brandName) : null,
             modelName: $modelName ? trim($modelName) : null,
             type: $type ?? VehicleType::Car,
             status: $status ?? ($isVerified ? VehicleStatus::Active : VehicleStatus::Pending),
             isVerified: $isVerified,
+            className: $className ? trim($className) : null,
+            subclassName: $subclassName ? trim($subclassName) : null,
             createdAt: new DateTimeImmutable()
         );
     }
@@ -98,19 +111,52 @@ class Vehicle
         return $this->userId;
     }
 
-    public function getPlateNumber(): PlateNumber
+    public function getModelId(): int
+    {
+        return $this->modelId ?? 1;
+    }
+
+    public function setModelId(int $modelId): self
+    {
+        $this->modelId = $modelId;
+        $this->touch();
+        return $this;
+    }
+
+    public function getPlateNumber(): ?PlateNumber
     {
         return $this->plateNumber;
     }
 
-    public function getNiv(): Niv
+    public function setPlateNumber(?PlateNumber $plateNumber): self
+    {
+        $this->plateNumber = $plateNumber;
+        $this->touch();
+        return $this;
+    }
+
+    public function getNiv(): ?Niv
     {
         return $this->niv;
+    }
+
+    public function setNiv(?Niv $niv): self
+    {
+        $this->niv = $niv;
+        $this->touch();
+        return $this;
     }
 
     public function getEngineSerial(): ?EngineSerial
     {
         return $this->engineSerial;
+    }
+
+    public function setEngineSerial(?EngineSerial $engineSerial): self
+    {
+        $this->engineSerial = $engineSerial;
+        $this->touch();
+        return $this;
     }
 
     public function getYear(): int
@@ -166,18 +212,6 @@ class Vehicle
         return $this;
     }
 
-    public function getModelId(): ?int
-    {
-        return $this->modelId;
-    }
-
-    public function setModelId(?int $modelId): self
-    {
-        $this->modelId = $modelId;
-        $this->touch();
-        return $this;
-    }
-
     public function getBrandName(): ?string
     {
         return $this->brandName;
@@ -198,6 +232,30 @@ class Vehicle
     public function setModelName(?string $modelName): self
     {
         $this->modelName = $modelName ? trim($modelName) : null;
+        $this->touch();
+        return $this;
+    }
+
+    public function getClassName(): ?string
+    {
+        return $this->className;
+    }
+
+    public function setClassName(?string $className): self
+    {
+        $this->className = $className ? trim($className) : null;
+        $this->touch();
+        return $this;
+    }
+
+    public function getSubclassName(): ?string
+    {
+        return $this->subclassName;
+    }
+
+    public function setSubclassName(?string $subclassName): self
+    {
+        $this->subclassName = $subclassName ? trim($subclassName) : null;
         $this->touch();
         return $this;
     }
@@ -288,7 +346,7 @@ class Vehicle
 
     public function isCrane(): bool
     {
-        return $this->type->isCrane();
+        return $this->getType()->isCrane();
     }
 
     public function getCreatedAt(): DateTimeImmutable
