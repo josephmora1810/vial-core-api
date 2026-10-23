@@ -2,10 +2,12 @@
 
 namespace App\Infrastructure\Database\Repositories\Auth;
 
-use App\Domain\Auth\Entities\Document;
-use App\Domain\Auth\Enums\DocumentStatus;
-use App\Domain\Auth\Enums\DocumentType;
-use App\Domain\Auth\Repositories\DocumentRepositoryInterface;
+use App\Domain\Auth\{
+    Entities\Document,
+    Enums\DocumentStatus,
+    Enums\DocumentType,
+    Repositories\DocumentRepositoryInterface
+};
 use DateTimeImmutable;
 use PDO;
 

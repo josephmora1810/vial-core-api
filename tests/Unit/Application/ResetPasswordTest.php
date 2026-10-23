@@ -3,24 +3,26 @@
 namespace Tests\Unit\Application;
 
 use App\Application\Auth\UseCases\ResetPassword;
-use App\Domain\Auth\Entities\PersonalAccessToken;
-use App\Domain\Auth\Entities\Role;
+use App\Domain\Auth\{
+    Entities\PersonalAccessToken,
+    Entities\Role,
+    ValueObjects\Password
+};
+use App\Domain\Shared\ValueObjects\{Money, Uuid};
 use App\Domain\Users\Entities\User;
-use App\Domain\Users\ValueObjects\BirthDate;
-use App\Domain\Users\ValueObjects\Email;
-use App\Domain\Shared\ValueObjects\Money;
-use App\Domain\Users\ValueObjects\Names;
-use App\Domain\Users\ValueObjects\NationalId;
-use App\Domain\Auth\ValueObjects\Password;
-use App\Domain\Users\ValueObjects\Phone;
-use App\Domain\Users\ValueObjects\Surnames;
-use App\Domain\Shared\ValueObjects\Uuid;
+use App\Domain\Users\ValueObjects\{
+    BirthDate,
+    Email,
+    Names,
+    NationalId,
+    Phone,
+    Surnames
+};
 use App\Infrastructure\Database\Redis;
 use DateTimeImmutable;
 use Exception;
 use PHPUnit\Framework\TestCase;
-use Tests\Doubles\InMemoryPersonalAccessTokenRepository;
-use Tests\Doubles\InMemoryUserRepository;
+use Tests\Doubles\{InMemoryPersonalAccessTokenRepository, InMemoryUserRepository};
 
 class ResetPasswordTest extends TestCase
 {

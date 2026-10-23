@@ -2,8 +2,7 @@
 
 namespace App\Domain\Auth\Repositories;
 
-use App\Domain\Auth\Entities\Document;
-use App\Domain\Auth\Enums\DocumentType;
+use App\Domain\Auth\{Entities\Document, Enums\DocumentType};
 
 interface DocumentRepositoryInterface
 {

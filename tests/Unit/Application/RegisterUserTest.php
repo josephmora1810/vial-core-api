@@ -8,9 +8,11 @@ use App\Domain\Auth\Exceptions\DocumentExtractionException;
 use App\Domain\Users\ValueObjects\Email;
 use Exception;
 use PHPUnit\Framework\TestCase;
-use Tests\Doubles\FakeDocumentExtractor;
-use Tests\Doubles\InMemoryPersonalAccessTokenRepository;
-use Tests\Doubles\InMemoryUserRepository;
+use Tests\Doubles\{
+    FakeDocumentExtractor,
+    InMemoryPersonalAccessTokenRepository,
+    InMemoryUserRepository
+};
 
 class RegisterUserTest extends TestCase
 {

@@ -2,8 +2,7 @@
 
 namespace App\Domain\Auth\Services;
 
-use App\Domain\Auth\ValueObjects\ExtractedIdentity;
-use App\Domain\Auth\ValueObjects\ExtractedVehicleRegistration;
+use App\Domain\Auth\ValueObjects\{ExtractedIdentity, ExtractedVehicleRegistration};
 
 /**
  * Puerto de Dominio para extracción de documentos legales.

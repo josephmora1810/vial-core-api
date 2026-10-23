@@ -3,13 +3,15 @@
 namespace App\Application\Auth\UseCases;
 
 use App\Application\Documents\UseCases\EnqueueDocumentS3Upload;
-use App\Domain\Auth\Entities\Document;
-use App\Domain\Auth\Enums\DocumentStatus;
-use App\Domain\Auth\Enums\DocumentType;
-use App\Domain\Auth\Exceptions\DocumentExtractionException;
-use App\Domain\Auth\Repositories\DocumentRepositoryInterface;
+use App\Domain\Auth\{
+    Entities\Document,
+    Enums\DocumentStatus,
+    Enums\DocumentType,
+    Exceptions\DocumentExtractionException,
+    Repositories\DocumentRepositoryInterface,
+    Services\DocumentExtractorInterface
+};
 use App\Domain\Users\Repositories\UserRepositoryInterface;
-use App\Domain\Auth\Services\DocumentExtractorInterface;
 use Exception;
 
 class UploadKycDocument

@@ -2,8 +2,7 @@
 
 namespace App\Domain\Auth\Entities;
 
-use App\Domain\Auth\Enums\DocumentStatus;
-use App\Domain\Auth\Enums\DocumentType;
+use App\Domain\Auth\Enums\{DocumentStatus, DocumentType};
 use DateTimeImmutable;
 
 class Document

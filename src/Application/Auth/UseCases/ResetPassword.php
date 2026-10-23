@@ -2,10 +2,14 @@
 
 namespace App\Application\Auth\UseCases;
 
-use App\Domain\Auth\Repositories\PersonalAccessTokenRepositoryInterface;
-use App\Domain\Users\Repositories\UserRepositoryInterface;
-use App\Domain\Users\ValueObjects\Email;
-use App\Domain\Auth\ValueObjects\Password;
+use App\Domain\Auth\{
+    Repositories\PersonalAccessTokenRepositoryInterface,
+    ValueObjects\Password
+};
+use App\Domain\Users\{
+    Repositories\UserRepositoryInterface,
+    ValueObjects\Email
+};
 use App\Infrastructure\Database\Redis;
 use Exception;
 use InvalidArgumentException;

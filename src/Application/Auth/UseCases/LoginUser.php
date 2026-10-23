@@ -4,11 +4,15 @@ namespace App\Application\Auth\UseCases;
 
 use App\Application\Users\DTOs\UserResponseDto;
 use App\Core\JwtService;
-use App\Domain\Auth\Entities\PersonalAccessToken;
-use App\Domain\Auth\Repositories\PersonalAccessTokenRepositoryInterface;
-use App\Domain\Users\Repositories\UserRepositoryInterface;
-use App\Domain\Auth\Services\AccountRateLimiterInterface;
-use App\Domain\Users\ValueObjects\Email;
+use App\Domain\Auth\{
+    Entities\PersonalAccessToken,
+    Repositories\PersonalAccessTokenRepositoryInterface,
+    Services\AccountRateLimiterInterface
+};
+use App\Domain\Users\{
+    Repositories\UserRepositoryInterface,
+    ValueObjects\Email
+};
 use DateTimeImmutable;
 use Exception;
 use InvalidArgumentException;

@@ -2,16 +2,17 @@
 
 namespace App\Controllers;
 
+use App\Application\Auth\UseCases\{
+    LoginUser,
+    LogoutUser,
+    RefreshToken,
+    RegisterUser,
+    ResetPassword,
+    ScanIdentityCard,
+    SendPasswordResetCode
+};
 use App\Application\Users\DTOs\UserResponseDto;
-use App\Application\Auth\UseCases\LoginUser;
-use App\Application\Auth\UseCases\LogoutUser;
-use App\Application\Auth\UseCases\RefreshToken;
-use App\Application\Auth\UseCases\RegisterUser;
-use App\Application\Auth\UseCases\ResetPassword;
-use App\Application\Auth\UseCases\ScanIdentityCard;
-use App\Application\Auth\UseCases\SendPasswordResetCode;
-use App\Core\Request;
-use App\Core\Response;
+use App\Core\{Request, Response};
 use App\Domain\Shared\Repositories\ImageRepositoryInterface;
 use Exception;
 

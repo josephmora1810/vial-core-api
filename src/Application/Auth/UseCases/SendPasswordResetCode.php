@@ -2,9 +2,11 @@
 
 namespace App\Application\Auth\UseCases;
 
-use App\Domain\Users\Repositories\UserRepositoryInterface;
 use App\Domain\Shared\Services\MailerInterface;
-use App\Domain\Users\ValueObjects\Email;
+use App\Domain\Users\{
+    Repositories\UserRepositoryInterface,
+    ValueObjects\Email
+};
 use App\Infrastructure\Database\Redis;
 use App\Infrastructure\Mail\UbikEmailTemplates;
 use Exception;

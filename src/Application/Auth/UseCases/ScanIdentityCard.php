@@ -2,8 +2,10 @@
 
 namespace App\Application\Auth\UseCases;
 
-use App\Domain\Auth\Exceptions\DocumentExtractionException;
-use App\Domain\Auth\Services\DocumentExtractorInterface;
+use App\Domain\Auth\{
+    Exceptions\DocumentExtractionException,
+    Services\DocumentExtractorInterface
+};
 use Exception;
 
 class ScanIdentityCard

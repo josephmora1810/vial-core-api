@@ -3,23 +3,25 @@
 namespace Tests\Unit\Application;
 
 use App\Application\Auth\UseCases\UploadKycDocument;
-use App\Domain\Auth\Entities\Document;
+use App\Domain\Auth\{
+    Entities\Document,
+    Enums\DocumentStatus,
+    Enums\DocumentType,
+    ValueObjects\Password
+};
+use App\Domain\Shared\ValueObjects\{Money, Uuid};
 use App\Domain\Users\Entities\User;
-use App\Domain\Auth\Enums\DocumentStatus;
-use App\Domain\Auth\Enums\DocumentType;
-use App\Domain\Users\ValueObjects\BirthDate;
-use App\Domain\Users\ValueObjects\Email;
-use App\Domain\Shared\ValueObjects\Money;
-use App\Domain\Users\ValueObjects\Names;
-use App\Domain\Users\ValueObjects\NationalId;
-use App\Domain\Auth\ValueObjects\Password;
-use App\Domain\Users\ValueObjects\Phone;
-use App\Domain\Users\ValueObjects\Surnames;
-use App\Domain\Shared\ValueObjects\Uuid;
+use App\Domain\Users\ValueObjects\{
+    BirthDate,
+    Email,
+    Names,
+    NationalId,
+    Phone,
+    Surnames
+};
 use Exception;
 use PHPUnit\Framework\TestCase;
-use Tests\Doubles\InMemoryDocumentRepository;
-use Tests\Doubles\InMemoryUserRepository;
+use Tests\Doubles\{InMemoryDocumentRepository, InMemoryUserRepository};
 
 class UploadKycDocumentTest extends TestCase
 {

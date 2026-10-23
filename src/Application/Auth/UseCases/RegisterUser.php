@@ -5,27 +5,30 @@ namespace App\Application\Auth\UseCases;
 use App\Application\Documents\UseCases\EnqueueDocumentS3Upload;
 use App\Application\Users\DTOs\UserResponseDto;
 use App\Core\JwtService;
-use App\Domain\Auth\Entities\PersonalAccessToken;
-use App\Domain\Auth\Entities\Role;
-use App\Domain\Users\Entities\User;
-use App\Domain\Users\Enums\UserRole;
-use App\Domain\Auth\Entities\Document;
-use App\Domain\Auth\Enums\DocumentStatus;
-use App\Domain\Auth\Enums\DocumentType;
-use App\Domain\Auth\Exceptions\DocumentExtractionException;
-use App\Domain\Auth\Repositories\DocumentRepositoryInterface;
-use App\Domain\Auth\Repositories\PersonalAccessTokenRepositoryInterface;
-use App\Domain\Users\Repositories\UserRepositoryInterface;
-use App\Domain\Auth\Services\DocumentExtractorInterface;
-use App\Domain\Users\ValueObjects\BirthDate;
-use App\Domain\Users\ValueObjects\Email;
-use App\Domain\Shared\ValueObjects\Money;
-use App\Domain\Users\ValueObjects\Names;
-use App\Domain\Users\ValueObjects\NationalId;
-use App\Domain\Auth\ValueObjects\Password;
-use App\Domain\Users\ValueObjects\Phone;
-use App\Domain\Users\ValueObjects\Surnames;
-use App\Domain\Shared\ValueObjects\Uuid;
+use App\Domain\Auth\{
+    Entities\Document,
+    Entities\PersonalAccessToken,
+    Entities\Role,
+    Enums\DocumentStatus,
+    Enums\DocumentType,
+    Exceptions\DocumentExtractionException,
+    Repositories\DocumentRepositoryInterface,
+    Repositories\PersonalAccessTokenRepositoryInterface,
+    Services\DocumentExtractorInterface,
+    ValueObjects\Password
+};
+use App\Domain\Shared\ValueObjects\{Money, Uuid};
+use App\Domain\Users\{
+    Entities\User,
+    Enums\UserRole,
+    Repositories\UserRepositoryInterface,
+    ValueObjects\BirthDate,
+    ValueObjects\Email,
+    ValueObjects\Names,
+    ValueObjects\NationalId,
+    ValueObjects\Phone,
+    ValueObjects\Surnames
+};
 use DateTimeImmutable;
 use Exception;
 

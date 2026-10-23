@@ -1,7 +1,6 @@
 <?php
 
 namespace App\Domain\Auth\Entities;
-use App\Domain\Auth\Entities\Permission;
 use App\Domain\Users\Entities\User;
 
 class Role {

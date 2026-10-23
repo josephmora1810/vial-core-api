@@ -2,8 +2,10 @@
 
 namespace App\Application\Auth\UseCases;
 
-use App\Domain\Auth\Enums\DocumentType;
-use App\Domain\Auth\Repositories\DocumentRepositoryInterface;
+use App\Domain\Auth\{
+    Enums\DocumentType,
+    Repositories\DocumentRepositoryInterface
+};
 use App\Domain\Users\Repositories\UserRepositoryInterface;
 use Exception;
 

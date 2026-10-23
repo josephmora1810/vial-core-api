@@ -2,8 +2,7 @@
 
 namespace App\Domain\Auth\Entities\Concerns;
 
-use App\Domain\Auth\Entities\Permission;
-use App\Domain\Auth\Entities\Role;
+use App\Domain\Auth\Entities\{Permission, Role};
 
 /**
  * Trait de Dominio que encapsula el Control de Acceso Basado en Roles y Permisos (RBAC).

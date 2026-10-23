@@ -2,8 +2,10 @@
 
 namespace App\Infrastructure\Database\Repositories\Auth;
 
-use App\Domain\Auth\Entities\PersonalAccessToken;
-use App\Domain\Auth\Repositories\PersonalAccessTokenRepositoryInterface;
+use App\Domain\Auth\{
+    Entities\PersonalAccessToken,
+    Repositories\PersonalAccessTokenRepositoryInterface
+};
 use App\Domain\Shared\ValueObjects\Uuid;
 use DateTimeImmutable;
 use PDO;
