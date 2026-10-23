@@ -2,17 +2,32 @@
 
 namespace Tests\Unit\Application\UseCases;
 
-use App\Application\Documents\UseCases\ProcessDocumentS3UploadJob;
-use App\Application\Landing\UseCases\GetActiveHomeGallery;
-use App\Application\Landing\UseCases\ManageHomeGallery;
-use App\Application\Users\UseCases\ActivateUser;
-use App\Application\Users\UseCases\SuspendUser;
-use App\Application\Users\UseCases\UploadUserAvatar;
-use App\Domain\Auth\Entities\Document;
-use App\Domain\Auth\Entities\PersonalAccessToken;
-use App\Domain\Auth\Enums\DocumentStatus;
-use App\Domain\Auth\Enums\DocumentType;
-use App\Domain\Shared\ValueObjects\Uuid;
+use App\Application\Documents\UseCases\{
+    EnqueueDocumentS3Upload,
+    ProcessDocumentS3UploadJob
+};
+use App\Application\Landing\UseCases\{
+    GetActiveHomeGallery,
+    ManageHomeGallery
+};
+use App\Application\Users\UseCases\{
+    ActivateUser,
+    SuspendUser,
+    UploadUserAvatar
+};
+use App\Domain\Auth\Entities\{
+    Document,
+    PersonalAccessToken,
+    Role
+};
+use App\Domain\Auth\Enums\{
+    DocumentStatus,
+    DocumentType
+};
+use App\Domain\Shared\ValueObjects\{
+    Money,
+    Uuid
+};
 use App\Domain\Users\Entities\User;
 use App\Domain\Users\Enums\UserRole;
 use App\Domain\Users\ValueObjects\BirthDate;
@@ -22,6 +37,8 @@ use App\Domain\Users\ValueObjects\NationalId;
 use App\Domain\Auth\ValueObjects\Password;
 use App\Domain\Users\ValueObjects\Phone;
 use App\Domain\Users\ValueObjects\Surnames;
+use App\Infrastructure\Database\Redis;
+use App\Infrastructure\Database\Repositories\Shared\CachedImageRepository;
 use App\Infrastructure\Logging\IntegrationLogger;
 use DateTimeImmutable;
 use Exception;
@@ -84,7 +101,7 @@ class UserModerationAndGalleryTest extends TestCase
             email: new Email($emailStr),
             password: Password::fromPlainText('Secret123!*'),
             phone: new Phone('04121234567'),
-            walletBalance: new \App\Domain\Shared\ValueObjects\Money(0, 'VES'),
+            walletBalance: new Money(0, 'VES'),
             identificationCard: new NationalId('V-12345678'),
             birthDate: new BirthDate('1990-05-15'),
             createdAt: new DateTimeImmutable(),
@@ -93,7 +110,7 @@ class UserModerationAndGalleryTest extends TestCase
             deletedAt: null,
             isActive: $isActive
         );
-        $user->assignRole(new \App\Domain\Auth\Entities\Role(null, $role->value));
+        $user->assignRole(new Role(null, $role->value));
         $this->userRepository->save($user);
         return $user;
     }
@@ -320,7 +337,7 @@ class UserModerationAndGalleryTest extends TestCase
         $this->documentRepository->save($document);
         $docId = (int)$document->getId();
 
-        $enqueue = new \App\Application\Documents\UseCases\EnqueueDocumentS3Upload($this->queueService);
+        $enqueue = new EnqueueDocumentS3Upload($this->queueService);
         $enqueue->execute(
             documentId: $docId,
             localFilePath: $this->tempImageFile,
@@ -360,7 +377,7 @@ class UserModerationAndGalleryTest extends TestCase
     public function testCachedImageRepositoryUsesRedisAndInvalidates(): void
     {
         $storage = [];
-        $redis = $this->createStub(\App\Infrastructure\Database\Redis::class);
+        $redis = $this->createStub(Redis::class);
         $redis->method('execute')->willReturnCallback(function (string $cmd, ...$args) use (&$storage) {
             if ($cmd === 'GET') {
                 return $storage[$args[0]] ?? null;
@@ -376,7 +393,7 @@ class UserModerationAndGalleryTest extends TestCase
             return null;
         });
 
-        $cachedRepo = new \App\Infrastructure\Database\Repositories\Shared\CachedImageRepository(
+        $cachedRepo = new CachedImageRepository(
             $this->imageRepository,
             $redis
         );

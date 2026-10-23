@@ -158,7 +158,7 @@ class ProcessDocumentS3UploadJob
             if ($image !== false) {
                 // Re-encodifica la imagen sin metadatos EXIF ni cabeceras GPS pasivas
                 @imagejpeg($image, $filePath, 92);
-                @imagedestroy($image);
+                unset($image);
             }
         }
     }

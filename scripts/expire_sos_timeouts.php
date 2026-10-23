@@ -45,8 +45,8 @@ try {
         $broadcaster = new PusherBroadcaster(
             httpClient: new CurlHttpClient(),
             appId: $pusherAppId,
-            key: $pusherKey,
-            secret: $pusherSecret,
+            appKey: $pusherKey,
+            appSecret: $pusherSecret,
             cluster: $pusherCluster
         );
     }

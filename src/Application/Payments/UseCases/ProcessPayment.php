@@ -5,6 +5,7 @@ namespace App\Application\Payments\UseCases;
 use App\Application\Commissions\UseCases\GenerateOrderCommission;
 use App\Application\Payments\DTOs\OrderResponseDto;
 use App\Application\Contracts\DTOs\ServiceContractResponseDto;
+use App\Application\Towing\DTOs\TowServiceResponseDto;
 use App\Domain\Payments\Entities\Payment;
 use App\Domain\Payments\Enums\OrderableType;
 use App\Domain\Payments\Enums\PaymentMethod;
@@ -15,6 +16,9 @@ use App\Domain\Contracts\Repositories\PlanRepositoryInterface;
 use App\Domain\Contracts\Repositories\ServiceContractRepositoryInterface;
 use App\Domain\Payments\Services\ExchangeRateServiceInterface;
 use App\Domain\Payments\Services\PaymentGatewayInterface;
+use App\Domain\Shared\Services\BroadcasterInterface;
+use App\Domain\Towing\Enums\TowServiceStatus;
+use App\Domain\Towing\Repositories\TowServiceRepositoryInterface;
 use App\Infrastructure\Services\Bancaribe\C2pStrategy;
 use App\Infrastructure\Services\Bancaribe\PagoMovilStrategy;
 use DateTimeImmutable;
@@ -29,7 +33,9 @@ class ProcessPayment
         private PlanRepositoryInterface $planRepository,
         private PaymentGatewayInterface $paymentGateway,
         private ?ExchangeRateServiceInterface $exchangeRateService = null,
-        private ?GenerateOrderCommission $generateOrderCommission = null
+        private ?GenerateOrderCommission $generateOrderCommission = null,
+        private ?TowServiceRepositoryInterface $towServiceRepository = null,
+        private ?BroadcasterInterface $broadcaster = null
     ) {}
 
     /**
@@ -99,7 +105,7 @@ class ProcessPayment
 
         // Regla de negocio: Las vendedoras solo pueden registrar el pago por Consulta de Operaciones Plus (pago_movil),
         // ya que no pueden consultar claves OTP desde la cuenta bancaria del cliente para hacer C2P
-        if (($isSeller && !$isOwner) || ($isSeller && $method === PaymentMethod::C2P)) {
+        if (($isSeller && !$isOwner) || ($isSeller && $method === PaymentMethod::C2p)) {
             if ($method !== PaymentMethod::PagoMovil) {
                 throw new Exception(
                     'Las vendedoras solo pueden conciliar pagos mediante Pago Móvil (Consulta de Operaciones Plus por referencia).',
@@ -227,6 +233,24 @@ class ProcessPayment
                     $plan?->getName()
                 )->toArray();
                 $activatedContractDto['pdf_download_url'] = '/api/v1/contracts/' . $contract->getUuid()->getValue() . '/pdf';
+            }
+        }
+
+        // 9. Si la orden pertenece a un Servicio de Asistencia Vial (TowService), difundir al radar de grúas
+        // ahora que el pago del excedente / express fue confirmado (OWASP Payment Bypass Protection)
+        if ($order->getOrderableType() === OrderableType::TowService && $this->towServiceRepository !== null) {
+            $towService = $this->towServiceRepository->findById($order->getOrderableId());
+            if ($towService !== null && $towService->getStatus() === TowServiceStatus::Pending) {
+                $serviceDto = TowServiceResponseDto::fromEntity(
+                    service: $towService,
+                    extraOrderUuid: $order->getUuid()->getValue()
+                )->toArray();
+
+                $this->broadcaster?->broadcast(
+                    channels: 'private-cranes-radar',
+                    event: 'new-sos-request',
+                    data: $serviceDto
+                );
             }
         }
 

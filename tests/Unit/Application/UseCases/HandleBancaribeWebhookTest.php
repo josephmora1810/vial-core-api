@@ -128,13 +128,13 @@ class HandleBancaribeWebhookTest extends TestCase
             remainingKm: 150.00,
             status: ContractStatus::PendingPayment
         ));
-        $order = $this->orderRepo->save(new \App\Domain\Payments\Entities\Order(
+        $order = $this->orderRepo->save(new Order(
             userId: 12,
-            orderableType: \App\Domain\Payments\Enums\OrderableType::ServiceContract,
+            orderableType: OrderableType::ServiceContract,
             orderableId: $contract->getId(),
             amountUsd: 100.00,
             exchangeRate: 45.00,
-            status: \App\Domain\Payments\Enums\OrderStatus::Pending
+            status: OrderStatus::Pending
         ));
 
         $secret = 'super-secret-hmac-key';

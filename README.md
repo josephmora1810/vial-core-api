@@ -3,8 +3,8 @@
 <p align="center">
   <img src="https://img.shields.io/badge/PHP-8.5%2B%20Puro-777BB4?style=for-the-badge&logo=php&logoColor=white" alt="PHP 8.5+" />
   <img src="https://img.shields.io/badge/Architecture-Hexagonal%20%2F%20DDD-blue?style=for-the-badge" alt="Hexagonal DDD" />
-  <img src="https://img.shields.io/badge/Tests-274%20Passing-success?style=for-the-badge&logo=phpunit&logoColor=white" alt="274 Tests Passing" />
-  <img src="https://img.shields.io/badge/Assertions-1005%20Verified-brightgreen?style=for-the-badge" alt="1005 Assertions" />
+  <img src="https://img.shields.io/badge/Tests-282%20Passing-success?style=for-the-badge&logo=phpunit&logoColor=white" alt="282 Tests Passing" />
+  <img src="https://img.shields.io/badge/Assertions-1021%20Verified-brightgreen?style=for-the-badge" alt="1021 Assertions" />
   <img src="https://img.shields.io/badge/Database-MariaDB%2010.11%2B-003545?style=for-the-badge&logo=mariadb&logoColor=white" alt="MariaDB" />
   <img src="https://img.shields.io/badge/Cache%20%26%20Queues-Redis%206%2B-DC382D?style=for-the-badge&logo=redis&logoColor=white" alt="Redis" />
   <img src="https://img.shields.io/badge/Broadcasting-Pusher%20WebSockets-300D4F?style=for-the-badge&logo=pusher&logoColor=white" alt="Pusher" />
@@ -656,6 +656,7 @@ stateDiagram-v2
 | **Pagos** | `POST` | `/api/v1/payments/process` | Bearer | Procesa cobro C2P o concilia Pago Móvil Plus en Bancaribe |
 | **Webhooks** | `POST` | `/api/v1/webhooks/bancaribe` | Firma HMAC | Webhook asíncrono de confirmación bancaria |
 | **Webhooks** | `POST` | `/api/v1/webhooks/pusher` | Firma HMAC | Webhook de eventos de canales Pusher |
+| **Broadcasting** | `POST` | `/api/v1/broadcasting/auth` | Bearer | Firma HMAC-SHA256 para autorizar canales privados de Pusher (`private-cranes-radar`, `private-tow-{uuid}`) |
 | **Vendedoras** | `GET` | `/api/v1/seller/profile` | Bearer (`seller`) | Perfil comercial, tasa de comisión y datos bancarios |
 | **Vendedoras** | `POST` / `PUT` | `/api/v1/seller/bank-account` | Bearer (`seller`) | Registra o actualiza cuenta bancaria nacional de 20 dígitos |
 | **Vendedoras** | `GET` | `/api/v1/seller/commissions` | Bearer (`seller`) | Historial de comisiones y balance de billetera |

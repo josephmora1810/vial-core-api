@@ -134,12 +134,19 @@ class TowingController
 
     /**
      * GET /api/v1/sos/{uuid}
-     * Consulta el detalle y estado actual de un servicio de asistencia vial.
+     * Consulta el detalle y estado actual de un servicio de asistencia vial (FR-20, OWASP API1:2023 BOLA protection).
      */
     public function show(Request $request, string $uuid): void
     {
+        if (is_numeric($uuid)) {
+            Response::json([], 400, 'fail', 'El identificador del servicio debe ser un UUID válido.');
+            return;
+        }
+
         try {
-            $service = $this->getTowService->execute($uuid, $request->user()?->getId());
+            $user = $request->user();
+            $isAdmin = ($user?->getRole() === 'admin');
+            $service = $this->getTowService->execute($uuid, $user?->getId(), $isAdmin);
             Response::json($service, 200, 'success', 'Detalle de servicio de asistencia consultado exitosamente.');
         } catch (Exception $e) {
             $code = (is_int($e->getCode()) && $e->getCode() >= 400 && $e->getCode() < 600) ? $e->getCode() : 404;

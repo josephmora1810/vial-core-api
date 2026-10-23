@@ -6,8 +6,10 @@ use App\Domain\Users\Repositories\UserRepositoryInterface;
 use App\Domain\Shared\Services\MailerInterface;
 use App\Domain\Users\ValueObjects\Email;
 use App\Infrastructure\Database\Redis;
+use App\Infrastructure\Mail\UbikEmailTemplates;
 use Exception;
 use InvalidArgumentException;
+use Throwable;
 
 class SendPasswordResetCode
 {
@@ -45,11 +47,11 @@ class SendPasswordResetCode
 
         // Contenido del Correo con identidad visual corporativa UbikGo
         $subject = "UbikGo - Código de Recuperación de Contraseña";
-        $html = \App\Infrastructure\Mail\UbikEmailTemplates::passwordResetOtp($user->getFullName(), $otp);
+        $html = UbikEmailTemplates::passwordResetOtp($user->getFullName(), $otp);
 
         try {
             $this->mailer->send($email->getValue(), $subject, $html);
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             error_log("Error silencioso enviando correo OTP: " . $e->getMessage());
         }
     }

@@ -2,10 +2,7 @@
 
 require_once __DIR__ . '/../autoload.php';
 
-use App\Core\DotEnv;
-use App\Core\Request;
-use App\Core\Response;
-use App\Core\Kernel;
+use App\Core\{DotEnv, Request, Response, Kernel};
 
 // 1. Variables de entorno
 new DotEnv(__DIR__ . '/../.env')->load();

@@ -39,8 +39,9 @@ class RequestCommissionWithdrawal
         $targets = [];
 
         if (!empty($commissionIds)) {
-            foreach ($commissionIds as $cid) {
-                $comm = $this->commissionRepository->findById((int)$cid);
+            $uniqueIds = array_values(array_unique(array_map('intval', $commissionIds)));
+            foreach ($uniqueIds as $cid) {
+                $comm = $this->commissionRepository->findById($cid);
                 if ($comm === null || $comm->getSellerId() !== $sellerId) {
                     throw new Exception("La comisión con ID {$cid} no existe o no pertenece a su cuenta.", 404);
                 }

@@ -1,6 +1,7 @@
 <?php
 
 namespace App\Core;
+
 use App\Domain\Users\Entities\User;
 
 class Request {
@@ -52,6 +53,17 @@ class Request {
 	public function body(): array
 	{
 		return $this->all();
+	}
+
+	/**
+	 * Obtiene un parámetro enviado en la querystring de la URL ($_GET).
+	 */
+	public function query(?string $key = null, mixed $default = null): mixed
+	{
+		if ($key === null) {
+			return $_GET;
+		}
+		return $_GET[$key] ?? $default;
 	}
 
 	/**

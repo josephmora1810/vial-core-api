@@ -72,7 +72,7 @@ class UpdateCraneTelemetry
 
         // Difusión en vivo por WebSockets al canal privado del cliente (FR-26)
         $this->broadcaster?->broadcast(
-            channels: "tow-channel-{$service->getUuid()->getValue()}",
+            channels: "private-tow-{$service->getUuid()->getValue()}",
             event: 'location-updated',
             data: $result
         );

@@ -31,4 +31,17 @@ class Response {
 			exit;
 		}
 	}
-} 
+
+	public static function rawJson(array $data, int $code = 200): void
+	{
+		http_response_code($code);
+		if (!headers_sent()) {
+			header('Content-type: application/json; charset=utf-8');
+		}
+
+		echo json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+		if (self::$shouldExit) {
+			exit;
+		}
+	}
+}

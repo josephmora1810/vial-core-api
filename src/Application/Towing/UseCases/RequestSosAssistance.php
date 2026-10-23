@@ -164,12 +164,15 @@ class RequestSosAssistance
             extraOrderUuid: $order?->getUuid()->getValue()
         )->toArray();
 
-        // 8. Difusión en tiempo real (WebSockets / Pusher) a las grúas cercanas (FR-23)
-        $this->broadcaster?->broadcast(
-            channels: 'cranes-radar',
-            event: 'new-sos-request',
-            data: $serviceDto
-        );
+        // 8. Difusión en tiempo real (WebSockets / Pusher) al canal privado de grúas (FR-23)
+        // Seguridad financiera: Solo difundir al radar si no requiere pago previo de excedente / express
+        if ($order === null) {
+            $this->broadcaster?->broadcast(
+                channels: 'private-cranes-radar',
+                event: 'new-sos-request',
+                data: $serviceDto
+            );
+        }
 
         return [
             'service'          => $serviceDto,

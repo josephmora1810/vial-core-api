@@ -152,28 +152,8 @@ class MigratorTest extends TestCase
 
     private function createDummyMigration(string $className, string $tableName): void
     {
-        $content = <<<PHP
-<?php
+        $content = "<?php\n\nnamespace App\Infrastructure\Database\Migrations;\n\nuse PDO;\n\nif (!class_exists('App\\Infrastructure\\Database\\Migrations\\{$className}')) {\n    class {$className}\n    {\n        public function up(PDO \$db): void\n        {\n            \$db->exec(\"CREATE TABLE IF NOT EXISTS {$tableName} (id INTEGER PRIMARY KEY);\");\n        }\n\n        public function down(PDO \$db): void\n        {\n            \$db->exec(\"DROP TABLE IF EXISTS {$tableName};\");\n        }\n    }\n}\n";
 
-namespace App\Infrastructure\Database\Migrations;
-
-use PDO;
-
-if (!class_exists('App\Infrastructure\Database\Migrations\\{$className}')) {
-    class {$className}
-    {
-        public function up(PDO \$db): void
-        {
-            \$db->exec("CREATE TABLE IF NOT EXISTS {$tableName} (id INTEGER PRIMARY KEY);");
-        }
-
-        public function down(PDO \$db): void
-        {
-            \$db->exec("DROP TABLE IF EXISTS {$tableName};");
-        }
-    }
-}
-PHP;
         file_put_contents($this->tempDir . '/' . $className . '.php', $content);
     }
 }

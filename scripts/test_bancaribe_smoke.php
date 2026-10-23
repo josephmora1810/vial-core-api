@@ -12,14 +12,26 @@
  */
 
 use App\Core\DotEnv;
+use App\Domain\Payments\Entities\ExchangeRate;
+use App\Domain\Payments\Entities\Order;
+use App\Domain\Payments\Repositories\ExchangeRateRepositoryInterface;
+use App\Domain\Shared\Enums\Currency;
+use App\Domain\Shared\ValueObjects\Money;
 use App\Infrastructure\Database\Database;
 use App\Infrastructure\Database\Redis;
+use App\Infrastructure\Database\Repositories\Payments\MariaDbBankTokenRepository;
+use App\Infrastructure\Database\Repositories\Payments\MariaDbExchangeRateRepository;
+use App\Infrastructure\Http\CurlHttpClient;
+use App\Infrastructure\Http\HttpClientInterface;
+use App\Infrastructure\Http\HttpResponse;
 use App\Infrastructure\Services\Bancaribe\BancaribeAuthService;
 use App\Infrastructure\Services\Bancaribe\BancaribeBalanceService;
 use App\Infrastructure\Services\Bancaribe\BancaribeExchangeService;
 use App\Infrastructure\Services\Bancaribe\BancaribePaymentService;
-use App\Domain\Payments\Entities\Order;
-use App\Domain\Shared\ValueObjects\Money;
+use DateTimeImmutable;
+use LogicException;
+use RuntimeException;
+use Throwable;
 
 $rootPath = dirname(__DIR__);
 require_once "{$rootPath}/autoload.php";
@@ -35,6 +47,14 @@ echo "========================================================\n\n";
 
 $db = (new Database())->getConnection();
 $redis = new Redis();
+$httpClient = new CurlHttpClient(30, 10);
+$bankTokenRepo = new MariaDbBankTokenRepository($db);
+
+/** @var BancaribeAuthService|null $auth */
+$auth = null;
+/** @var BancaribeExchangeService|null $exchangeService */
+$exchangeService = null;
+$usdVenta = 40.00;
 
 $testsPassed = 0;
 $totalTests = 5;
@@ -44,12 +64,6 @@ $totalTests = 5;
 // ----------------------------------------------------
 echo "[TEST 1] Autenticación OAuth2 Bancaribe...\n";
 try {
-    /** @var BancaribeAuthService $authService */
-    $authService = $container['controllers'][\App\Controllers\PaymentController::class]();
-    // Instanciar directamente usando el contenedor para aislamiento
-    $httpClient = new \App\Infrastructure\Http\CurlHttpClient(30, 10);
-    $bankTokenRepo = new \App\Infrastructure\Database\Repositories\Payments\MariaDbBankTokenRepository($db);
-    
     $auth = new BancaribeAuthService(
         httpClient: $httpClient,
         tokenRepository: $bankTokenRepo,
@@ -95,7 +109,7 @@ try {
 // ----------------------------------------------------
 echo "[TEST 2] Consulta y Guardado de Tasas BCV...\n";
 try {
-    $rateRepo = new \App\Infrastructure\Database\Repositories\Payments\MariaDbExchangeRateRepository($db);
+    $rateRepo = new MariaDbExchangeRateRepository($db);
     $exchangeService = new BancaribeExchangeService(
         authService: $auth,
         httpClient: $httpClient,
@@ -115,7 +129,7 @@ try {
     $allRates = $exchangeService->getAllCurrentRates();
 
     // Validar en DB
-    $today = new \DateTimeImmutable('today');
+    $today = new DateTimeImmutable('today');
     $rateDb = $rateRepo->findByDate('USD', 'venta', $today);
 
     // Validar en Redis
@@ -209,9 +223,9 @@ try {
         userId: 1,
         orderableType: 'service_contract',
         orderableId: 1,
-        amountUsd: new Money(10.00, \App\Domain\Shared\Enums\Currency::USD),
+        amountUsd: new Money(10.00, Currency::USD),
         exchangeRate: $usdVenta,
-        amountVes: new Money(round(10.00 * $usdVenta, 2), \App\Domain\Shared\Enums\Currency::VES),
+        amountVes: new Money(round(10.00 * $usdVenta, 2), Currency::VES),
         orderNumber: 'ORD-TEST-001'
     );
 
@@ -270,36 +284,36 @@ try {
             sandboxMode: true,
             isLocalEnv: false // Simulando entorno de producción
         );
-    } catch (\LogicException $e) {
+    } catch (LogicException $e) {
         $guardrail1Passed = true;
         echo "  -> Guardrail 1 (Sandbox bloqueado cuando isLocalEnv=false): ACTIVO (" . $e->getMessage() . ")\n";
     }
 
     // Guardrail 2: En entorno no local, caída de tasas sin tasa reciente DEBE lanzar HTTP 503
-    $mockFailingClient = new class implements \App\Infrastructure\Http\HttpClientInterface {
-        public function get(string $url, array $query = [], array $headers = []): \App\Infrastructure\Http\HttpResponse {
-            throw new \RuntimeException("Conexión perdida con banco");
+    $mockFailingClient = new class implements HttpClientInterface {
+        public function get(string $url, array $query = [], array $headers = []): HttpResponse {
+            throw new RuntimeException("Conexión perdida con banco");
         }
-        public function postJson(string $url, array $data, array $headers = []): \App\Infrastructure\Http\HttpResponse {
-            throw new \RuntimeException("Conexión perdida con banco");
+        public function postJson(string $url, array $data, array $headers = []): HttpResponse {
+            throw new RuntimeException("Conexión perdida con banco");
         }
-        public function postForm(string $url, array $data, array $headers = []): \App\Infrastructure\Http\HttpResponse {
-            throw new \RuntimeException("Conexión perdida con banco");
+        public function postForm(string $url, array $data, array $headers = []): HttpResponse {
+            throw new RuntimeException("Conexión perdida con banco");
         }
-        public function postMultipart(string $url, array $fields, array $files, array $headers = []): \App\Infrastructure\Http\HttpResponse {
-            throw new \RuntimeException("Conexión perdida con banco");
+        public function postMultipart(string $url, array $fields, array $files, array $headers = []): HttpResponse {
+            throw new RuntimeException("Conexión perdida con banco");
         }
     };
 
-    $mockEmptyRepo = new class implements \App\Domain\Payments\Repositories\ExchangeRateRepositoryInterface {
-        public function findByDate(string $currency, string $type, \DateTimeImmutable $date): ?\App\Domain\Payments\Entities\ExchangeRate {
+    $mockEmptyRepo = new class implements ExchangeRateRepositoryInterface {
+        public function findByDate(string $currency, string $type, DateTimeImmutable $date): ?ExchangeRate {
             return null;
         }
-        public function findLatest(string $currency, string $type, ?\DateTimeImmutable $sinceDate = null): ?\App\Domain\Payments\Entities\ExchangeRate {
+        public function findLatest(string $currency, string $type, ?DateTimeImmutable $sinceDate = null): ?ExchangeRate {
             return null; // No hay tasas registradas
         }
         public function findLatestAll(): array { return []; }
-        public function upsert(\App\Domain\Payments\Entities\ExchangeRate $exchangeRate): void {}
+        public function upsert(ExchangeRate $exchangeRate): void {}
     };
 
     $productionExchangeService = new BancaribeExchangeService(
@@ -313,7 +327,7 @@ try {
 
     try {
         $productionExchangeService->getExchangeRate('USD', 'venta');
-    } catch (\RuntimeException $e) {
+    } catch (RuntimeException $e) {
         if ($e->getCode() === 503) {
             $guardrail2Passed = true;
             echo "  -> Guardrail 2 (Caída de tasas en producción lanza HTTP 503 y NUNCA usa 40.00): ACTIVO (" . $e->getMessage() . ")\n";

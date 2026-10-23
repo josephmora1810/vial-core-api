@@ -2,15 +2,18 @@
 
 namespace Tests\Unit\Application\UseCases;
 
-use App\Application\Towing\UseCases\AcceptSosService;
-use App\Application\Towing\UseCases\ArriveTowService;
-use App\Application\Towing\UseCases\CancelTowService;
-use App\Application\Towing\UseCases\CompleteTowService;
-use App\Application\Towing\UseCases\ExpireOverdueSosServices;
-use App\Application\Towing\UseCases\FindNearbyPendingServices;
-use App\Application\Towing\UseCases\GetTowService;
-use App\Application\Towing\UseCases\RateTowService;
-use App\Application\Towing\UseCases\RequestSosAssistance;
+use App\Application\Towing\UseCases\{
+    AcceptSosService,
+    ArriveTowService,
+    CancelTowService,
+    CompleteTowService,
+    ExpireOverdueSosServices,
+    FindNearbyPendingServices,
+    GetTowService,
+    RateTowService,
+    RequestSosAssistance,
+    UpdateCraneTelemetry
+};
 use App\Domain\Contracts\Entities\ServiceContract;
 use App\Domain\Contracts\Enums\ContractStatus;
 use App\Domain\Payments\Entities\Order;
@@ -544,7 +547,7 @@ class TowingUseCasesTest extends TestCase
         $service->accept($this->driverId);
         $this->towServiceRepo->save($service);
 
-        $telemetryUseCase = new \App\Application\Towing\UseCases\UpdateCraneTelemetry(
+        $telemetryUseCase = new UpdateCraneTelemetry(
             $this->towServiceRepo,
             $this->logRepo
         );
@@ -586,6 +589,19 @@ class TowingUseCasesTest extends TestCase
 
     public function testRealtimeBroadcastingOnSosRequestAcceptAndTelemetry(): void
     {
+        $contract = new ServiceContract(
+            id: 1,
+            clientId: $this->clientId,
+            planId: 1,
+            remainingServices: 5,
+            remainingKm: 100.0,
+            vehicleId: (int)$this->clientVehicle->getId(),
+            status: ContractStatus::Active,
+            startsAt: new DateTimeImmutable('-1 month'),
+            expiresAt: new DateTimeImmutable('+11 months')
+        );
+        $this->contractRepo->save($contract);
+
         $useCase = new RequestSosAssistance(
             $this->zoneRepo,
             $this->vehicleRepo,
@@ -611,7 +627,7 @@ class TowingUseCasesTest extends TestCase
         );
 
         // 1. Verificar broadcast de nuevo SOS a las grúas
-        $this->assertTrue($this->broadcaster->hasBroadcast('new-sos-request', 'cranes-radar'));
+        $this->assertTrue($this->broadcaster->hasBroadcast('new-sos-request', 'private-cranes-radar'));
         $serviceUuid = $result['service']['id'];
 
         // 2. Chofer acepta el servicio
@@ -619,10 +635,10 @@ class TowingUseCasesTest extends TestCase
         $acceptUseCase->execute($serviceUuid, $this->driverId);
 
         // Verificar broadcast de aceptación al canal privado del cliente
-        $this->assertTrue($this->broadcaster->hasBroadcast('service-accepted', "tow-channel-{$serviceUuid}"));
+        $this->assertTrue($this->broadcaster->hasBroadcast('service-accepted', "private-tow-{$serviceUuid}"));
 
         // 3. Chofer emite telemetría
-        $telemetryUseCase = new \App\Application\Towing\UseCases\UpdateCraneTelemetry(
+        $telemetryUseCase = new UpdateCraneTelemetry(
             $this->towServiceRepo,
             $this->logRepo,
             $this->broadcaster
@@ -630,7 +646,7 @@ class TowingUseCasesTest extends TestCase
         $telemetryUseCase->execute($serviceUuid, $this->driverId, new Coordinates(10.4920, -66.8540), 45.0);
 
         // Verificar broadcast de actualización de ubicación al canal privado
-        $this->assertTrue($this->broadcaster->hasBroadcast('location-updated', "tow-channel-{$serviceUuid}"));
+        $this->assertTrue($this->broadcaster->hasBroadcast('location-updated', "private-tow-{$serviceUuid}"));
     }
 
     public function testCancelTowServiceBroadcastsToClientChannel(): void
@@ -656,7 +672,7 @@ class TowingUseCasesTest extends TestCase
         );
 
         $this->assertSame('CANCELLED_BY_CLIENT', $result['status']);
-        $this->assertTrue($this->broadcaster->hasBroadcast('service-cancelled', "tow-channel-{$service->getUuid()->getValue()}"));
+        $this->assertTrue($this->broadcaster->hasBroadcast('service-cancelled', "private-tow-{$service->getUuid()->getValue()}"));
     }
 
     public function testCancelTowServiceWithDriverReassignmentReopensAndBroadcasts(): void
@@ -689,8 +705,8 @@ class TowingUseCasesTest extends TestCase
         $this->assertNull($updatedService->getDriverId());
 
         // Verifica que re-emitió la alerta en el radar y avisó al canal privado de la reasignación
-        $this->assertTrue($this->broadcaster->hasBroadcast('new-sos-request', 'cranes-radar'));
-        $this->assertTrue($this->broadcaster->hasBroadcast('driver-reassigned', "tow-channel-{$service->getUuid()->getValue()}"));
+        $this->assertTrue($this->broadcaster->hasBroadcast('new-sos-request', 'private-cranes-radar'));
+        $this->assertTrue($this->broadcaster->hasBroadcast('driver-reassigned', "private-tow-{$service->getUuid()->getValue()}"));
     }
 
     public function testExpireOverdueSosServicesCancelsOverdueAndRefundsWallet(): void
@@ -789,13 +805,13 @@ class TowingUseCasesTest extends TestCase
         $this->assertNotNull($updatedRecent);
         $this->assertSame(TowServiceStatus::Pending, $updatedRecent->getStatus());
 
-        // Verificar que el dinero de la orden ($35.00) fue reembolsado al wallet_balance del cliente (10.00 + 35.00 = 45.00)
+        // Verificar que el dinero de la orden en VES (1575.00) fue reembolsado al wallet_balance del cliente (10.00 + 1575.00 = 1585.00 VES)
         $user = $this->userRepo->findById($this->clientId);
         $this->assertNotNull($user);
-        $this->assertSame(45.00, $user->getWalletBalance()->getAmount());
+        $this->assertSame(1585.00, $user->getWalletBalance()->getAmount());
 
         // Verificar broadcasts emitidos
-        $this->assertTrue($this->broadcaster->hasBroadcast('service-cancelled', "tow-channel-{$overdueService->getUuid()->getValue()}"));
-        $this->assertTrue($this->broadcaster->hasBroadcast('sos-request-expired', 'cranes-radar'));
+        $this->assertTrue($this->broadcaster->hasBroadcast('service-cancelled', "private-tow-{$overdueService->getUuid()->getValue()}"));
+        $this->assertTrue($this->broadcaster->hasBroadcast('sos-request-expired', 'private-cranes-radar'));
     }
 }

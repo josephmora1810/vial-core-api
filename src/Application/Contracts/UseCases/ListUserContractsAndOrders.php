@@ -4,6 +4,7 @@ namespace App\Application\Contracts\UseCases;
 
 use App\Application\Payments\DTOs\OrderResponseDto;
 use App\Application\Contracts\DTOs\ServiceContractResponseDto;
+use App\Domain\Contracts\Enums\ContractStatus;
 use App\Domain\Payments\Repositories\OrderRepositoryInterface;
 use App\Domain\Contracts\Repositories\PlanRepositoryInterface;
 use App\Domain\Contracts\Repositories\ServiceContractRepositoryInterface;
@@ -29,7 +30,7 @@ class ListUserContractsAndOrders
         $result = [];
 
         foreach ($contracts as $contract) {
-            if ($contract->getStatus() === \App\Domain\Contracts\Enums\ContractStatus::Active && !$contract->isActive()) {
+            if ($contract->getStatus() === ContractStatus::Active && !$contract->isActive()) {
                 $contract->expire();
                 $this->contractRepository->save($contract);
             }

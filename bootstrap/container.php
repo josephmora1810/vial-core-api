@@ -1,113 +1,179 @@
 <?php
 // bootstrap/container.php
 
-use App\Application\Contracts\UseCases\CheckoutServiceContract;
-use App\Application\Documents\UseCases\EnqueueDocumentS3Upload;
-use App\Application\Documents\UseCases\ProcessDocumentS3UploadJob;
-use App\Application\Driver\UseCases\GetDriverFleetStatus;
-use App\Application\Driver\UseCases\RegisterDriverCrane;
-use App\Application\Driver\UseCases\UploadDriverLicense;
-use App\Application\Users\UseCases\CreateSavedAddress;
-use App\Application\Users\UseCases\DeleteSavedAddress;
-use App\Application\Vehicles\UseCases\DeleteVehicle;
-use App\Application\Auth\UseCases\GetKycStatus;
-use App\Application\Payments\UseCases\HandleBancaribeWebhook;
-use App\Application\Contracts\UseCases\ListPlans;
-use App\Application\Users\UseCases\ListSavedAddresses;
-use App\Application\Contracts\UseCases\ListUserContractsAndOrders;
-use App\Application\Vehicles\UseCases\ListUserVehicles;
-use App\Application\Auth\UseCases\LoginUser;
-use App\Application\Auth\UseCases\LogoutUser;
-use App\Application\Contracts\UseCases\ManagePlan;
-use App\Application\Contracts\UseCases\GenerateServiceContractPdf;
-use App\Application\Payments\UseCases\ProcessPayment;
-use App\Application\Auth\UseCases\RefreshToken;
-use App\Application\Auth\UseCases\RegisterUser;
-use App\Application\Vehicles\UseCases\RegisterVehicle;
-use App\Application\Auth\UseCases\ResetPassword;
-use App\Application\Auth\UseCases\ScanIdentityCard;
-use App\Application\Vehicles\UseCases\ScanVehicleRegistration;
-use App\Application\Auth\UseCases\SendPasswordResetCode;
-use App\Application\Auth\UseCases\UploadKycDocument;
-use App\Application\Landing\UseCases\GetActiveHomeGallery;
-use App\Application\Landing\UseCases\ManageHomeGallery;
-use App\Application\Users\UseCases\ActivateUser;
-use App\Application\Users\UseCases\SuspendUser;
-use App\Application\Users\UseCases\UploadUserAvatar;
-use App\Controllers\AdminCommissionController;
-use App\Controllers\AuthController;
-use App\Controllers\ContractController;
-use App\Controllers\DocumentController;
-use App\Controllers\DriverController;
-use App\Controllers\HomeController;
-use App\Controllers\LandingController;
-use App\Controllers\PaymentController;
-use App\Controllers\PlanController;
-use App\Controllers\SavedAddressController;
-use App\Controllers\TowingController;
-use App\Controllers\UserModerationController;
-use App\Controllers\VehicleController;
-use App\Application\Towing\UseCases\AcceptSosService;
-use App\Application\Towing\UseCases\ArriveTowService;
-use App\Application\Towing\UseCases\CancelTowService;
-use App\Application\Towing\UseCases\CompleteTowService;
-use App\Application\Towing\UseCases\ExpireOverdueSosServices;
-use App\Application\Towing\UseCases\FindNearbyPendingServices;
-use App\Application\Towing\UseCases\GetTowService;
-use App\Application\Towing\UseCases\RateTowService;
-use App\Application\Towing\UseCases\RequestSosAssistance;
-use App\Application\Towing\UseCases\UpdateCraneTelemetry;
-use App\Infrastructure\Database\Repositories\Towing\MariaDbRatingRepository;
-use App\Infrastructure\Database\Repositories\Towing\MariaDbTowServiceLogRepository;
-use App\Infrastructure\Database\Repositories\Towing\MariaDbTowServiceRepository;
+use App\Application\Auth\UseCases\{
+    GetKycStatus,
+    LoginUser,
+    LogoutUser,
+    RefreshToken,
+    RegisterUser,
+    ResetPassword,
+    ReviewKycDocument,
+    ScanIdentityCard,
+    SendPasswordResetCode,
+    UploadKycDocument
+};
+use App\Application\Commissions\UseCases\{
+    GenerateOrderCommission,
+    ListAdminCommissions,
+    ListSellerCommissions,
+    ManageSellerBankAccount,
+    PayCommissionByAdmin,
+    RequestCommissionWithdrawal,
+    UpdateSellerCommissionRate
+};
+use App\Application\Contracts\UseCases\{
+    CancelServiceContract,
+    CheckoutServiceContract,
+    ExpireOverdueContracts,
+    GenerateServiceContractPdf,
+    ListPlans,
+    ListSellerContracts,
+    ListUserContractsAndOrders,
+    ManagePlan,
+    RedeemServiceContract,
+    RenewServiceContract,
+    VerifyServiceContract
+};
+use App\Application\Documents\UseCases\{
+    EnqueueDocumentS3Upload,
+    ProcessDocumentS3UploadJob
+};
+use App\Application\Driver\UseCases\{
+    GetDriverFleetStatus,
+    RegisterDriverCrane,
+    UploadDriverLicense
+};
+use App\Application\Landing\UseCases\{
+    GetActiveHomeGallery,
+    ManageHomeGallery
+};
+use App\Application\Payments\UseCases\{
+    HandleBancaribeWebhook,
+    ProcessPayment
+};
+use App\Application\Towing\UseCases\{
+    AcceptSosService,
+    ArriveTowService,
+    CancelTowService,
+    CompleteTowService,
+    ExpireOverdueSosServices,
+    FindNearbyPendingServices,
+    GetTowService,
+    RateTowService,
+    RequestSosAssistance,
+    UpdateCraneTelemetry
+};
+use App\Application\Users\UseCases\{
+    ActivateUser,
+    CreateSavedAddress,
+    DeleteSavedAddress,
+    ListSavedAddresses,
+    RegisterClientBySeller,
+    SearchClientByNationalId,
+    SuspendUser,
+    UploadUserAvatar
+};
+use App\Application\Vehicles\UseCases\{
+    DeleteVehicle,
+    ListUserVehicles,
+    RegisterVehicle,
+    ScanVehicleRegistration
+};
+use App\Controllers\{
+    AdminCommissionController,
+    AuthController,
+    BroadcastingController,
+    ContractController,
+    DocumentController,
+    DriverController,
+    HomeController,
+    LandingController,
+    PaymentController,
+    PlanController,
+    PusherWebhookController,
+    SavedAddressController,
+    SellerController,
+    TowingController,
+    UserModerationController,
+    VehicleController
+};
 use App\Core\JwtService;
-use App\Domain\Shared\Services\BroadcasterInterface;
-use App\Domain\Shared\Services\QueueServiceInterface;
-use App\Domain\Shared\Services\StorageServiceInterface;
-use App\Infrastructure\Broadcasting\PusherBroadcaster;
+use App\Domain\Shared\Services\{
+    BroadcasterInterface,
+    QueueServiceInterface,
+    StorageServiceInterface
+};
 use App\Domain\Vehicles\Services\VehicleMatcherService;
-use App\Infrastructure\Database\Database;
-use App\Infrastructure\Database\Redis;
-use App\Infrastructure\Logging\IntegrationLogger;
-use App\Infrastructure\Queue\RedisQueueService;
-use App\Infrastructure\Services\Towing\InMemoryCoverageZoneRepository;
-use App\Infrastructure\Storage\AwsS3StorageService;
-use App\Infrastructure\Database\Repositories\Commissions\MariaDbCommissionRepository;
-use App\Infrastructure\Database\Repositories\Commissions\MariaDbSellerProfileRepository;
-use App\Infrastructure\Database\Repositories\Contracts\CachedPlanRepository;
-use App\Infrastructure\Database\Repositories\Vehicles\CachedVehicleCatalogRepository;
-use App\Infrastructure\Database\Repositories\Payments\MariaDbBankTokenRepository;
-use App\Infrastructure\Database\Repositories\Auth\MariaDbDocumentRepository;
-use App\Infrastructure\Database\Repositories\Payments\MariaDbExchangeRateRepository;
-use App\Infrastructure\Database\Repositories\Payments\MariaDbOrderRepository;
-use App\Infrastructure\Database\Repositories\Payments\MariaDbPaymentRepository;
-use App\Infrastructure\Database\Repositories\Auth\MariaDbPersonalAccessTokenRepository;
-use App\Infrastructure\Database\Repositories\Contracts\MariaDbPlanRepository;
+use App\Infrastructure\Broadcasting\PusherBroadcaster;
+use App\Infrastructure\Database\{
+    Database,
+    Redis
+};
+use App\Infrastructure\Database\Repositories\Auth\{
+    MariaDbDocumentRepository,
+    MariaDbPersonalAccessTokenRepository
+};
+use App\Infrastructure\Database\Repositories\Commissions\{
+    MariaDbCommissionRepository,
+    MariaDbSellerProfileRepository
+};
+use App\Infrastructure\Database\Repositories\Contracts\{
+    CachedPlanRepository,
+    MariaDbPlanRepository,
+    MariaDbServiceContractRepository
+};
 use App\Infrastructure\Database\Repositories\Landing\MariaDbHomeGalleryRepository;
-use App\Infrastructure\Database\Repositories\Shared\CachedImageRepository;
-use App\Infrastructure\Database\Repositories\Shared\MariaDbImageRepository;
-use App\Infrastructure\Database\Repositories\Users\MariaDbSavedAddressRepository;
-use App\Infrastructure\Database\Repositories\Contracts\MariaDbServiceContractRepository;
-use App\Infrastructure\Database\Repositories\Users\MariaDbUserRepository;
-use App\Infrastructure\Database\Repositories\Vehicles\MariaDbVehicleCatalogRepository;
-use App\Infrastructure\Database\Repositories\Vehicles\MariaDbVehicleRepository;
+use App\Infrastructure\Database\Repositories\Payments\{
+    MariaDbBankTokenRepository,
+    MariaDbExchangeRateRepository,
+    MariaDbOrderRepository,
+    MariaDbPaymentRepository
+};
+use App\Infrastructure\Database\Repositories\Shared\{
+    CachedImageRepository,
+    MariaDbImageRepository
+};
+use App\Infrastructure\Database\Repositories\Towing\{
+    MariaDbRatingRepository,
+    MariaDbTowServiceLogRepository,
+    MariaDbTowServiceRepository
+};
+use App\Infrastructure\Database\Repositories\Users\{
+    MariaDbSavedAddressRepository,
+    MariaDbUserRepository
+};
+use App\Infrastructure\Database\Repositories\Vehicles\{
+    CachedVehicleCatalogRepository,
+    MariaDbVehicleCatalogRepository,
+    MariaDbVehicleRepository
+};
 use App\Infrastructure\Http\CurlHttpClient;
+use App\Infrastructure\Logging\IntegrationLogger;
 use App\Infrastructure\Mail\SmtpMailer;
-use App\Infrastructure\Services\Bancaribe\BancaribeAuthService;
-use App\Infrastructure\Services\Bancaribe\BancaribeBalanceService;
-use App\Infrastructure\Services\Bancaribe\BancaribeExchangeService;
-use App\Infrastructure\Services\Bancaribe\BancaribePaymentService;
+use App\Infrastructure\Pdf\FpdfContractPdfGenerator;
+use App\Infrastructure\Queue\RedisQueueService;
+use App\Infrastructure\Services\Bancaribe\{
+    BancaribeAuthService,
+    BancaribeBalanceService,
+    BancaribeExchangeService,
+    BancaribePaymentService
+};
 use App\Infrastructure\Services\LaVenezolanaDocumentExtractor;
 use App\Infrastructure\Services\RedisAccountRateLimiter;
-use App\Middlewares\AuthMiddleware;
-use App\Middlewares\AuthorizeMiddleware;
-use App\Middlewares\CorsMiddleware;
-use App\Middlewares\EnforceJsonResponseMiddleware;
-use App\Middlewares\EnsureKycVerifiedMiddleware;
-use App\Middlewares\ThrottleMiddleware;
-use App\Infrastructure\Pdf\FpdfContractPdfGenerator;
-use App\Application\Contracts\UseCases\CancelServiceContract;
-use App\Infrastructure\Services\Towing\OsrmRoutingService;
+use App\Infrastructure\Services\Towing\{
+    InMemoryCoverageZoneRepository,
+    OsrmRoutingService
+};
+use App\Infrastructure\Storage\AwsS3StorageService;
+use App\Middlewares\{
+    AuthMiddleware,
+    AuthorizeMiddleware,
+    CorsMiddleware,
+    EnforceJsonResponseMiddleware,
+    EnsureKycVerifiedMiddleware,
+    ThrottleMiddleware
+};
 
 // Conexiones con MariaDB y Redis
 // instanciadas de manera lazy para no abrir conexiones innecesarias en rutas públicas
@@ -211,7 +277,7 @@ $getHomeGalleryRepo = fn() => new MariaDbHomeGalleryRepository($getDb(), $getIma
 // Repositorios y Servicios de Comisiones y Billeteras B2B (FR-14, FR-15, FR-34)
 $getSellerProfileRepo = fn() => new MariaDbSellerProfileRepository($getDb());
 $getCommissionRepo = fn() => new MariaDbCommissionRepository($getDb());
-$getGenerateOrderCommission = fn() => new \App\Application\Commissions\UseCases\GenerateOrderCommission(
+$getGenerateOrderCommission = fn() => new GenerateOrderCommission(
     $getCommissionRepo(),
     $getSellerProfileRepo()
 );
@@ -308,7 +374,7 @@ return [
         DocumentController::class => fn() => new DocumentController(
             new UploadKycDocument($getDocumentRepo(), $getUserRepo(), $documentExtractor, $getEnqueueS3()),
             new GetKycStatus($getDocumentRepo(), $getUserRepo()),
-            new \App\Application\Auth\UseCases\ReviewKycDocument($getDocumentRepo(), $getVehicleRepo())
+            new ReviewKycDocument($getDocumentRepo(), $getVehicleRepo())
         ),
         SavedAddressController::class => fn() => new SavedAddressController(
             new CreateSavedAddress($getSavedAddressRepo(), $getUserRepo()),
@@ -359,10 +425,10 @@ return [
                 $getPlanRepo(),
                 $getVehicleRepo()
             ),
-            expireOverdueContractsUseCase: new \App\Application\Contracts\UseCases\ExpireOverdueContracts(
+            expireOverdueContractsUseCase: new ExpireOverdueContracts(
                 $getContractRepo()
             ),
-            renewContractUseCase: new \App\Application\Contracts\UseCases\RenewServiceContract(
+            renewContractUseCase: new RenewServiceContract(
                 $getContractRepo(),
                 $getPlanRepo(),
                 $getVehicleRepo(),
@@ -372,12 +438,12 @@ return [
                 $_ENV['APP_TELEFONO'] ?? '04267536320',
                 $_ENV['APP_NAME'] ?? 'UbikGo'
             ),
-            redeemContractUseCase: new \App\Application\Contracts\UseCases\RedeemServiceContract(
+            redeemContractUseCase: new RedeemServiceContract(
                 $getContractRepo(),
                 $getPlanRepo(),
                 $getVehicleRepo()
             ),
-            verifyContractUseCase: new \App\Application\Contracts\UseCases\VerifyServiceContract(
+            verifyContractUseCase: new VerifyServiceContract(
                 $getContractRepo(),
                 $getPlanRepo(),
                 $getUserRepo(),
@@ -393,7 +459,9 @@ return [
                 $getPlanRepo(),
                 $getPaymentGateway(),
                 $getExchangeService(),
-                $getGenerateOrderCommission()
+                $getGenerateOrderCommission(),
+                $getTowServiceRepo(),
+                $getBroadcaster()
             ),
             handleWebhook: new HandleBancaribeWebhook(
                 $getOrderRepo(),
@@ -413,15 +481,15 @@ return [
             exchangeRateService: $getExchangeService(),
             balanceGateway: $getBalanceGateway()
         ),
-        \App\Controllers\SellerController::class => fn() => new \App\Controllers\SellerController(
-            new \App\Application\Users\UseCases\SearchClientByNationalId(
+        SellerController::class => fn() => new SellerController(
+            new SearchClientByNationalId(
                 $getUserRepo(),
                 $getVehicleRepo(),
                 $getContractRepo(),
                 $getPlanRepo(),
                 $getRedis()
             ),
-            new \App\Application\Users\UseCases\RegisterClientBySeller(
+            new RegisterClientBySeller(
                 $getUserRepo(),
                 $documentExtractor,
                 $getDocumentRepo(),
@@ -440,14 +508,14 @@ return [
                 $_ENV['APP_TELEFONO'] ?? '04267536320',
                 $_ENV['APP_NAME'] ?? 'UbikGo'
             ),
-            new \App\Application\Contracts\UseCases\ListSellerContracts(
+            new ListSellerContracts(
                 $getContractRepo(),
                 $getPlanRepo(),
                 $getUserRepo(),
                 $getVehicleRepo(),
                 $getOrderRepo()
             ),
-            new \App\Application\Contracts\UseCases\RenewServiceContract(
+            new RenewServiceContract(
                 $getContractRepo(),
                 $getPlanRepo(),
                 $getVehicleRepo(),
@@ -458,24 +526,24 @@ return [
                 $_ENV['APP_NAME'] ?? 'UbikGo'
             ),
             $getUserRepo(),
-            new \App\Application\Commissions\UseCases\ManageSellerBankAccount($getSellerProfileRepo(), $getPlanRepo()),
-            new \App\Application\Commissions\UseCases\ListSellerCommissions($getCommissionRepo(), $getSellerProfileRepo(), $getOrderRepo(), $getPlanRepo()),
-            new \App\Application\Commissions\UseCases\RequestCommissionWithdrawal($getCommissionRepo(), $getSellerProfileRepo()),
+            new ManageSellerBankAccount($getSellerProfileRepo(), $getPlanRepo()),
+            new ListSellerCommissions($getCommissionRepo(), $getSellerProfileRepo(), $getOrderRepo(), $getPlanRepo()),
+            new RequestCommissionWithdrawal($getCommissionRepo(), $getSellerProfileRepo()),
             $getSellerProfileRepo(),
             $getPlanRepo()
         ),
         AdminCommissionController::class => fn() => new AdminCommissionController(
-            new \App\Application\Commissions\UseCases\ListAdminCommissions(
+            new ListAdminCommissions(
                 $getCommissionRepo(),
                 $getSellerProfileRepo(),
                 $getUserRepo(),
                 $getOrderRepo()
             ),
-            new \App\Application\Commissions\UseCases\PayCommissionByAdmin(
+            new PayCommissionByAdmin(
                 $getCommissionRepo(),
                 $getSellerProfileRepo()
             ),
-            new \App\Application\Commissions\UseCases\UpdateSellerCommissionRate(
+            new UpdateSellerCommissionRate(
                 $getSellerProfileRepo(),
                 $getUserRepo()
             )
@@ -522,7 +590,7 @@ return [
                 $getSavedAddressRepo(),
                 $getBroadcaster()
             ),
-            new AcceptSosService($getTowServiceRepo(), $getBroadcaster()),
+            new AcceptSosService($getTowServiceRepo(), $getBroadcaster(), $getOrderRepo()),
             new UpdateCraneTelemetry($getTowServiceRepo(), $getTowServiceLogRepo(), $getBroadcaster()),
             new ArriveTowService($getTowServiceRepo()),
             new CompleteTowService($getTowServiceRepo(), $getContractRepo()),
@@ -531,10 +599,14 @@ return [
             new GetTowService($getTowServiceRepo(), $getVehicleRepo()),
             new FindNearbyPendingServices($getTowServiceRepo(), $getVehicleRepo())
         ),
-        \App\Controllers\PusherWebhookController::class => fn() => new \App\Controllers\PusherWebhookController(
+        PusherWebhookController::class => fn() => new PusherWebhookController(
             appKey: $_ENV['PUSHER_APP_KEY'] ?? '',
             appSecret: $_ENV['PUSHER_APP_SECRET'] ?? '',
             logger: $integrationLogger
+        ),
+        BroadcastingController::class => fn() => new BroadcastingController(
+            $getBroadcaster(),
+            $getTowServiceRepo()
         ),
     ],
     'services' => [

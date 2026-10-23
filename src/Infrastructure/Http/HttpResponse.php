@@ -33,6 +33,14 @@ readonly class HttpResponse
     }
 
     /**
+     * Accesor para el cuerpo crudo como método
+     */
+    public function body(): string
+    {
+        return $this->body;
+    }
+
+    /**
      * Decodifica el body como JSON.
      * JSON_THROW_ON_ERROR hace que un JSON roto lance excepción en vez de devolver null en silencio.
      *

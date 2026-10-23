@@ -3,6 +3,7 @@
 namespace App\Application\Towing\UseCases;
 
 use App\Application\Towing\DTOs\TowServiceResponseDto;
+use App\Domain\Payments\Repositories\OrderRepositoryInterface;
 use App\Domain\Shared\Services\BroadcasterInterface;
 use App\Domain\Shared\ValueObjects\Uuid;
 use App\Domain\Towing\Entities\TowService;
@@ -15,7 +16,8 @@ class AcceptSosService
 {
     public function __construct(
         private TowServiceRepositoryInterface $towServiceRepository,
-        private ?BroadcasterInterface $broadcaster = null
+        private ?BroadcasterInterface $broadcaster = null,
+        private ?OrderRepositoryInterface $orderRepository = null
     ) {}
 
     /**
@@ -59,15 +61,23 @@ class AcceptSosService
             throw new DomainException('El servicio ya fue tomado por otro operador o no se encuentra disponible.', 409);
         }
 
+        // 3.1. Validar pago de excedente o servicio SOS Express previo a la aceptación (Bypass de Pago Protection)
+        if ($service->getExtraOrderId() !== null && $this->orderRepository !== null) {
+            $order = $this->orderRepository->findById($service->getExtraOrderId());
+            if ($order === null || !$order->isPaid()) {
+                throw new DomainException('El servicio requiere la confirmación del pago del excedente antes de ser aceptado.', 402);
+            }
+        }
+
         // 4. Asignar chofer y cambiar estado a IN_ROUTE
         $service->accept($driverId);
         $this->towServiceRepository->save($service);
 
         $dto = TowServiceResponseDto::fromEntity($service)->toArray();
 
-        // 5. Notificar al cliente por WebSocket que la grúa va en camino (FR-24, FR-26)
+        // 5. Notificar al cliente por WebSocket seguro que la grúa va en camino (FR-24, FR-26)
         $this->broadcaster?->broadcast(
-            channels: "tow-channel-{$service->getUuid()->getValue()}",
+            channels: "private-tow-{$service->getUuid()->getValue()}",
             event: 'service-accepted',
             data: $dto
         );

@@ -10,6 +10,7 @@ use App\Core\Response;
 use App\Domain\Users\Entities\User;
 use App\Domain\Payments\Services\BalanceGatewayInterface;
 use App\Domain\Payments\Services\ExchangeRateServiceInterface;
+use App\Infrastructure\Logging\IntegrationLogger;
 use Exception;
 
 class PaymentController
@@ -167,7 +168,7 @@ class PaymentController
         $service = $request->input('service') !== null ? trim((string)$request->input('service')) : null;
         $limit = (int)$request->input('limit', 50);
 
-        $logger = new \App\Infrastructure\Logging\IntegrationLogger();
+        $logger = new IntegrationLogger();
         $logs = $logger->readLogs($service, $limit);
 
         Response::json([

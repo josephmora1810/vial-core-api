@@ -63,9 +63,9 @@ class CancelTowService
 
                     $dto = TowServiceResponseDto::fromEntity($service)->toArray();
 
-                    // Reanudar búsqueda en el radar de grúas (FR-24-B)
-                    $this->broadcaster?->broadcast('cranes-radar', 'new-sos-request', $dto);
-                    $this->broadcaster?->broadcast("tow-channel-{$service->getUuid()->getValue()}", 'driver-reassigned', ['reason' => $reason]);
+                    // Reanudar búsqueda en el radar seguro de grúas (FR-24-B)
+                    $this->broadcaster?->broadcast('private-cranes-radar', 'new-sos-request', $dto);
+                    $this->broadcaster?->broadcast("private-tow-{$service->getUuid()->getValue()}", 'driver-reassigned', ['reason' => $reason]);
 
                     return $dto;
                 }
@@ -96,7 +96,7 @@ class CancelTowService
         $dto = TowServiceResponseDto::fromEntity($service)->toArray();
 
         // Notificar cancelación en el canal privado
-        $this->broadcaster?->broadcast("tow-channel-{$service->getUuid()->getValue()}", 'service-cancelled', $dto);
+        $this->broadcaster?->broadcast("private-tow-{$service->getUuid()->getValue()}", 'service-cancelled', $dto);
 
         return $dto;
     }

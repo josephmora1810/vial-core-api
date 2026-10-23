@@ -68,6 +68,16 @@ class SavedAddress
         return $this->label;
     }
 
+    public function getAlias(): string
+    {
+        return $this->label;
+    }
+
+    public function getReference(): string
+    {
+        return $this->addressLine;
+    }
+
     public function setLabel(string $label): self
     {
         $this->label = trim($label);

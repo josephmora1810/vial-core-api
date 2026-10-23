@@ -95,4 +95,33 @@ class PusherBroadcaster implements BroadcasterInterface
             return false;
         }
     }
+
+    /**
+     * Firma la suscripción a canales privados o de presencia según el protocolo estándar de Pusher (OWASP Security).
+     *
+     * @param string $channelName
+     * @param string $socketId
+     * @param array<string, mixed>|null $channelData
+     * @return array<string, string>
+     */
+    public function authorizeChannel(string $channelName, string $socketId, ?array $channelData = null): array
+    {
+        if (str_starts_with($channelName, 'presence-') && $channelData !== null) {
+            $dataEncoded = json_encode($channelData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            $stringToSign = "{$socketId}:{$channelName}:{$dataEncoded}";
+            $signature = hash_hmac('sha256', $stringToSign, $this->appSecret);
+
+            return [
+                'auth'         => "{$this->appKey}:{$signature}",
+                'channel_data' => (string)$dataEncoded,
+            ];
+        }
+
+        $stringToSign = "{$socketId}:{$channelName}";
+        $signature = hash_hmac('sha256', $stringToSign, $this->appSecret);
+
+        return [
+            'auth' => "{$this->appKey}:{$signature}",
+        ];
+    }
 }

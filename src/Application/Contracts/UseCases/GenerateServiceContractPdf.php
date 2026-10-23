@@ -89,9 +89,9 @@ class GenerateServiceContractPdf
         $addresses = $this->savedAddressRepository->findAllByUserId($client->getId() ?? 0);
         if (!empty($addresses)) {
             $firstAddr = $addresses[0];
-            $clientAddress = $firstAddr->getReference()
-                ? $firstAddr->getAlias() . ' - ' . $firstAddr->getReference()
-                : $firstAddr->getAlias();
+            $clientAddress = $firstAddr->getAddressLine()
+                ? $firstAddr->getLabel() . ' - ' . $firstAddr->getAddressLine()
+                : $firstAddr->getLabel();
         }
 
         // Asegurar que el contrato tenga verification_code e integrity_hash calculados y persistidos

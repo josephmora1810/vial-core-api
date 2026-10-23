@@ -20,7 +20,7 @@ class PusherBroadcasterTest extends TestCase
 
         $mockHttpClient->expects($this->once())
             ->method('postJson')
-            ->willReturnCallback(function (string $url, array $data, array $headers) use (&$capturedUrl, &$capturedPayload) {
+            ->willReturnCallback(function (string $url, array $data, array $_) use (&$capturedUrl, &$capturedPayload) {
                 $capturedUrl = $url;
                 $capturedPayload = $data;
 
@@ -116,5 +116,44 @@ class PusherBroadcasterTest extends TestCase
         );
 
         $this->assertFalse($result);
+    }
+
+    public function testAuthorizePrivateChannelGeneratesValidSignature(): void
+    {
+        $mockHttpClient = $this->createMock(HttpClientInterface::class);
+        $broadcaster = new PusherBroadcaster(
+            httpClient: $mockHttpClient,
+            appId: '12345',
+            appKey: 'my-key',
+            appSecret: 'my-secret',
+            cluster: 'sa1'
+        );
+
+        $authData = $broadcaster->authorizeChannel('private-cranes-radar', '123.456');
+
+        $this->assertArrayHasKey('auth', $authData);
+        $expectedSignature = hash_hmac('sha256', '123.456:private-cranes-radar', 'my-secret');
+        $this->assertSame("my-key:{$expectedSignature}", $authData['auth']);
+    }
+
+    public function testAuthorizePresenceChannelIncludesChannelData(): void
+    {
+        $mockHttpClient = $this->createMock(HttpClientInterface::class);
+        $broadcaster = new PusherBroadcaster(
+            httpClient: $mockHttpClient,
+            appId: '12345',
+            appKey: 'my-key',
+            appSecret: 'my-secret',
+            cluster: 'sa1'
+        );
+
+        $userData = ['user_id' => 1, 'user_info' => ['name' => 'Chofer 1']];
+        $authData = $broadcaster->authorizeChannel('presence-chat', '123.456', $userData);
+
+        $this->assertArrayHasKey('auth', $authData);
+        $this->assertArrayHasKey('channel_data', $authData);
+        $encoded = json_encode($userData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        $expectedSignature = hash_hmac('sha256', "123.456:presence-chat:{$encoded}", 'my-secret');
+        $this->assertSame("my-key:{$expectedSignature}", $authData['auth']);
     }
 }

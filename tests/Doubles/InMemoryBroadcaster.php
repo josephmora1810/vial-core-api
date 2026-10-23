@@ -47,4 +47,11 @@ class InMemoryBroadcaster implements BroadcasterInterface
     {
         $this->broadcasts = [];
     }
+
+    public function authorizeChannel(string $channelName, string $socketId, ?array $channelData = null): array
+    {
+        return [
+            'auth' => "inmemory_key:" . hash_hmac('sha256', "{$socketId}:{$channelName}", 'inmemory_secret'),
+        ];
+    }
 }

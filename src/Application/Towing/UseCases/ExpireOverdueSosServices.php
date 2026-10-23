@@ -50,9 +50,8 @@ class ExpireOverdueSosServices
                     if ($order->getStatus() === OrderStatus::Paid) {
                         $user = $this->userRepository->findById($service->getClientId());
                         if ($user !== null) {
-                            $refundAmount = $order->getAmountUsd()->getAmount();
-                            $currency = $user->getWalletBalance()->getCurrencyEnum();
-                            $newBalance = $user->getWalletBalance()->add(new Money($refundAmount, $currency));
+                            $refundAmountVes = $order->getAmountVes()->getAmount();
+                            $newBalance = $user->getWalletBalance()->add(new Money($refundAmountVes, 'VES'));
                             $user->updateWalletBalance($newBalance);
                             $this->userRepository->save($user);
 
@@ -79,17 +78,17 @@ class ExpireOverdueSosServices
             $dto = TowServiceResponseDto::fromEntity($service)->toArray();
             $dto['refunded_to_wallet'] = $refunded;
 
-            // 4. Difusión en tiempo real por WebSockets (Pusher)
+            // 4. Difusión en tiempo real por WebSockets seguros (Pusher)
             // A. Notificar al canal privado del cliente
             $this->broadcaster?->broadcast(
-                channels: "tow-channel-{$service->getUuid()->getValue()}",
+                channels: "private-tow-{$service->getUuid()->getValue()}",
                 event: 'service-cancelled',
                 data: $dto
             );
 
-            // B. Notificar al radar de las grúas para retirar la alerta sonora / marcador
+            // B. Notificar al radar seguro de las grúas para retirar la alerta sonora / marcador
             $this->broadcaster?->broadcast(
-                channels: 'cranes-radar',
+                channels: 'private-cranes-radar',
                 event: 'sos-request-expired',
                 data: [
                     'id'     => $service->getUuid()->getValue(),
