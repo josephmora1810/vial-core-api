@@ -238,7 +238,7 @@ class DriverController
      *
      * @param array<string, mixed> $params
      */
-    public function activateCrane(Request $request, array $params = []): void
+    public function activateCrane(Request $request, string|array|null $id = null): void
     {
         $userId = $this->authenticatedUserId($request);
         if ($userId === null) {
@@ -251,7 +251,7 @@ class DriverController
             return;
         }
 
-        $craneId = $params['id'] ?? $request->input('crane_id');
+        $craneId = is_array($id) ? ($id['id'] ?? null) : ($id ?: $request->input('crane_id'));
         if (empty($craneId)) {
             Response::json(['crane_id' => 'Identificador de la grúa requerido.'], 422, 'fail', 'Parámetro faltante.');
             return;

@@ -197,11 +197,12 @@ class PaymentInfrastructureTest extends TestCase
 
         $repo = new MariaDbExchangeRateRepository($this->pdo);
 
+        $futureDate = new DateTimeImmutable('2099-01-01');
         $rate = new ExchangeRate(
             currency: Currency::USD,
             type: 'venta',
             rate: 37.15,
-            date: new DateTimeImmutable('2026-10-23')
+            date: $futureDate
         );
 
         $repo->upsert($rate);
@@ -209,6 +210,8 @@ class PaymentInfrastructureTest extends TestCase
         $current = $repo->findLatest('USD', 'venta');
         $this->assertNotNull($current);
         $this->assertEqualsWithDelta(37.15, $current->getRate(), 0.01);
+
+        $this->pdo->exec("DELETE FROM exchange_rates WHERE date = '2099-01-01'");
     }
 
     public function testMariaDbBankTokenRepository(): void

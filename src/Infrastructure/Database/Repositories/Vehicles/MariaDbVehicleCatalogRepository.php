@@ -60,10 +60,11 @@ class MariaDbVehicleCatalogRepository implements VehicleCatalogRepositoryInterfa
     {
         if (!empty($search)) {
             $stmt = $this->db->prepare("
-                SELECT id, brand_id, vehicle_class_id, vehicle_subclass_id, type, name 
-                FROM vehicle_models 
-                WHERE brand_id = :brand_id AND name LIKE :search 
-                ORDER BY name ASC
+                SELECT vm.id, vm.brand_id, sc.vehicle_class_id, vm.vehicle_subclass_id, vm.type, vm.name 
+                FROM vehicle_models vm
+                LEFT JOIN vehicle_subclasses sc ON vm.vehicle_subclass_id = sc.id
+                WHERE vm.brand_id = :brand_id AND vm.name LIKE :search 
+                ORDER BY vm.name ASC
             ");
             $stmt->execute([
                 'brand_id' => $brandId,
@@ -71,10 +72,11 @@ class MariaDbVehicleCatalogRepository implements VehicleCatalogRepositoryInterfa
             ]);
         } else {
             $stmt = $this->db->prepare("
-                SELECT id, brand_id, vehicle_class_id, vehicle_subclass_id, type, name 
-                FROM vehicle_models 
-                WHERE brand_id = :brand_id 
-                ORDER BY name ASC
+                SELECT vm.id, vm.brand_id, sc.vehicle_class_id, vm.vehicle_subclass_id, vm.type, vm.name 
+                FROM vehicle_models vm
+                LEFT JOIN vehicle_subclasses sc ON vm.vehicle_subclass_id = sc.id
+                WHERE vm.brand_id = :brand_id 
+                ORDER BY vm.name ASC
             ");
             $stmt->execute(['brand_id' => $brandId]);
         }
@@ -86,9 +88,10 @@ class MariaDbVehicleCatalogRepository implements VehicleCatalogRepositoryInterfa
     {
         $cleanModel = trim($modelName);
         $stmt = $this->db->prepare("
-            SELECT id, brand_id, vehicle_class_id, vehicle_subclass_id, type, name 
-            FROM vehicle_models 
-            WHERE brand_id = :brand_id AND LOWER(name) = LOWER(:name) 
+            SELECT vm.id, vm.brand_id, sc.vehicle_class_id, vm.vehicle_subclass_id, vm.type, vm.name 
+            FROM vehicle_models vm
+            LEFT JOIN vehicle_subclasses sc ON vm.vehicle_subclass_id = sc.id
+            WHERE vm.brand_id = :brand_id AND LOWER(vm.name) = LOWER(:name) 
             LIMIT 1
         ");
         $stmt->execute([
@@ -103,10 +106,11 @@ class MariaDbVehicleCatalogRepository implements VehicleCatalogRepositoryInterfa
 
         // Búsqueda por similitud/subcadena (ej: "COROLLA GLI" -> "COROLLA")
         $stmtLike = $this->db->prepare("
-            SELECT id, brand_id, vehicle_class_id, vehicle_subclass_id, type, name 
-            FROM vehicle_models 
-            WHERE brand_id = :brand_id AND :model LIKE CONCAT('%', name, '%') 
-            ORDER BY LENGTH(name) DESC 
+            SELECT vm.id, vm.brand_id, sc.vehicle_class_id, vm.vehicle_subclass_id, vm.type, vm.name 
+            FROM vehicle_models vm
+            LEFT JOIN vehicle_subclasses sc ON vm.vehicle_subclass_id = sc.id
+            WHERE vm.brand_id = :brand_id AND :model LIKE CONCAT('%', vm.name, '%') 
+            ORDER BY LENGTH(vm.name) DESC 
             LIMIT 1
         ");
         $stmtLike->execute([

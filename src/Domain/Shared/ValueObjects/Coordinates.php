@@ -33,6 +33,20 @@ readonly class Coordinates
         return $this->longitude;
     }
 
+    public function distanceTo(Coordinates $other): float
+    {
+        $earthRadius = 6371.0; // km
+        $dLat = deg2rad($other->getLatitude() - $this->latitude);
+        $dLon = deg2rad($other->getLongitude() - $this->longitude);
+
+        $a = sin($dLat / 2) * sin($dLat / 2) +
+             cos(deg2rad($this->latitude)) * cos(deg2rad($other->getLatitude())) *
+             sin($dLon / 2) * sin($dLon / 2);
+
+        $c = 2 * atan2(sqrt($a), sqrt(1 - $a));
+        return round($earthRadius * $c, 2);
+    }
+
     public function equals(Coordinates $other): bool
     {
         return $this->latitude === $other->getLatitude() 

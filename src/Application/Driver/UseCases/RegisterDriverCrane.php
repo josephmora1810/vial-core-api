@@ -134,7 +134,7 @@ class RegisterDriverCrane
                 }
             }
         }
-        $resolvedModelId ??= 1;
+        $resolvedModelId ??= 839; // Fallback a modelo oficial de grúa (GRUA DE PLATAFORMA)
 
         // Crear la entidad Vehicle 3NF con tipo CRANE y estado PENDING (requiere revisión administrativa)
         $crane = Vehicle::create(
