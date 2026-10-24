@@ -960,6 +960,7 @@ Los seeders se ejecutan de manera transaccional e idempotente (`ON DUPLICATE KEY
 | **04** | `s000004_vehicle_models_seeder.php` | **5.413 Modelos** normalizados, vinculados de forma unívoca a su `brand_id`, su `vehicle_subclass_id` y su tipo vehicular (`type`: `CAR`, `SUV`, `MOTORCYCLE`, `CRANE`, `TRUCK`). |
 | **05** | `s000005_plans_seeder.php` | Planes comerciales de asistencia vial con límites de kilometraje y rescates. |
 | **06** | `s000006_banks_seeder.php` | Catálogo oficial de 23 bancos nacionales autorizados por Sudeban. |
+| **07** | `s000007_admin_user_seeder.php` | Usuario Administrador Maestro por defecto (`sistemabenefit@gmail.com` / `YeDDyp3G`) con rol `admin` y permisos completos. |
 
 #### D. Ejecución de Seeders Específicos o Re-seeding Selectivo
 Si solo necesitas recargar o actualizar un catálogo particular sin tocar los demás:
@@ -1054,49 +1055,524 @@ OK (645 tests, 2437 assertions) - 100% Passing (0 errores, 0 fallos, 0 avisos)
 | **Infraestructura y Adaptadores** | `MariaDbOrderRepository`, `MariaDbPaymentRepository`, `MariaDbExchangeRateRepository`, `MariaDbBankTokenRepository`, `C2pStrategy`, `PagoMovilStrategy`, `MariaDbHomeGalleryRepository`, `MariaDbDriverShiftRepository`, `LaVenezolanaDocumentExtractor` (OCR con tipado estricto `ExtractedVehicleRegistration`), `AwsS3StorageService` (S3 y URLs prefirmadas), `RedisQueueService` (cola asíncrona `queue:s3_document_uploads`), `MariaDbCommissionRepository`, `MariaDbSellerProfileRepository`, `PusherBeamsService` (FCM + APNs push gateway), `MariaDbUserRepository`, `MariaDbTowServiceRepository`, `MariaDbVehicleRepository`, `CachedVehicleCatalogRepository`, Motor de Migraciones MariaDB, `RedisRateLimiter`, `PusherBroadcaster`, `BancaribePaymentGateway`, `SmtpEmailDispatcher`. | 117 tests / 475 aserciones |
 | **Total General** | **Batería Automatizada Completa** | **645 tests / 2437 aserciones (100% OK)** |
 
-### 🔬 Scripts de Smoke Test de Integración en Vivo
+### 🔬 Suite de Pruebas de Integración y End-to-End en Caliente (Hot Runner)
 
-El directorio `scripts/` incluye utilidades CLI ejecutables de forma independiente para verificar la conectividad y el funcionamiento de los servicios externos:
+Para verificar en tiempo de ejecución todos los subsistemas (PHP 8.5+, MariaDB, Redis, Microservicio Docker OCR en puerto 8080 y Sandbox Bancario), se cuenta con un runner unificado que evalúa el 100% de los flujos de negocio reales con cURL:
 
-#### 1. Smoke Test de Integración Bancaria (Bancaribe)
-Valida la conectividad contra los endpoints seguros de Bancaribe (requiere VPN activa en QA/Testing):
 ```bash
-php scripts/test_bancaribe_smoke.php
+# Ejecutar la suite completa E2E en caliente (55 endpoints transaccionales)
+php scripts/e2e_hot_runner.php
 ```
-Valida de forma integral:
-1. **OAuth2 Token:** Obtención contra el endpoint de producción (`oauth2/token`), guardado en `bank_tokens` y caché Redis.
-2. **Tasas Oficiales BCV:** Sincronización en vivo con `BCVMicro/1.0.0/consultaTasa/tasa`, guardado en `exchange_rates` y caché Redis.
-3. **Consulta de Saldos:** Llamada en vivo a `CtasSaldos/1.0.0/ctasConsultaSaldos` y normalización de cuentas sin exponer datos sensibles.
-4. **Pagos C2P y Operaciones Plus:** Simulación en modo sandbox verificando estructura de respuesta.
-5. **Guardrails de Producción:** Verificación de excepción `LogicException` si sandbox está activo fuera de `local`, y respuesta `HTTP 503` si las tasas caen y tienen más de 1 día de antigüedad.
 
-#### 2. Smoke Test de Servidor de Correo (SMTP)
-Prueba la conexión por sockets SSL/TLS contra el servidor de correo corporativo para validar el flujo de recuperación de contraseñas con OTP (FR-06):
-```bash
-php scripts/test_email.php tu_correo@dominio.com
+---
+
+## 🗺️ Guía Maestra de Integración Frontend / Mobile (Vue.js, Flutter / Kotlin y Filament)
+
+Esta sección define formalmente el protocolo de comunicación, el ciclo de vida por cada rol de usuario (`client`, `driver`, `seller`, `admin`), los diagramas de secuencia estandarizados y el orden riguroso de llamadas a la API REST.
+
+---
+
+### 1. Matriz de Roles y Permisos (RBAC)
+
+| Rol (`role`) | Guard / Token | Capacidades Principales en la Plataforma |
+|---|---|---|
+| **Cliente (`client`)** | JWT Bearer (`auth`) | Registrar y gestionar sus vehículos, guardar direcciones frecuentes, comprar contratos/pólizas de auxilio vial con C2P o Pago Móvil, solicitar asistencia SOS en carretera, rastrear su grúa en tiempo real vía WebSockets (Pusher) y calificar el servicio recibido con 1 a 5 estrellas. |
+| **Chofer / Gruero (`driver`)** | JWT Bearer (`auth`, `role:driver`) | Cargar y validar su licencia de conducir, registrar grúas en su flota, activar una única grúa en guardia, abrir turnos operativos con geolocalización, escanear el radar de emergencias SOS, aceptar servicios, transmitir telemetría GPS continua por Pusher, confirmar llegada al sitio de avería y completar remolques. |
+| **Vendedora (`seller`)** | JWT Bearer (`auth`, `permission:sell_service_contract`) | Consultar clientes existentes por cédula en Redis, registrar nuevos clientes y sus vehículos, emitir contratos/pólizas comerciales preliminares, conciliar cobros con Pago Móvil (Consulta Plus Bancaribe), acumular comisiones en su billetera virtual y solicitar liquidaciones a su cuenta bancaria Sudeban. |
+| **Administrador (`admin`)** | JWT Bearer (`auth`, `role:admin`) | Crear usuarios vendedoras y administradores, suspender o reactivar cuentas con soft-delete (`deleted_at`), auditar y revisar expedientes KYC (aprobar/rechazar cédulas y licencias), administrar planes y banners de la landing page, sincronizar tasas oficiales del BCV, expirar contratos vencidos, auditar logs de integración y liquidar pagos de comisiones a vendedoras. |
+
+---
+
+### 2. Diagramas de Secuencia por Rol y Funcionalidad
+
+#### A. Flujo Cliente: Autenticación, Verificación KYC con OCR, Token y Cierre de Sesión
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor C as Cliente (App Movil / Web)
+    participant API as VialCore API (Backend)
+    participant OCR as Docker OCR (La Venezolana)
+    participant DB as MariaDB / Redis
+
+    Note over C,API: Paso 1: Escaneo Previo de Cédula (Opcional en Registro)
+    C->>API: POST /api/v1/scan-identity (Multipart: document_photo)
+    API->>OCR: POST /api/v1/extract (Documento Cédula)
+    OCR-->>API: 200 OK (Nombre, Apellido, Cédula, Fecha Nacimiento)
+    API-->>C: 200 OK ExtractedIdentityDto (Autocompleta formulario)
+
+    Note over C,API: Paso 2: Registro del Cliente
+    C->>API: POST /api/v1/register (email, password, phone, role: client, legal_consent: true, identification_card, names, surnames, birth_date)
+    API->>DB: INSERT INTO users + role_user ('client')
+    API-->>C: 201 Created (UserResponseDto con UUID y datos básicos)
+
+    Note over C,API: Paso 3: Inicio de Sesión y Emisión de Credenciales
+    C->>API: POST /api/v1/login (email / phone, password)
+    API->>DB: SELECT user + verify password hash
+    API->>DB: INSERT INTO personal_access_tokens (token_hash, refresh_token_hash)
+    API-->>C: 200 OK (data: token Bearer, refresh_token, user profile)
+
+    Note over C,API: Paso 4: Consulta de Perfil y Renovación de Token
+    C->>API: GET /api/v1/me (Header: Authorization Bearer)
+    API-->>C: 200 OK (Perfil completo del usuario autenticado)
+    C->>API: POST /api/v1/refresh-token (Body: refresh_token)
+    API->>DB: Validar y rotar refresh_token en personal_access_tokens
+    API-->>C: 200 OK (Nuevo access_token y nuevo refresh_token)
+
+    Note over C,API: Paso 5: Cierre de Sesión Seguro
+    C->>API: POST /api/v1/logout (Body: refresh_token)
+    API->>DB: Revocar y eliminar tokens activos del usuario
+    API-->>C: 200 OK (Sesión cerrada exitosamente)
 ```
-Valida:
-1. Negociación de cifrado SSL/TLS en el puerto 465 (o TLS en puerto 587).
-2. Autenticación con credenciales cPanel/SMTP configuradas en `.env`.
-3. Despacho exitoso de un correo HTML transaccional de prueba con marcas de tiempo.
 
-#### 3. Smoke Test de WebSockets en Vivo (Pusher Channels)
-Prueba la emisión de eventos en tiempo real mediante la REST API oficial de Pusher Channels, permitiendo auditar la telemetría y el radar de grúas (FR-20, FR-23, FR-25):
-```bash
-# Transmite un evento de prueba al canal cranes-radar
-php scripts/test_pusher_smoke.php
+---
 
-# O transmitiendo a un canal y evento personalizados:
-php scripts/test_pusher_smoke.php canal-personalizado nombre-evento
+#### B. Flujo Cliente: Catálogo, Escaneo OCR de Carnet, Registro y Soft-Delete de Vehículos
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor C as Cliente (App Movil)
+    participant API as VialCore API
+    participant OCR as Docker OCR
+    participant DB as MariaDB (Catalogo 3NF)
+
+    Note over C,API: Paso 1: Carga de Selectores de Catálogo Maestro
+    C->>API: GET /api/v1/vehicles/catalog/brands
+    API->>DB: SELECT * FROM vehicle_brands
+    API-->>C: 200 OK (Lista de 612 marcas)
+    C->>API: GET /api/v1/vehicles/catalog/models?brand_id=1
+    API->>DB: SELECT * FROM vehicle_models JOIN subclasses WHERE brand_id=1
+    API-->>C: 200 OK (Modelos filtrados con su clase y tipo CAR/SUV/CRANE)
+
+    Note over C,API: Paso 2: Escaneo Inteligente del Carnet de Circulación
+    C->>API: POST /api/v1/vehicles/scan (Multipart: document)
+    API->>OCR: POST /api/v1/extract (Carnet INTT)
+    OCR-->>API: 200 OK (Placa, VIN/NIV, Año, Marca, Color)
+    API-->>C: 200 OK VehicleScanResponseDto (Datos extraídos listos para confirmar)
+
+    Note over C,API: Paso 3: Registro y Gestión del Vehículo
+    C->>API: POST /api/v1/vehicles (model_id, license_plate, year, color, vin)
+    API->>DB: INSERT INTO vehicles (uuid, user_id, vehicle_model_id, plate, vin...)
+    API-->>C: 201 Created (VehicleDetailedResponseDto)
+
+    C->>API: GET /api/v1/vehicles
+    API-->>C: 200 OK (Colección de vehículos registrados del cliente)
+    C->>API: GET /api/v1/vehicles/{id}
+    API-->>C: 200 OK (Detalle de vehículo con marca, modelo y clase)
+
+    Note over C,API: Paso 4: Desincorporación Segura (Soft Delete)
+    C->>API: DELETE /api/v1/vehicles/{id}
+    API->>DB: UPDATE vehicles SET deleted_at = NOW() WHERE uuid = :id
+    API-->>C: 200 OK (VehicleDeletedResponseDto con marca de tiempo)
 ```
-Valida:
-1. Lectura de credenciales `PUSHER_APP_ID`, `PUSHER_APP_KEY`, `PUSHER_APP_SECRET` y cluster `sa1`.
-2. Cálculo criptográfico de la firma HMAC-SHA256 y del hash `body_md5` idéntico al cuerpo JSON transmitido.
-3. Envío HTTP hacia `api-{cluster}.pusher.com` con respuesta `HTTP 200 OK`.
-4. El evento puede visualizarse de forma inmediata en el **Pusher Dashboard -> Tu App -> Debug Console**.
 
-#### 4. Smoke Test de HTTP / Micro-Kernel
-Prueba rápida de inicialización del Front Controller y respuesta JSON:
-```bash
-php scripts/http_smoke.php
+---
+
+#### C. Flujo Cliente: Compra de Contrato, Pago C2P, Descarga PDF QR, Renovación y Canje
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor C as Cliente
+    participant API as VialCore API
+    participant BCV as BCV / Cache Redis
+    participant Bank as Bancaribe (C2P / Sandbox)
+    participant DB as MariaDB
+
+    C->>API: GET /api/v1/plans
+    API->>DB: SELECT * FROM plans WHERE is_active = 1
+    API-->>C: 200 OK (Planes con coberturas, límites SOS y precio USD)
+
+    C->>API: GET /api/v1/exchange-rates
+    API->>BCV: Tasa oficial USD -> VES vigente
+    API-->>C: 200 OK (Monto de conversión oficial del BCV)
+
+    Note over C,API: Checkout de Contrato
+    C->>API: POST /api/v1/checkout (plan_id, vehicle_id)
+    API->>DB: INSERT INTO affiliation_contracts (status: PENDING_PAYMENT, code: QR-XXX)
+    API->>DB: INSERT INTO orders (order_number: ORD-XXX, amount_usd, amount_ves)
+    API-->>C: 201 Created (OrderResponseDto con número de orden y monto en VES)
+
+    Note over C,API: Pago Móvil C2P Bancaribe
+    C->>API: POST /api/v1/payments/process (order_number, payment_method: c2p, bank_code, phone, customer_id, otp)
+    API->>Bank: POST /C2P (Validación síncrona de débito en cuenta bancaria)
+    Bank-->>API: 200 OK (Aprobado, Referencia bancaria generada)
+    API->>DB: UPDATE orders SET status = 'PAID'
+    API->>DB: UPDATE affiliation_contracts SET status = 'ACTIVE', start_date = NOW(), end_date = +1 Año
+    API-->>C: 200 OK (PaymentProcessResponseDto: Contrato Activo)
+
+    Note over C,API: Verificación Pública y Descarga de Póliza en PDF
+    C->>API: GET /api/v1/contracts/verify/{code} (Ruta Pública)
+    API-->>C: 200 OK (Validez de la póliza para autoridades viales e INTT)
+    C->>API: GET /api/v1/contracts/{id}/pdf
+    API-->>C: 200 OK (Documento PDF oficial generado con sello y QR dinámico)
+
+    Note over C,API: Canje y Renovación de Servicios
+    C->>API: POST /api/v1/contracts/{id}/redeem
+    API->>DB: Descuenta 1 asistencia del contador de coberturas del contrato
+    API-->>C: 200 OK (Servicio canjeado exitosamente)
+    C->>API: POST /api/v1/contracts/{id}/renew
+    API-->>C: 201 Created (Nueva orden de facturación para extensión de cobertura)
 ```
+
+---
+
+#### D. Flujo en Tiempo Real: Asistencia Vial (SOS), Radar, Pusher WebSockets y Calificación
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor C as Cliente (App)
+    participant API as VialCore API
+    participant Pusher as Pusher Channels (WebSockets)
+    actor D as Chofer / Gruero (App)
+    participant DB as MariaDB
+
+    Note over C,API: Cotización y Solicitud de Auxilio
+    C->>API: POST /api/v1/sos/quote (pickup_lat, pickup_lng, destination_lat, destination_lng)
+    API-->>C: 200 OK (Distancia km calculada vía OSRM/Haversine y tarifa)
+    C->>API: POST /api/v1/sos (vehicle_id, breakdown_type, pickup_latitude, pickup_longitude, address)
+    API->>DB: INSERT INTO tow_services (uuid, status: PENDING, coordinates)
+    API->>Pusher: Trigger evento "tow_service_requested" en canal 'private-cranes-radar'
+    API-->>C: 201 Created (SosRequestResponseDto con UUID del servicio)
+
+    Note over D,Pusher: Radar del Chofer y Aceptación
+    D->>API: GET /api/v1/sos/radar?lat=10.49&lng=-66.85
+    API-->>D: 200 OK (Lista de emergencias activas en radio de acción)
+    D->>API: POST /api/v1/sos/{uuid}/accept
+    API->>DB: UPDATE tow_services SET status = 'ASSIGNED', driver_id = :id
+    API->>Pusher: Trigger evento "tow_service_accepted" en canal 'private-tow-{uuid}'
+    API-->>D: 200 OK (Misión asignada)
+
+    Note over C,D: Handshake y Suscripción al Canal Privado de Pusher
+    C->>API: POST /api/v1/broadcasting/auth (channel_name: private-tow-{uuid}, socket_id)
+    API-->>C: 200 OK (Firma HMAC-SHA256 autorizada)
+    C->>Pusher: Suscripción a canal privado 'private-tow-{uuid}'
+    D->>API: POST /api/v1/broadcasting/auth (channel_name: private-tow-{uuid}, socket_id)
+    API-->>D: 200 OK (Firma HMAC-SHA256 autorizada)
+    D->>Pusher: Suscripción a canal privado 'private-tow-{uuid}'
+
+    Note over C,D: Telemetría GPS en Vivo Durante el Trayecto
+    loop Cada 5-10 segundos mientras la grúa viaja
+        D->>API: POST /api/v1/sos/{uuid}/telemetry (lat, lng, speed_kmh, heading)
+        API->>Pusher: Broadcast evento "telemetry_updated" a canal 'private-tow-{uuid}'
+        Pusher-->>C: Evento "telemetry_updated" (Mueve el marcador de la grúa en el mapa)
+    end
+
+    Note over D,C: Llegada al Sitio de la Avería
+    D->>API: POST /api/v1/sos/{uuid}/arrive
+    API->>DB: UPDATE tow_services SET status = 'IN_PROGRESS'
+    API->>Pusher: Broadcast evento "tow_service_arrived" en canal 'private-tow-{uuid}'
+    Pusher-->>C: Evento "tow_service_arrived" (Notificación visual al cliente)
+
+    Note over D,C: Conclusión del Remolque y Calificación por Estrellas
+    D->>API: POST /api/v1/sos/{uuid}/complete
+    API->>DB: UPDATE tow_services SET status = 'COMPLETED', completed_at = NOW()
+    API->>Pusher: Broadcast evento "tow_service_completed" en canal 'private-tow-{uuid}'
+    Pusher-->>C: Evento "tow_service_completed" (Despliega modal de estrellas)
+    C->>API: POST /api/v1/sos/{uuid}/rate (rating: 5, comment: "Llegó súper rápido")
+    API->>DB: INSERT INTO ratings (tow_service_id, score: 5, review)
+    API-->>C: 200 OK (Servicio evaluado con éxito)
+```
+
+---
+
+#### E. Flujo Chofer / Gruero: Flota, Activación Exclusiva de Grúa y Turnos
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor D as Chofer / Gruero
+    participant API as VialCore API
+    participant DB as MariaDB
+
+    Note over D,API: Paso 1: Carga de Documentación de Conducir
+    D->>API: POST /api/v1/driver/license (Multipart: license_photo)
+    API->>DB: INSERT INTO documents (type: 'driver_license', status: 'PENDING')
+    API-->>D: 201 Created (Licencia guardada en espera de auditoría KYC)
+
+    Note over D,API: Paso 2: Registro de Grúas en la Flota
+    D->>API: POST /api/v1/driver/cranes (plate_number, niv, year, color, brand, model)
+    API->>DB: INSERT INTO vehicles (type: 'CRANE', status: 'ACTIVE')
+    API-->>D: 201 Created (Grúa registrada)
+    D->>API: GET /api/v1/driver/cranes
+    API-->>D: 200 OK (Listado de grúas pertenecientes al operador)
+
+    Note over D,API: Paso 3: Regla Invariante de Activación (1 Grúa Activa a la Vez)
+    D->>API: POST /api/v1/driver/cranes/{id}/activate
+    API->>DB: UPDATE vehicles SET is_active_for_driver = 0 WHERE driver_id = :id
+    API->>DB: UPDATE vehicles SET is_active_for_driver = 1 WHERE uuid = :id
+    API-->>D: 200 OK (Grúa activada en exclusiva como unidad de rescate)
+
+    Note over D,API: Paso 4: Turno Operativo y Publicación de Ubicación
+    D->>API: POST /api/v1/driver/shift/start (crane_id, latitude, longitude)
+    API->>DB: INSERT INTO driver_shifts (driver_id, crane_id, status: 'OPEN', start_time: NOW())
+    API-->>D: 200 OK (Turno iniciado. Conductor visible en radar)
+
+    D->>API: GET /api/v1/driver/shift/current
+    API-->>D: 200 OK (Detalle del turno en curso y grúa asociada)
+    D->>API: POST /api/v1/driver/location (latitude, longitude)
+    API->>DB: UPDATE driver_shifts SET last_latitude = :lat, last_longitude = :lng
+    API-->>D: 200 OK (Coordenadas de guardia sincronizadas)
+
+    Note over D,API: Paso 5: Finalización del Turno
+    D->>API: POST /api/v1/driver/shift/end
+    API->>DB: Valida que no haya servicios SOS en estado ASSIGNED o IN_PROGRESS
+    API->>DB: UPDATE driver_shifts SET status = 'CLOSED', end_time = NOW()
+    API-->>D: 200 OK (Turno cerrado. Operador desconectado del radar)
+```
+
+---
+
+#### F. Flujo Vendedora (Seller): Clientes, Contratos, Pago Móvil Consulta Plus y Comisiones
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor S as Vendedora (Seller)
+    participant API as VialCore API
+    participant Bank as Bancaribe (Consulta Plus)
+    participant DB as MariaDB / Redis
+    actor Admin as Administrador
+
+    Note over S,API: Configuración Inicial de Cuenta de Cobro
+    S->>API: GET /api/v1/seller/profile
+    API-->>S: 200 OK (Código de vendedora, porcentaje de comisión asignado)
+    S->>API: PUT /api/v1/seller/bank-account (bank_id: 1, account_number: "0102...", phone, national_id)
+    API->>DB: UPDATE seller_profiles SET bank_details = ...
+    API-->>S: 200 OK (Cuenta bancaria Sudeban vinculada para pagos)
+
+    Note over S,API: Venta de Contrato a un Cliente Nuevo
+    S->>API: GET /api/v1/seller/clients/search?identification_card=V-12345678
+    API->>DB: Búsqueda rápida en Redis/MariaDB
+    API-->>S: 200 OK (Cliente no existe -> Habilita creación)
+
+    S->>API: POST /api/v1/seller/clients (email, phone, identification_card, names, surnames, birth_date)
+    API->>DB: INSERT INTO users + role_user ('client')
+    API-->>S: 201 Created (ID del nuevo cliente registrado por la vendedora)
+
+    S->>API: POST /api/v1/seller/vehicles (client_id, model_id, plate, vin, year, color)
+    API->>DB: INSERT INTO vehicles (asociado al cliente)
+    API-->>S: 201 Created (Vehículo registrado)
+
+    S->>API: POST /api/v1/seller/contracts (client_id, vehicle_id, plan_id)
+    API->>DB: INSERT INTO affiliation_contracts + orders (vinculados al seller_id)
+    API-->>S: 201 Created (Orden de pago generada)
+
+    Note over S,API: Conciliación de Pago Móvil del Cliente
+    S->>API: POST /api/v1/payments/process (order_number, payment_method: pago_movil, reference, date, amount, customer_id)
+    API->>Bank: Consulta Plus Bancaribe (Verificación de ingreso en cuenta)
+    Bank-->>API: 200 OK (Operación conciliada con éxito)
+    API->>DB: UPDATE affiliation_contracts SET status = 'ACTIVE'
+    API->>DB: INSERT INTO commissions (seller_id, amount, status: 'EARNED')
+    API-->>S: 200 OK (Contrato activado y comisión acumulada en billetera)
+
+    Note over S,Admin: Consulta y Retiro de Comisiones Ganadas
+    S->>API: GET /api/v1/seller/commissions
+    API-->>S: 200 OK (Listado de ventas, balance total y balance disponible)
+    S->>API: POST /api/v1/seller/commissions/withdraw
+    API->>DB: UPDATE commissions SET status = 'REQUESTED' WHERE seller_id = :id
+    API-->>S: 200 OK (Solicitud de liquidación generada)
+
+    Admin->>API: POST /api/v1/admin/commissions/{id}/pay (payment_reference: 'TRANSF-00123')
+    API->>DB: UPDATE commissions SET status = 'PAID', paid_at = NOW()
+    API-->>Admin: 200 OK (Comisión liquidada a la vendedora)
+```
+
+---
+
+#### G. Flujo Administrador: Auditoría KYC, Moderación y Gestión de Plataforma
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor A as Administrador (Filament / Panel)
+    participant API as VialCore API
+    participant DB as MariaDB
+    participant Mail as Servidor SMTP (Notificaciones)
+
+    Note over A,API: Moderación y Control de Acceso (Soft-Delete)
+    A->>API: POST /api/v1/admin/users/{id}/suspend (reason: "Comportamiento fraudulento")
+    API->>DB: UPDATE users SET is_active = 0, deleted_at = NOW() WHERE id = :id
+    API-->>A: 200 OK (Usuario suspendido, tokens revocados instantáneamente)
+    A->>API: POST /api/v1/admin/users/{id}/activate
+    API->>DB: UPDATE users SET is_active = 1, deleted_at = NULL WHERE id = :id
+    API-->>A: 200 OK (Usuario reactivado)
+
+    Note over A,API: Auditoría de Expediente KYC de Clientes y Choferes
+    A->>API: GET /api/v1/admin/documents?status=PENDING
+    API->>DB: SELECT * FROM documents WHERE status = 'PENDING'
+    API-->>A: 200 OK (Colección de cédulas y licencias pendientes por revisar)
+    
+    alt Documento Cumple con Requisitos
+        A->>API: POST /api/v1/admin/documents/{id}/review (decision: "APPROVED")
+        API->>DB: UPDATE documents SET status = 'VERIFIED', reviewed_by = :adminId
+        API-->>A: 200 OK (Documento verificado)
+    else Documento Ilegible o Adulterado
+        A->>API: POST /api/v1/admin/documents/{id}/review (decision: "REJECTED", notes: "Foto borrosa, ilegible")
+        API->>DB: UPDATE documents SET status = 'REJECTED', rejection_reason = :notes
+        API->>Mail: Enviar correo al usuario notificando el motivo del rechazo
+        API-->>A: 200 OK (Documento rechazado)
+    end
+
+    Note over A,API: Mantenimiento, Tasas BCV y Monitoreo Bancario
+    A->>API: POST /api/v1/exchange-rates/sync
+    API-->>A: 200 OK (Tasas oficiales del BCV forzadas a sincronización)
+    A->>API: POST /api/v1/admin/contracts/expire-overdue
+    API-->>A: 200 OK (Contratos cuya vigencia caducó pasados a status EXPIRED)
+    A->>API: GET /api/v1/admin/bank/balances
+    API-->>A: 200 OK (Saldos en cuentas bancarias de la empresa)
+    A->>API: GET /api/v1/admin/integrations/logs
+    API-->>A: 200 OK (Historial de transacciones de Bancaribe, Pusher y OCR)
+```
+
+---
+
+### 3. Diccionario Completo de Endpoints de `api.php` por Módulos
+
+Todos los endpoints tienen el prefijo `/api/v1/`.
+
+#### Módulo 1: Monitoreo y Salud (System / Public)
+| Método | Endpoint | Cabeceras | Parámetros / Body | Respuesta Exitosa | Descripción |
+|---|---|---|---|:---:|---|
+| `GET` | `/ping` | Ninguna | Ninguno | `200 OK` | Verificación de salud y conectividad del servidor |
+| `GET` | `/teapot` | Ninguna | Ninguno | `418 I'm a teapot` | Verificación RFC 2324 |
+| `GET` | `/home-gallery` | Ninguna | Ninguno | `200 OK` | Banners promocionales activos para la pantalla de inicio |
+
+#### Módulo 2: Autenticación y Seguridad (Auth)
+| Método | Endpoint | Cabeceras | Parámetros / Body | Respuesta Exitosa | Descripción |
+|---|---|---|---|:---:|---|
+| `POST` | `/register` | `Content-Type: application/json` | `email`, `password`, `phone`, `role` (`client`\|`driver`\|`seller`), `terms_accepted: true`, `identification_card`, `names`, `surnames`, `birth_date` | `201 Created` | Registro multiperfil con consentimiento legal obligatorio |
+| `POST` | `/login` | `Content-Type: application/json` | `email` (o `phone`), `password` | `200 OK` | Autenticación de usuario con emisión de JWT y Refresh Token |
+| `POST` | `/refresh-token` | `Content-Type: application/json` | `refresh_token` | `200 OK` | Rotación criptográfica atómica de tokens de acceso |
+| `POST` | `/logout` | `Authorization: Bearer <jwt>` | `refresh_token` | `200 OK` | Revocación e invalidación de tokens en base de datos |
+| `POST` | `/scan-identity` | `multipart/form-data` | `document_photo` (Archivo PNG/JPG) | `200 OK` | Extracción de datos de la cédula mediante visión artificial |
+| `POST` | `/forgot-password` | `Content-Type: application/json` | `email` | `200 OK` | Generación y envío por correo de código OTP de 6 dígitos |
+| `POST` | `/reset-password` | `Content-Type: application/json` | `email`, `token` (OTP), `password` | `200 OK` | Restablecimiento de contraseña e invalidación de sesiones |
+| `GET` | `/me` | `Authorization: Bearer <jwt>` | Ninguno | `200 OK` | Consulta de perfil del usuario logueado con roles y permisos |
+
+#### Módulo 3: Perfil de Usuario y Direcciones Favoritas (Users & Addresses)
+| Método | Endpoint | Cabeceras | Parámetros / Body | Respuesta Exitosa | Descripción |
+|---|---|---|---|:---:|---|
+| `POST` | `/users/avatar` o `/profile/avatar` | `Authorization: Bearer <jwt>` | `avatar` (Multipart imagen JPG/PNG) | `200 OK` | Actualización de foto de perfil con sanitización EXIF |
+| `GET` | `/addresses` | `Authorization: Bearer <jwt>` | Ninguno | `200 OK` | Listado de direcciones y ubicaciones favoritas guardadas |
+| `POST` | `/addresses` | `Authorization: Bearer <jwt>` | `name`, `address`, `latitude`, `longitude`, `is_favorite` | `201 Created` | Guardado de nueva dirección frecuente con coordenadas GPS |
+| `DELETE` | `/addresses/{id}` | `Authorization: Bearer <jwt>` | `id` (entero en URL) | `200 OK` | Eliminación de dirección guardada |
+
+#### Módulo 4: Gestión de Expedientes KYC y Documentos (Documents)
+| Método | Endpoint | Cabeceras | Parámetros / Body | Respuesta Exitosa | Descripción |
+|---|---|---|---|:---:|---|
+| `POST` | `/documents/upload` | `Authorization: Bearer <jwt>` | `type` (`identity_card`\|`driver_license`\|`vehicle_registration`), `document` (Multipart) | `201 Created` | Carga de documento probatorio para verificación de identidad |
+| `GET` | `/documents/kyc-status` | `Authorization: Bearer <jwt>` | Ninguno | `200 OK` | Estado general de la cuenta (`VERIFIED`, `PENDING`, `REJECTED`) |
+| `POST` | `/vehicles/scan` | `Authorization: Bearer <jwt>` | `document` (Multipart: foto carnet INTT) | `200 OK` | Escaneo y extracción OCR de datos del vehículo |
+
+#### Módulo 5: Catálogo Vehicular y Vehículos de Usuario (Vehicles)
+| Método | Endpoint | Cabeceras | Parámetros / Body | Respuesta Exitosa | Descripción |
+|---|---|---|---|:---:|---|
+| `GET` | `/vehicles/catalog/classes` | Ninguna | Ninguno | `200 OK` | 17 clases vehiculares maestras (Automóvil, Camión, Grúa...) |
+| `GET` | `/vehicles/catalog/subclasses`| Ninguna | `class_id` (Opcional) | `200 OK` | 147 subclases o tipos de carrocería (Sedán, Pick-up...) |
+| `GET` | `/vehicles/catalog/brands` | Ninguna | Ninguno | `200 OK` | 612 marcas de vehículos homologadas |
+| `GET` | `/vehicles/catalog/models` | Ninguna | `brand_id` (Query param) | `200 OK` | 5.413 modelos tipados asociados a su clase y carrocería |
+| `GET` | `/vehicles` | `Authorization: Bearer <jwt>` | Ninguno | `200 OK` | Lista de vehículos activos pertenecientes al cliente |
+| `GET` | `/vehicles/{id}` | `Authorization: Bearer <jwt>` | `id` (UUID en URL) | `200 OK` | Información detallada de un vehículo |
+| `POST` | `/vehicles` | `Authorization: Bearer <jwt>` | `vehicle_model_id`, `license_plate`, `year`, `color`, `vin` | `201 Created` | Registro formal de un nuevo vehículo |
+| `DELETE` | `/vehicles/{id}` | `Authorization: Bearer <jwt>` | `id` (UUID en URL) | `200 OK` | Soft-delete del vehículo (marcado en `deleted_at`) |
+
+#### Módulo 6: Catálogos Comerciales y Financieros (Plans, Banks & Rates)
+| Método | Endpoint | Cabeceras | Parámetros / Body | Respuesta Exitosa | Descripción |
+|---|---|---|---|:---:|---|
+| `GET` | `/plans` | Ninguna | Ninguno | `200 OK` | Planes de suscripción vigentes, coberturas y tarifas en USD |
+| `GET` | `/banks` | Ninguna | Ninguno | `200 OK` | 23 instituciones bancarias nacionales autorizadas por Sudeban |
+| `GET` | `/exchange-rates` | Ninguna | `currency` (opcional, default: USD) | `200 OK` | Tasa de cambio oficial del BCV en tiempo real |
+
+#### Módulo 7: Contratos de Asistencia y Pólizas (Contracts)
+| Método | Endpoint | Cabeceras | Parámetros / Body | Respuesta Exitosa | Descripción |
+|---|---|---|---|:---:|---|
+| `GET` | `/contracts/verify/{code}` | Ninguna (Pública) | `code` (String alfanumérico en URL) | `200 OK` | Verificación pública instantánea del estado de una póliza |
+| `GET` | `/contracts/{id}/pdf` | Opcional | `id` (UUID del contrato en URL) | `200 OK` | Descarga de carátula de póliza oficial en PDF con código QR |
+| `POST` | `/checkout` o `/contracts/checkout` | `Authorization: Bearer <jwt>` | `plan_id`, `vehicle_id` | `201 Created` | Creación de intención de compra y orden de facturación |
+| `GET` | `/contracts` | `Authorization: Bearer <jwt>` | Ninguno | `200 OK` | Consulta de pólizas y contratos vigentes del usuario |
+| `POST` | `/contracts/{id}/renew` | `Authorization: Bearer <jwt>` | `id` (UUID en URL) | `201 Created` | Renovación de contrato generando nueva orden de cobro |
+| `POST` | `/contracts/{id}/redeem` | `Authorization: Bearer <jwt>` | `id` (UUID en URL) | `200 OK` | Canje de servicio de grúa de la cobertura del contrato |
+| `POST` | `/contracts/{id}/cancel` | `Authorization: Bearer <jwt>` | `id` (UUID en URL), `reason` | `200 OK` | Cancelación voluntaria del contrato |
+
+#### Módulo 8: Pasarela de Pagos y Órdenes (Payments)
+| Método | Endpoint | Cabeceras | Parámetros / Body | Respuesta Exitosa | Descripción |
+|---|---|---|---|:---:|---|
+| `GET` | `/orders` | `Authorization: Bearer <jwt>` | Ninguno | `200 OK` | Listado de órdenes de pago del usuario y su estado (`PAID` / `PENDING`) |
+| `POST` | `/payments/process` | `Authorization: Bearer <jwt>` | C2P: `order_number`, `payment_method: 'c2p'`, `bank_code`, `phone`, `customer_id`, `otp`<br>Pago Móvil: `order_number`, `payment_method: 'pago_movil'`, `reference`, `identificadorPersona`, `date`, `amount` | `200 OK` | Conciliación bancaria síncrona contra Bancaribe |
+
+#### Módulo 9: Asistencia Vial SOS, Radar y WebSockets (Towing & Pusher)
+| Método | Endpoint | Cabeceras | Parámetros / Body | Respuesta Exitosa | Descripción |
+|---|---|---|---|:---:|---|
+| `POST` | `/broadcasting/auth` | `Authorization: Bearer <jwt>` | `channel_name` (ej. `private-tow-{uuid}`), `socket_id` | `200 OK` | Firma HMAC-SHA256 para autorizar conexión a canales privados Pusher |
+| `POST` | `/sos/quote` | `Authorization: Bearer <jwt>` | `pickup_latitude`, `pickup_longitude`, `destination_latitude`, `destination_longitude` | `200 OK` | Cotización de servicio de remolque con distancia calculada |
+| `POST` | `/sos` | `Authorization: Bearer <jwt>` | `vehicle_id`, `breakdown_type`, `pickup_latitude`, `pickup_longitude`, `pickup_address`, `destination_latitude` (opcional), `destination_longitude` (opcional) | `201 Created` | Emisión de auxilio vial. Dispara broadcast a `private-cranes-radar` |
+| `GET` | `/sos/radar` o `/radar` | `Authorization: Bearer <jwt>` (`role:driver`) | `lat`, `lng`, `radius_km` (opcional) | `200 OK` | Búsqueda geolocalizada de solicitudes SOS pendientes |
+| `GET` | `/sos/active` | `Authorization: Bearer <jwt>` | Ninguno | `200 OK` | Recuperación del servicio SOS activo del cliente en curso |
+| `GET` | `/sos/cancellation-reasons` | `Authorization: Bearer <jwt>` | Ninguno | `200 OK` | Catálogo de motivos válidos para cancelar una asistencia |
+| `GET` | `/sos/history` o `/sos` | `Authorization: Bearer <jwt>` | Ninguno | `200 OK` | Historial paginado de servicios de rescate realizados |
+| `GET` | `/sos/{uuid}` | `Authorization: Bearer <jwt>` | `uuid` (en URL) | `200 OK` | Información y estado en tiempo real de una asistencia vial |
+| `POST` | `/sos/{uuid}/accept` | `Authorization: Bearer <jwt>` (`role:driver`) | `uuid` (en URL) | `200 OK` | Chofer acepta la solicitud. Dispara `tow_service_accepted` |
+| `POST` / `PUT` | `/sos/{uuid}/telemetry` | `Authorization: Bearer <jwt>` (`role:driver`) | `lat`, `lng`, `speed_kmh`, `heading` | `200 OK` | Publica posición GPS en tiempo real por el canal `private-tow-{uuid}` |
+| `POST` | `/sos/{uuid}/arrive` | `Authorization: Bearer <jwt>` (`role:driver`) | `uuid` (en URL) | `200 OK` | Notifica arribo al sitio de avería. Dispara `tow_service_arrived` |
+| `POST` | `/sos/{uuid}/complete` | `Authorization: Bearer <jwt>` (`role:driver`) | `uuid` (en URL) | `200 OK` | Concluye el remolque y libera la grúa. Dispara `tow_service_completed` |
+| `POST` | `/sos/{uuid}/cancel` | `Authorization: Bearer <jwt>` | `uuid` (en URL), `reason` | `200 OK` | Cancela el auxilio vial. Dispara `tow_service_cancelled` |
+| `POST` | `/sos/{uuid}/rate` | `Authorization: Bearer <jwt>` | `uuid` (en URL), `rating` (1 a 5), `comment` | `200 OK` | Calificación de satisfacción y reseña del cliente |
+
+#### Módulo 10: Flota de Operadores y Grueros (Driver)
+| Método | Endpoint | Cabeceras | Parámetros / Body | Respuesta Exitosa | Descripción |
+|---|---|---|---|:---:|---|
+| `POST` | `/driver/cranes` | `Authorization: Bearer <jwt>` (`role:driver`) | `plate_number`, `niv`, `year`, `color`, `brand`, `model` | `201 Created` | Registro de una unidad de grúa en la flota del conductor |
+| `GET` | `/driver/cranes` | `Authorization: Bearer <jwt>` (`role:driver`) | Ninguno | `200 OK` | Listado de grúas registradas por el operador |
+| `POST` | `/driver/cranes/{id}/activate` | `Authorization: Bearer <jwt>` (`role:driver`) | `id` (UUID en URL) | `200 OK` | Activa la grúa indicada y desactiva cualquier otra (Invariante: 1 grúa activa) |
+| `GET` | `/driver/shift/current` | `Authorization: Bearer <jwt>` (`role:driver`) | Ninguno | `200 OK` | Estado del turno de guardia actual y grúa asignada |
+| `POST` | `/driver/shift/start` | `Authorization: Bearer <jwt>` (`role:driver`) | `crane_id`, `latitude`, `longitude` | `200 OK` | Apertura de turno operativo. Habilita visibilidad en el radar |
+| `POST` | `/driver/shift/end` | `Authorization: Bearer <jwt>` (`role:driver`) | Ninguno | `200 OK` | Cierre de turno de guardia (bloqueado si hay un SOS en curso) |
+| `POST` | `/driver/location` | `Authorization: Bearer <jwt>` (`role:driver`) | `latitude`, `longitude` | `200 OK` | Actualización de posición de guardia del chofer |
+| `POST` | `/driver/license` | `Authorization: Bearer <jwt>` (`role:driver`) | `license` (Multipart imagen de licencia) | `201 Created` | Carga de licencia de conducir para validación de aptitud |
+| `GET` | `/driver/status` | `Authorization: Bearer <jwt>` (`role:driver`) | Ninguno | `200 OK` | Estado operativo del chofer y verificación documental |
+
+#### Módulo 11: Red Comercial de Vendedoras B2B (Seller)
+| Método | Endpoint | Cabeceras | Parámetros / Body | Respuesta Exitosa | Descripción |
+|---|---|---|---|:---:|---|
+| `GET` | `/seller/profile` | `Authorization: Bearer <jwt>` (`seller`) | Ninguno | `200 OK` | Datos de la vendedora, código promotor y tasa de comisión |
+| `POST` / `PUT` | `/seller/bank-account` | `Authorization: Bearer <jwt>` (`seller`) | `bank_id`, `account_number`, `phone`, `identification_card` | `200 OK` | Registro de cuenta bancaria nacional para liquidación de comisiones |
+| `GET` | `/seller/commissions` | `Authorization: Bearer <jwt>` (`seller`) | Ninguno | `200 OK` | Consulta de comisiones acumuladas, solicitadas y cobradas |
+| `POST` | `/seller/commissions/withdraw` | `Authorization: Bearer <jwt>` (`seller`) | Ninguno | `200 OK` | Solicitud formal de cobro de comisiones pendientes |
+| `GET` | `/seller/clients/search` | `Authorization: Bearer <jwt>` (`seller`) | `identification_card` | `200 OK` | Búsqueda indexada en Redis de clientes por cédula |
+| `POST` | `/seller/clients` | `Authorization: Bearer <jwt>` (`seller`) | `email`, `phone`, `identification_card`, `names`, `surnames`, `birth_date` | `201 Created` | Registro directo de un nuevo cliente prospecto |
+| `POST` | `/seller/vehicles` | `Authorization: Bearer <jwt>` (`seller`) | `client_id`, `vehicle_model_id`, `license_plate`, `year`, `color`, `vin` | `201 Created` | Registro del vehículo del cliente captado |
+| `POST` | `/seller/contracts` | `Authorization: Bearer <jwt>` (`seller`) | `client_id`, `vehicle_id`, `plan_id` | `201 Created` | Emisión de póliza comercial asignada a la vendedora |
+| `GET` | `/seller/contracts` | `Authorization: Bearer <jwt>` (`seller`) | Ninguno | `200 OK` | Cartera de contratos vendidos por la promotora |
+| `POST` | `/seller/contracts/{id}/renew` | `Authorization: Bearer <jwt>` (`seller`) | `id` (UUID en URL) | `201 Created` | Renovación comercial de contrato de cartera |
+
+#### Módulo 12: Administración, Auditoría y Control (Admin)
+| Método | Endpoint | Cabeceras | Parámetros / Body | Respuesta Exitosa | Descripción |
+|---|---|---|---|:---:|---|
+| `POST` | `/admin/users/{id}/suspend` | `Authorization: Bearer <jwt>` (`role:admin`) | `id` (entero en URL), `reason` | `200 OK` | Suspensión cautelar de usuario (Soft-delete e invalidación JWT) |
+| `POST` | `/admin/users/{id}/activate` | `Authorization: Bearer <jwt>` (`role:admin`) | `id` (entero en URL) | `200 OK` | Reactivación inmediata de cuenta de usuario |
+| `GET` | `/admin/home-gallery` | `Authorization: Bearer <jwt>` (`role:admin`) | Ninguno | `200 OK` | Listado administrativo de banners de la landing page |
+| `POST` | `/admin/home-gallery` | `Authorization: Bearer <jwt>` (`role:admin`) | `title`, `description`, `image_url`, `order_index`, `is_active` | `201 Created` | Creación de nuevo banner promocional |
+| `PUT` | `/admin/home-gallery/{id}` | `Authorization: Bearer <jwt>` (`role:admin`) | `id` (entero en URL), datos modificados | `200 OK` | Actualización de banner existente |
+| `DELETE`| `/admin/home-gallery/{id}` | `Authorization: Bearer <jwt>` (`role:admin`) | `id` (entero en URL) | `200 OK` | Eliminación de banner promocional |
+| `GET` | `/admin/documents` | `Authorization: Bearer <jwt>` (`permission:audit_kyc`) | `status` (opcional: `PENDING`, `VERIFIED`, `REJECTED`) | `200 OK` | Bandeja de auditoría de documentos de identidad y licencias |
+| `POST` | `/admin/documents/{id}/review` | `Authorization: Bearer <jwt>` (`permission:audit_kyc`) | `id` (entero en URL), `decision` (`APPROVED`\|`REJECTED`), `notes` | `200 OK` | Aprobación o rechazo administrativo con retroalimentación |
+| `POST` | `/plans` | `Authorization: Bearer <jwt>` (`permission:manage_catalog`) | `name`, `price_usd`, `duration_months`, `max_services`, `max_km_per_service` | `201 Created` | Creación de nuevo plan de asistencia |
+| `PUT` | `/plans/{id}` | `Authorization: Bearer <jwt>` (`permission:manage_catalog`) | `id` (entero en URL), campos a actualizar | `200 OK` | Modificación de condiciones de planes existentes |
+| `DELETE`| `/plans/{id}` | `Authorization: Bearer <jwt>` (`permission:manage_catalog`) | `id` (entero en URL) | `200 OK` | Desactivación de planes comerciales |
+| `POST` | `/exchange-rates/sync` | `Authorization: Bearer <jwt>` (`role:admin`) | Ninguno | `200 OK` | Sincronización forzada con el servicio de tasas del BCV |
+| `GET` | `/admin/bank/balances` | `Authorization: Bearer <jwt>` (`role:admin`) | Ninguno | `200 OK` | Consulta consolidada de saldos bancarios de la compañía |
+| `GET` | `/admin/integrations/logs` | `Authorization: Bearer <jwt>` (`role:admin`) | `gateway` (opcional), `limit` | `200 OK` | Auditoría de llamadas e intercambios HTTP con terceros |
+| `POST` | `/admin/contracts/expire-overdue` | `Authorization: Bearer <jwt>` (`role:admin`) | Ninguno | `200 OK` | Depuración y expiración en bloque de pólizas vencidas |
+| `GET` | `/admin/commissions` | `Authorization: Bearer <jwt>` (`role:admin`) | `status` (opcional) | `200 OK` | Listado maestro de comisiones y solicitudes de retiro |
+| `POST` | `/admin/commissions/{id}/pay` | `Authorization: Bearer <jwt>` (`role:admin`) | `id` (entero en URL), `payment_reference` | `200 OK` | Liquidación formal del pago de comisiones a la vendedora |
+| `PUT` | `/admin/sellers/{id}/commission-rate` | `Authorization: Bearer <jwt>` (`role:admin`) | `id` (entero en URL), `commission_rate` (float) | `200 OK` | Configuración del porcentaje de comisión por promotora |
+
+#### Módulo 13: Webhooks Asíncronos de Terceros (Webhooks)
+| Método | Endpoint | Cabeceras | Parámetros / Body | Respuesta Exitosa | Descripción |
+|---|---|---|---|:---:|---|
+| `POST` | `/webhooks/bancaribe` | `X-Signature` Bancaribe | Payload JSON de notificación de débito | `200 OK` | Notificación asíncrona de pagos bancarios C2P / Pago Móvil |
+| `POST` | `/webhooks/pusher` | `X-Pusher-Key`, `X-Pusher-Signature` | Eventos de presencia (`channel_occupied`, `channel_vacated`) | `200 OK` | Notificación de canales activos y desconexión de choferes |
+
