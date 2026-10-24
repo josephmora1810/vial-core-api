@@ -2,48 +2,54 @@
 
 namespace Tests\Unit\Application\UseCases;
 
-use App\Application\Commissions\UseCases\GenerateOrderCommission;
-use App\Application\Commissions\UseCases\ListAdminCommissions;
-use App\Application\Commissions\UseCases\ListSellerCommissions;
-use App\Application\Commissions\UseCases\ManageSellerBankAccount;
-use App\Application\Commissions\UseCases\PayCommissionByAdmin;
-use App\Application\Commissions\UseCases\RequestCommissionWithdrawal;
-use App\Application\Commissions\UseCases\UpdateSellerCommissionRate;
-use App\Application\Payments\UseCases\HandleBancaribeWebhook;
-use App\Application\Payments\UseCases\ProcessPayment;
-use App\Domain\Commissions\Entities\Commission;
-use App\Domain\Commissions\Entities\SellerProfile;
-use App\Domain\Commissions\Enums\CommissionStatus;
-use App\Domain\Contracts\Entities\Plan;
-use App\Domain\Contracts\Entities\ServiceContract;
-use App\Domain\Contracts\Enums\ContractStatus;
-use App\Domain\Payments\Entities\Order;
-use App\Domain\Payments\Enums\OrderableType;
-use App\Domain\Payments\Enums\OrderStatus;
-use App\Domain\Shared\ValueObjects\Uuid;
+use App\Application\Commissions\UseCases\{
+    GenerateOrderCommission,
+    ListAdminCommissions,
+    ListSellerCommissions,
+    ManageSellerBankAccount,
+    PayCommissionByAdmin,
+    RequestCommissionWithdrawal,
+    UpdateSellerCommissionRate
+};
+use App\Application\Payments\UseCases\{
+    HandleBancaribeWebhook,
+    ProcessPayment
+};
 use App\Domain\Auth\ValueObjects\Password;
-use App\Domain\Shared\ValueObjects\Money;
+use App\Domain\Commissions\{
+    Entities\Commission,
+    Entities\SellerProfile,
+    Enums\CommissionStatus
+};
+use App\Domain\Contracts\{
+    Entities\Plan,
+    Entities\ServiceContract,
+    Enums\ContractStatus
+};
+use App\Domain\Payments\{
+    Entities\Order,
+    Enums\OrderableType,
+    Enums\OrderStatus
+};
+use App\Domain\Shared\ValueObjects\{Money, Uuid};
 use App\Domain\Users\Entities\User;
-use App\Domain\Users\ValueObjects\BirthDate;
-use App\Domain\Users\ValueObjects\Email;
-use App\Domain\Users\ValueObjects\Names;
-use App\Domain\Users\ValueObjects\NationalId;
-use App\Domain\Users\ValueObjects\Phone;
-use App\Domain\Users\ValueObjects\Surnames;
+use App\Domain\Users\ValueObjects\{BirthDate, Email, Names, NationalId, Phone, Surnames};
 use DateTimeImmutable;
 use DomainException;
 use Exception;
 use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;
-use Tests\Doubles\FakeExchangeRateService;
-use Tests\Doubles\FakePaymentGateway;
-use Tests\Doubles\InMemoryCommissionRepository;
-use Tests\Doubles\InMemoryOrderRepository;
-use Tests\Doubles\InMemoryPaymentRepository;
-use Tests\Doubles\InMemoryPlanRepository;
-use Tests\Doubles\InMemorySellerProfileRepository;
-use Tests\Doubles\InMemoryServiceContractRepository;
-use Tests\Doubles\InMemoryUserRepository;
+use Tests\Doubles\{
+    FakeExchangeRateService,
+    FakePaymentGateway,
+    InMemoryCommissionRepository,
+    InMemoryOrderRepository,
+    InMemoryPaymentRepository,
+    InMemoryPlanRepository,
+    InMemorySellerProfileRepository,
+    InMemoryServiceContractRepository,
+    InMemoryUserRepository
+};
 
 class SellerCommissionAndWalletTest extends TestCase
 {

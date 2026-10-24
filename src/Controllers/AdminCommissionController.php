@@ -2,11 +2,17 @@
 
 namespace App\Controllers;
 
-use App\Application\Commissions\UseCases\ListAdminCommissions;
-use App\Application\Commissions\UseCases\PayCommissionByAdmin;
-use App\Application\Commissions\UseCases\UpdateSellerCommissionRate;
-use App\Core\Request;
-use App\Core\Response;
+use App\Application\Commissions\DTOs\{
+    AdminCommissionsSummaryResponseDto,
+    CommissionResponseDto,
+    SellerProfileResponseDto
+};
+use App\Application\Commissions\UseCases\{
+    ListAdminCommissions,
+    PayCommissionByAdmin,
+    UpdateSellerCommissionRate
+};
+use App\Core\{Request, Response};
 use App\Domain\Users\Entities\User;
 use Exception;
 use InvalidArgumentException;
@@ -45,8 +51,14 @@ class AdminCommissionController
                 offset: $offset
             );
 
+            $dto = AdminCommissionsSummaryResponseDto::create(
+                summary: $result['summary'],
+                pagination: $result['pagination'],
+                commissions: $result['commissions']
+            );
+
             Response::json(
-                $result,
+                $dto->toArray(),
                 200,
                 'success',
                 'Listado de comisiones y balance de billeteras consultado exitosamente.'
@@ -88,7 +100,7 @@ class AdminCommissionController
             $commission = $this->payCommissionByAdmin->execute($commissionId, $reference);
 
             Response::json(
-                $commission->toArray(),
+                CommissionResponseDto::fromEntity($commission)->toArray(),
                 200,
                 'success',
                 "Comisión #{$commissionId} liquidada y marcada como PAID exitosamente."
@@ -133,7 +145,7 @@ class AdminCommissionController
             $profile = $this->updateSellerCommissionRate->execute($sellerId, $rate);
 
             Response::json(
-                $profile->toArray(),
+                SellerProfileResponseDto::fromEntity($profile)->toArray(),
                 200,
                 'success',
                 "Porcentaje de comisión para el vendedor #{$sellerId} actualizado a {$profile->getCommissionRate()}%."

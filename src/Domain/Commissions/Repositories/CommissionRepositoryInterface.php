@@ -2,8 +2,10 @@
 
 namespace App\Domain\Commissions\Repositories;
 
-use App\Domain\Commissions\Entities\Commission;
-use App\Domain\Commissions\Enums\CommissionStatus;
+use App\Domain\Commissions\{
+    Entities\Commission,
+    Enums\CommissionStatus
+};
 
 interface CommissionRepositoryInterface
 {

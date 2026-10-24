@@ -2,10 +2,12 @@
 
 namespace App\Application\Commissions\UseCases;
 
-use App\Domain\Commissions\Entities\Commission;
-use App\Domain\Commissions\Enums\CommissionStatus;
-use App\Domain\Commissions\Repositories\CommissionRepositoryInterface;
-use App\Domain\Commissions\Repositories\SellerProfileRepositoryInterface;
+use App\Domain\Commissions\{
+    Entities\Commission,
+    Enums\CommissionStatus,
+    Repositories\CommissionRepositoryInterface,
+    Repositories\SellerProfileRepositoryInterface
+};
 use Exception;
 
 class RequestCommissionWithdrawal

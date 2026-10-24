@@ -2,8 +2,10 @@
 
 namespace App\Application\Commissions\UseCases;
 
-use App\Domain\Commissions\Entities\SellerProfile;
-use App\Domain\Commissions\Repositories\SellerProfileRepositoryInterface;
+use App\Domain\Commissions\{
+    Entities\SellerProfile,
+    Repositories\SellerProfileRepositoryInterface
+};
 use App\Domain\Users\Repositories\UserRepositoryInterface;
 use Exception;
 use InvalidArgumentException;

@@ -494,6 +494,353 @@ components:
           type: string
           example: 2026-10-22 23:15:00
 
+    CommissionResponseDto:
+      type: object
+      required:
+        - id
+        - seller_id
+        - order_id
+        - amount_usd
+        - percentage
+        - status
+      properties:
+        id:
+          type: integer
+          example: 101
+        seller_id:
+          type: integer
+          example: 12
+        order_id:
+          type: integer
+          example: 450
+        amount_usd:
+          type: number
+          format: float
+          example: 15.00
+        percentage:
+          type: number
+          format: float
+          example: 10.00
+        status:
+          type: string
+          enum: [PENDING, WITHDRAWAL_REQUESTED, PAID, CANCELLED]
+          example: PENDING
+        payment_reference:
+          type: string
+          nullable: true
+          example: REF-BANCARIBE-998877
+        paid_at:
+          type: string
+          nullable: true
+          example: 2026-10-23 15:30:00
+        created_at:
+          type: string
+          nullable: true
+          example: 2026-10-23 10:15:00
+        updated_at:
+          type: string
+          nullable: true
+          example: 2026-10-23 15:30:00
+        seller:
+          type: object
+          nullable: true
+          properties:
+            id:
+              type: integer
+              example: 12
+            uuid:
+              type: string
+              format: uuid
+              example: 0192b0c1-3456-7890-abcd-ef0123456789
+            names:
+              type: string
+              example: MARÍA
+            surnames:
+              type: string
+              example: PÉREZ
+            email:
+              type: string
+              format: email
+              example: maria.perez@ubikgo.com
+            identification_card:
+              type: string
+              example: V-18765432
+            phone:
+              type: string
+              example: "+584141234567"
+        seller_bank:
+          type: object
+          nullable: true
+          properties:
+            bank_id:
+              type: integer
+              example: 1
+            bank_code:
+              type: string
+              example: "0102"
+            bank_name:
+              type: string
+              example: Banco de Venezuela
+            account_number:
+              type: string
+              example: "01020123456789012345"
+            account_type:
+              type: string
+              enum: [CORRIENTE, AHORRO]
+              example: CORRIENTE
+            holder_name:
+              type: string
+              example: MARÍA PÉREZ
+            holder_id:
+              type: string
+              example: V-18765432
+            phone:
+              type: string
+              example: "04141234567"
+        order:
+          type: object
+          nullable: true
+          properties:
+            id:
+              type: integer
+              example: 450
+            order_number:
+              type: string
+              example: ORD-20261023-450
+            amount_usd:
+              type: number
+              format: float
+              example: 150.00
+            currency:
+              type: string
+              example: USD
+            status:
+              type: string
+              example: PAID
+
+    SellerProfileResponseDto:
+      type: object
+      required:
+        - user_id
+        - commission_rate
+        - has_bank_details
+      properties:
+        user_id:
+          type: integer
+          example: 12
+        commission_rate:
+          type: number
+          format: float
+          example: 10.00
+        bank_id:
+          type: integer
+          nullable: true
+          example: 1
+        account_number:
+          type: string
+          nullable: true
+          example: "01020123456789012345"
+        account_type:
+          type: string
+          enum: [CORRIENTE, AHORRO]
+          example: CORRIENTE
+        account_holder_name:
+          type: string
+          nullable: true
+          example: MARÍA PÉREZ
+        account_holder_id:
+          type: string
+          nullable: true
+          example: V-18765432
+        phone_pago_movil:
+          type: string
+          nullable: true
+          example: "04141234567"
+        has_bank_details:
+          type: boolean
+          example: true
+        created_at:
+          type: string
+          nullable: true
+          example: 2026-10-23 08:00:00
+        updated_at:
+          type: string
+          nullable: true
+          example: 2026-10-23 09:30:00
+
+    CommissionWithdrawalResponseDto:
+      type: object
+      required:
+        - requested_amount_usd
+        - commissions_count
+        - commissions
+        - bank_details
+      properties:
+        requested_amount_usd:
+          type: number
+          format: float
+          example: 45.00
+        commissions_count:
+          type: integer
+          example: 3
+        commissions:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+                example: 101
+              order_id:
+                type: integer
+                example: 450
+              amount_usd:
+                type: number
+                format: float
+                example: 15.00
+              status:
+                type: string
+                example: WITHDRAWAL_REQUESTED
+        bank_details:
+          type: object
+          properties:
+            bank_id:
+              type: integer
+              example: 1
+            bank_code:
+              type: string
+              example: "0102"
+            bank_name:
+              type: string
+              example: Banco de Venezuela
+            account_number:
+              type: string
+              example: "01020123456789012345"
+            account_type:
+              type: string
+              example: CORRIENTE
+            holder_name:
+              type: string
+              example: MARÍA PÉREZ
+            holder_id:
+              type: string
+              example: V-18765432
+            phone:
+              type: string
+              example: "04141234567"
+
+    SellerCommissionsSummaryResponseDto:
+      type: object
+      required:
+        - wallet
+        - seller_profile
+        - commissions
+      properties:
+        wallet:
+          type: object
+          properties:
+            total_earned_usd:
+              type: number
+              format: float
+              example: 150.00
+            pending_balance_usd:
+              type: number
+              format: float
+              example: 45.00
+            withdrawal_requested_balance_usd:
+              type: number
+              format: float
+              example: 30.00
+            paid_balance_usd:
+              type: number
+              format: float
+              example: 75.00
+        seller_profile:
+          type: object
+          properties:
+            commission_rate:
+              type: number
+              format: float
+              example: 10.00
+            has_bank_details:
+              type: boolean
+              example: true
+        bank:
+          type: object
+          nullable: true
+          properties:
+            bank_id:
+              type: integer
+              example: 1
+            bank_code:
+              type: string
+              example: "0102"
+            bank_name:
+              type: string
+              example: Banco de Venezuela
+            account_number:
+              type: string
+              example: "01020123456789012345"
+            account_type:
+              type: string
+              example: CORRIENTE
+            holder_name:
+              type: string
+              example: MARÍA PÉREZ
+            holder_id:
+              type: string
+              example: V-18765432
+            phone:
+              type: string
+              example: "04141234567"
+        commissions:
+          type: array
+          items:
+            $ref: '#/components/schemas/CommissionResponseDto'
+
+    AdminCommissionsSummaryResponseDto:
+      type: object
+      required:
+        - summary
+        - pagination
+        - commissions
+      properties:
+        summary:
+          type: object
+          properties:
+            total_commissions_usd:
+              type: number
+              format: float
+              example: 1250.00
+            total_pending_usd:
+              type: number
+              format: float
+              example: 320.00
+            total_requested_usd:
+              type: number
+              format: float
+              example: 150.00
+            total_paid_usd:
+              type: number
+              format: float
+              example: 780.00
+        pagination:
+          type: object
+          properties:
+            total:
+              type: integer
+              example: 42
+            limit:
+              type: integer
+              example: 50
+            offset:
+              type: integer
+              example: 0
+        commissions:
+          type: array
+          items:
+            $ref: '#/components/schemas/CommissionResponseDto'
+
 paths:
   # ==========================================
   # SISTEMA
@@ -3096,6 +3443,58 @@ paths:
       responses:
         '200':
           description: Perfil comercial consultado exitosamente
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - properties:
+                      data:
+                        type: object
+                        properties:
+                          seller:
+                            type: object
+                            properties:
+                              id:
+                                type: integer
+                                example: 12
+                              uuid:
+                                type: string
+                                format: uuid
+                                example: 0192b0c1-3456-7890-abcd-ef0123456789
+                              name:
+                                type: string
+                                example: MARÍA PÉREZ
+                              identification_card:
+                                type: string
+                                example: V-18765432
+                              email:
+                                type: string
+                                example: maria.perez@ubikgo.com
+                              phone:
+                                type: string
+                                example: "+584141234567"
+                          profile:
+                            $ref: '#/components/schemas/SellerProfileResponseDto'
+                          bank:
+                            type: object
+                            nullable: true
+                            properties:
+                              id:
+                                type: integer
+                                example: 1
+                              code:
+                                type: string
+                                example: "0102"
+                              name:
+                                type: string
+                                example: Banco de Venezuela
+        '401':
+          description: No autenticado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
   /seller/bank-account:
     post:
@@ -3143,8 +3542,26 @@ paths:
       responses:
         '200':
           description: Datos bancarios registrados exitosamente
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/SellerProfileResponseDto'
+        '401':
+          description: No autenticado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '422':
           description: Error de validación en la cuenta bancaria o discrepancia con Sudeban
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
     put:
       summary: Actualizar Cuenta Bancaria Nacional (Seller)
@@ -3158,6 +3575,26 @@ paths:
       responses:
         '200':
           description: Datos bancarios actualizados exitosamente
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/SellerProfileResponseDto'
+        '401':
+          description: No autenticado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Error de validación en los datos bancarios
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
   /seller/commissions:
     get:
@@ -3179,6 +3616,26 @@ paths:
       responses:
         '200':
           description: Historial de comisiones y billetera comercial consultado exitosamente
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/SellerCommissionsSummaryResponseDto'
+        '401':
+          description: No autenticado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Filtro de estado no válido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
   /seller/commissions/withdraw:
     post:
@@ -3206,8 +3663,26 @@ paths:
       responses:
         '200':
           description: Solicitud de retiro procesada exitosamente
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/CommissionWithdrawalResponseDto'
+        '401':
+          description: No autenticado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '422':
           description: Datos bancarios incompletos o saldo pendiente insuficiente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
   # ==========================================
   # ADMINISTRACIÓN DE COMISIONES B2B
@@ -3246,6 +3721,26 @@ paths:
       responses:
         '200':
           description: Listado de comisiones consultado exitosamente
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/AdminCommissionsSummaryResponseDto'
+        '401':
+          description: No autenticado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Requiere rol de administrador
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
   /admin/commissions/{id}/pay:
     post:
@@ -3276,8 +3771,32 @@ paths:
       responses:
         '200':
           description: Comisión liquidada y marcada como PAID exitosamente
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/CommissionResponseDto'
+        '401':
+          description: No autenticado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Requiere rol de administrador
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '422':
           description: Referencia requerida o comisión no liquidable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
   /admin/sellers/{id}/commission-rate:
     put:
@@ -3309,6 +3828,32 @@ paths:
       responses:
         '200':
           description: Porcentaje de comisión actualizado exitosamente
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - properties:
+                      data:
+                        $ref: '#/components/schemas/SellerProfileResponseDto'
+        '401':
+          description: No autenticado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Requiere rol de administrador
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Porcentaje de comisión inválido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
   # ==========================================
   # AUDITORÍA KYC ADMINISTRADOR

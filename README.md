@@ -123,6 +123,43 @@ A continuación se detalla la transcripción completa de los requerimientos func
   - **Aplicación**: `WithdrawCommissions` valida que el vendedor posea una cuenta bancaria nacional Sudeban de 20 dígitos registrada y saldo disponible suficiente. El administrador visualiza las solicitudes y las liquida registrando la referencia de transferencia bancaria (`AdminCommissionController@payCommission`).
   - **Endpoints**: `POST /api/v1/seller/commissions/withdraw`, `GET /api/v1/admin/commissions`, `POST /api/v1/admin/commissions/{id}/pay`.
 
+#### **Módulo B2B de Comisiones y Vendedoras (Arquitectura Limpia & Response DTOs)**
+El módulo de comisiones se encuentra 100% blindado bajo principios **SOLID**, con respuestas tipadas mediante **Response DTOs inmutables**, agrupamiento estructurado de namespaces en imports y cobertura de pruebas unitarias e integradas (MariaDB rollback).
+
+##### **1. Response DTOs del Módulo**
+Todas las respuestas de los controladores retornan DTOs fuertemente tipados antes de la serialización JSON:
+- **`CommissionResponseDto`**: Representa una comisión individual enriquecida con datos del vendedor (`seller`), datos bancarios (`seller_bank`) y de la orden origen (`order`).
+- **`SellerProfileResponseDto`**: Información del perfil comercial de la vendedora (`user_id`, `commission_rate`, `bank_id`, `account_number`, `account_type`, `account_holder_name`, `account_holder_id`, `phone_pago_movil`, `has_bank_details`).
+- **`CommissionWithdrawalResponseDto`**: Resumen de solicitud de retiro (`requested_amount_usd`, `commissions_count`, listado de comisiones en `WITHDRAWAL_REQUESTED`, y copia inmutable de `bank_details`).
+- **`SellerCommissionsSummaryResponseDto`**: Estado de billetera de la vendedora (`pending_balance_usd`, `paid_balance_usd`, `withdrawal_requested_balance_usd`, `total_earned_usd`), perfil, cuenta bancaria e historial filtrado.
+- **`AdminCommissionsSummaryResponseDto`**: Métricas financieras consolidadas para administradores (`total_commissions_usd`, `total_pending_usd`, `total_requested_usd`, `total_paid_usd`), metadatos de paginación (`total`, `limit`, `offset`) y colección de `CommissionResponseDto`.
+
+##### **2. Especificación Detallada de Endpoints**
+
+| Método | Endpoint | Rol / Auth | Descripción | DTO de Respuesta |
+| :--- | :--- | :--- | :--- | :--- |
+| `GET` | `/api/v1/seller/profile` | Bearer (`seller`) | Consulta el perfil comercial de la vendedora, su tasa de comisión activa y sus datos bancarios registrados. | `SellerProfileResponseDto` |
+| `POST` / `PUT` | `/api/v1/seller/bank-account` | Bearer (`seller`) | Registra o actualiza la cuenta bancaria nacional de 20 dígitos validando código Sudeban y titular. | `SellerProfileResponseDto` |
+| `GET` | `/api/v1/seller/commissions` | Bearer (`seller`) | Retorna el balance de la billetera y el historial de comisiones (filtrable por `?status=PENDING\|WITHDRAWAL_REQUESTED\|PAID`). | `SellerCommissionsSummaryResponseDto` |
+| `POST` | `/api/v1/seller/commissions/withdraw` | Bearer (`seller`) | Solicita la liquidación de comisiones pendientes. Valida que existan datos bancarios y saldo. | `CommissionWithdrawalResponseDto` |
+| `GET` | `/api/v1/admin/commissions` | Bearer (`admin`) | Tablero general de comisiones con métricas globales de saldos, filtros por vendedora y paginación. | `AdminCommissionsSummaryResponseDto` |
+| `POST` | `/api/v1/admin/commissions/{id}/pay` | Bearer (`admin`) | Liquida una comisión transfiriendo fondos y registrando la referencia de pago (`payment_reference`). Transiciona a `PAID`. | `CommissionResponseDto` |
+| `PUT` | `/api/v1/admin/sellers/{id}/commission-rate` | Bearer (`admin`) | Configura el porcentaje de comisión pactado con la vendedora (ej. `12.50%`). | `SellerProfileResponseDto` |
+
+##### **3. Ciclo de Vida y Reglas de Negocio de Comisiones**
+```mermaid
+stateDiagram-v2
+    [*] --> PENDING: Orden de Contrato Cobrada (Checkout / C2P)
+    PENDING --> WITHDRAWAL_REQUESTED: Vendedora Solicita Retiro (POST /seller/commissions/withdraw)
+    WITHDRAWAL_REQUESTED --> PAID: Administrador Liquida con Ref. Bancaria (POST /admin/commissions/{id}/pay)
+    PENDING --> CANCELLED: Orden Reversada o Reembolsada
+    WITHDRAWAL_REQUESTED --> CANCELLED: Cancelación Administrativa
+```
+- **Generación Automática**: Caso de uso `GenerateOrderCommission` ejecutado inmediatamente tras conciliar una orden de pago asociada a un `seller_id`.
+- **Validación Bancaria Sudeban**: El número de cuenta debe tener exactamente 20 dígitos, y sus primeros 4 dígitos deben coincidir con el código oficial del banco emisor seleccionado.
+- **Invariante de Retiro**: Una comisión sólo puede retirarse si se encuentra en estado `PENDING` y si el perfil de la vendedora tiene datos bancarios completos (`hasCompleteBankDetails() === true`).
+- **Invariante de Liquidación**: No se puede liquidar una comisión sin proporcionar un código válido de referencia bancaria o si ya ha sido previamente pagada o cancelada.
+
 #### **FR-16: Caché Multimoneda BCV con Guardrails de Seguridad** *(Prioridad: CRÍTICA)*
 * **Definición SRS**: El sistema DEBE almacenar diariamente en Redis la tasa oficial de cambio USD/VES para calcular montos transaccionales en tiempo real.
 * **Implementación en Core API**:
@@ -997,18 +1034,18 @@ Configuration: C:\Users\josep\Documents\vial-core-api\phpunit.xml
 
 Time: 00:34.218, Memory: 44.00 MB
 
-OK (320 tests, 1218 assertions) - 100% Passing (0 errores, 0 fallos, 0 avisos)
+OK (418 tests, 1638 assertions) - 100% Passing (0 errores, 0 fallos, 0 avisos)
 ```
 
 ### 📊 Desglose de Cobertura de la Suite de Pruebas
 
 | Capa Arquitectural | Componentes y Casos Evaluados | Tests / Aserciones |
 | :--- | :--- | :--- |
-| **Dominio y Core** | Entidades de Dominio (`DriverShift`, `TowService`, `Policy`, `AffiliationContract`), Value Objects (`ExtractedVehicleRegistration`, `CancellationReason`, `Uuid`, `Coordinates`, `Plate`, `Price`), Máquinas de Estados y Enums (`TowServiceStatus`, `OrderStatus`, `Role`), Servicios de Dominio (`VehicleMatcherService`, `PushNotificationInterface`). | 78 tests / 310 aserciones |
-| **Casos de Uso de Aplicación** | Reanudación reactiva de sesión SOS (`GetActiveTowService`), DTOs Enriquecidos (Chofer, Grúa, Cliente, Vehículo), Consulta de Turno Actual (`GetCurrentDriverShift`), Historial Paginado (`ListTowServiceHistory`), Pre-Cotización SOS con verificación de radares, Gestión de Turnos y Activación Exclusiva de Grúa, Registro multi-rol, Login JWT, KYC y OCR con La Venezolana, Registro Vehicular 3NF, Emisión de Pólizas, Despacho Dual (Pusher Beams + WebSockets), Hitos de Llegada y Finalización con Broadcasts, Conciliación C2P Bancaribe, Retiro de Comisiones. | 142 tests / 538 aserciones |
-| **Seguridad y Autorización** | Invariante de 1 grúa activa por chofer, Bloqueo de finalización de turno durante servicio activo, Auditoría OWASP API1:2023 (Protección BOLA en `/api/v1/sos/{uuid}`), Bloqueo de Bypass de Pago en SOS Express, Validación de firmas de canales privados Pusher (`/api/v1/broadcasting/auth`), Calificación bidireccional estricta. | 28 tests / 114 aserciones |
-| **Infraestructura y Adaptadores** | `MariaDbDriverShiftRepository`, `PusherBeamsService` (FCM + APNs push gateway), `MariaDbUserRepository`, `MariaDbTowServiceRepository`, `MariaDbVehicleRepository`, `CachedVehicleCatalogRepository`, Motor de Migraciones MariaDB, `RedisRateLimiter`, `PusherBroadcaster`, `BancaribePaymentGateway`, `S3DocumentUploader`, `SmtpEmailDispatcher`. | 72 tests / 256 aserciones |
-| **Total General** | **Batería Automatizada Completa** | **320 tests / 1218 aserciones (100% OK)** |
+| **Dominio y Core** | Entidades de Dominio (`Commission`, `SellerProfile`, `DriverShift`, `TowService`, `Policy`, `AffiliationContract`), Value Objects (`ExtractedVehicleRegistration`, `CancellationReason`, `Uuid`, `Coordinates`, `Plate`, `Price`), Máquinas de Estados y Enums (`CommissionStatus`, `TowServiceStatus`, `OrderStatus`, `Role`), Servicios de Dominio (`VehicleMatcherService`, `PushNotificationInterface`). | 104 tests / 412 aserciones |
+| **Casos de Uso, DTOs y Controladores** | Auditoría y DTOs Fuertemente Tipados de Comisiones (`AdminCommissionController`, `SellerController`, DTOs de Comisiones), Reanudación reactiva de sesión SOS (`GetActiveTowService`), DTOs Enriquecidos (Chofer, Grúa, Cliente, Vehículo), Consulta de Turno Actual (`GetCurrentDriverShift`), Historial Paginado (`ListTowServiceHistory`), Pre-Cotización SOS con verificación de radares, Gestión de Turnos y Activación Exclusiva de Grúa, Registro multi-rol, Login JWT, KYC y OCR con La Venezolana, Registro Vehicular 3NF, Emisión de Pólizas, Despacho Dual (Pusher Beams + WebSockets), Hitos de Llegada y Finalización con Broadcasts, Conciliación C2P Bancaribe, Retiro y Pago de Comisiones. | 192 tests / 762 aserciones |
+| **Seguridad y Autorización** | Invariante de 1 grúa activa por chofer, Bloqueo de finalización de turno durante servicio activo, Auditoría OWASP API1:2023 (Protección BOLA en `/api/v1/sos/{uuid}`), Bloqueo de Bypass de Pago en SOS Express, Validación de firmas de canales privados Pusher (`/api/v1/broadcasting/auth`), Calificación bidireccional estricta. | 38 tests / 154 aserciones |
+| **Infraestructura y Adaptadores** | `MariaDbCommissionRepository`, `MariaDbSellerProfileRepository`, `MariaDbDriverShiftRepository`, `PusherBeamsService` (FCM + APNs push gateway), `MariaDbUserRepository`, `MariaDbTowServiceRepository`, `MariaDbVehicleRepository`, `CachedVehicleCatalogRepository`, Motor de Migraciones MariaDB, `RedisRateLimiter`, `PusherBroadcaster`, `BancaribePaymentGateway`, `S3DocumentUploader`, `SmtpEmailDispatcher`. | 84 tests / 310 aserciones |
+| **Total General** | **Batería Automatizada Completa** | **418 tests / 1638 aserciones (100% OK)** |
 
 ### 🔬 Scripts de Smoke Test de Integración en Vivo
 

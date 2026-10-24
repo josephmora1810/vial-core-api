@@ -2,8 +2,10 @@
 
 namespace App\Application\Commissions\UseCases;
 
-use App\Domain\Commissions\Entities\SellerProfile;
-use App\Domain\Commissions\Repositories\SellerProfileRepositoryInterface;
+use App\Domain\Commissions\{
+    Entities\SellerProfile,
+    Repositories\SellerProfileRepositoryInterface
+};
 use App\Domain\Contracts\Repositories\PlanRepositoryInterface;
 use Exception;
 use InvalidArgumentException;
@@ -46,7 +48,7 @@ class ManageSellerBankAccount
         }
 
         $cleanAccount = preg_replace('/\D/', '', $accountNumber);
-        if (strlen($cleanAccount) !== 20) {
+        if (\strlen($cleanAccount) !== 20) {
             throw new InvalidArgumentException('El número de cuenta bancaria debe tener exactamente 20 dígitos.');
         }
 

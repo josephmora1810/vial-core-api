@@ -2,8 +2,10 @@
 
 namespace App\Infrastructure\Database\Repositories\Commissions;
 
-use App\Domain\Commissions\Entities\SellerProfile;
-use App\Domain\Commissions\Repositories\SellerProfileRepositoryInterface;
+use App\Domain\Commissions\{
+    Entities\SellerProfile,
+    Repositories\SellerProfileRepositoryInterface
+};
 use DateTimeImmutable;
 use PDO;
 

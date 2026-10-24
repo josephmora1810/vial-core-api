@@ -2,9 +2,11 @@
 
 namespace App\Application\Commissions\UseCases;
 
-use App\Domain\Commissions\Entities\Commission;
-use App\Domain\Commissions\Repositories\CommissionRepositoryInterface;
-use App\Domain\Commissions\Repositories\SellerProfileRepositoryInterface;
+use App\Domain\Commissions\{
+    Entities\Commission,
+    Repositories\CommissionRepositoryInterface,
+    Repositories\SellerProfileRepositoryInterface
+};
 use Exception;
 use InvalidArgumentException;
 
@@ -12,7 +14,7 @@ class PayCommissionByAdmin
 {
     public function __construct(
         private CommissionRepositoryInterface $commissionRepository,
-        private ?SellerProfileRepositoryInterface $sellerProfileRepository = null
+        private ?SellerProfileRepositoryInterface $_ = null
     ) {}
 
     public function execute(int $commissionId, string $paymentReference): Commission

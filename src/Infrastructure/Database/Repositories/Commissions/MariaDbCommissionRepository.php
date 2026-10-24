@@ -2,9 +2,11 @@
 
 namespace App\Infrastructure\Database\Repositories\Commissions;
 
-use App\Domain\Commissions\Entities\Commission;
-use App\Domain\Commissions\Enums\CommissionStatus;
-use App\Domain\Commissions\Repositories\CommissionRepositoryInterface;
+use App\Domain\Commissions\{
+    Entities\Commission,
+    Enums\CommissionStatus,
+    Repositories\CommissionRepositoryInterface
+};
 use DateTimeImmutable;
 use PDO;
 

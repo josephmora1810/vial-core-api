@@ -3,34 +3,44 @@
 namespace Tests\Unit\Application\UseCases;
 
 use App\Application\Auth\UseCases\ReviewKycDocument;
-use App\Application\Contracts\UseCases\CheckoutServiceContract;
-use App\Application\Contracts\UseCases\ListSellerContracts;
-use App\Application\Contracts\UseCases\RedeemServiceContract;
-use App\Application\Contracts\UseCases\RenewServiceContract;
+use App\Application\Contracts\UseCases\{
+    CheckoutServiceContract,
+    ListSellerContracts,
+    RedeemServiceContract,
+    RenewServiceContract
+};
 use App\Application\Payments\UseCases\ProcessPayment;
-use App\Application\Users\UseCases\RegisterClientBySeller;
-use App\Application\Users\UseCases\SearchClientByNationalId;
+use App\Application\Users\UseCases\{
+    RegisterClientBySeller,
+    SearchClientByNationalId
+};
 use App\Application\Vehicles\UseCases\RegisterVehicle;
-use App\Domain\Auth\Entities\Document;
-use App\Domain\Auth\Enums\DocumentStatus;
-use App\Domain\Auth\Enums\DocumentType;
-use App\Domain\Contracts\Entities\Plan;
-use App\Domain\Contracts\Enums\ContractStatus;
+use App\Domain\Auth\{
+    Entities\Document,
+    Enums\DocumentStatus,
+    Enums\DocumentType
+};
+use App\Domain\Contracts\{
+    Entities\Plan,
+    Enums\ContractStatus
+};
 use App\Domain\Shared\Services\MailerInterface;
 use Exception;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
-use Tests\Doubles\FakeDocumentExtractor;
-use Tests\Doubles\FakeExchangeRateService;
-use Tests\Doubles\FakePaymentGateway;
-use Tests\Doubles\InMemoryDocumentRepository;
-use Tests\Doubles\InMemoryMailer;
-use Tests\Doubles\InMemoryOrderRepository;
-use Tests\Doubles\InMemoryPaymentRepository;
-use Tests\Doubles\InMemoryPlanRepository;
-use Tests\Doubles\InMemoryServiceContractRepository;
-use Tests\Doubles\InMemoryUserRepository;
-use Tests\Doubles\InMemoryVehicleRepository;
+use Tests\Doubles\{
+    FakeDocumentExtractor,
+    FakeExchangeRateService,
+    FakePaymentGateway,
+    InMemoryDocumentRepository,
+    InMemoryMailer,
+    InMemoryOrderRepository,
+    InMemoryPaymentRepository,
+    InMemoryPlanRepository,
+    InMemoryServiceContractRepository,
+    InMemoryUserRepository,
+    InMemoryVehicleRepository
+};
 
 class SellerAndContractRenewalTest extends TestCase
 {

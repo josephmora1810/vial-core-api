@@ -2,22 +2,34 @@
 
 namespace App\Controllers;
 
-use App\Application\Commissions\UseCases\ListSellerCommissions;
-use App\Application\Commissions\UseCases\ManageSellerBankAccount;
-use App\Application\Commissions\UseCases\RequestCommissionWithdrawal;
-use App\Application\Contracts\UseCases\CheckoutServiceContract;
-use App\Application\Contracts\UseCases\ListSellerContracts;
-use App\Application\Contracts\UseCases\RenewServiceContract;
-use App\Application\Users\UseCases\RegisterClientBySeller;
-use App\Application\Users\UseCases\SearchClientByNationalId;
+use App\Application\Commissions\DTOs\{
+    CommissionWithdrawalResponseDto,
+    SellerCommissionsSummaryResponseDto,
+    SellerProfileResponseDto
+};
+use App\Application\Commissions\UseCases\{
+    ListSellerCommissions,
+    ManageSellerBankAccount,
+    RequestCommissionWithdrawal
+};
+use App\Application\Contracts\UseCases\{
+    CheckoutServiceContract,
+    ListSellerContracts,
+    RenewServiceContract
+};
+use App\Application\Users\UseCases\{
+    RegisterClientBySeller,
+    SearchClientByNationalId
+};
 use App\Application\Vehicles\UseCases\RegisterVehicle;
-use App\Core\Request;
-use App\Core\Response;
+use App\Core\{Request, Response};
 use App\Domain\Commissions\Repositories\SellerProfileRepositoryInterface;
 use App\Domain\Contracts\Repositories\PlanRepositoryInterface;
 use App\Domain\Shared\ValueObjects\Uuid;
-use App\Domain\Users\Entities\User;
-use App\Domain\Users\Repositories\UserRepositoryInterface;
+use App\Domain\Users\{
+    Entities\User,
+    Repositories\UserRepositoryInterface
+};
 use Exception;
 use InvalidArgumentException;
 
@@ -360,21 +372,27 @@ class SellerController
             }
         }
 
-        Response::json([
-            'seller' => [
-                'id'                  => $seller->getId(),
-                'uuid'                => $seller->getUuid()->getValue(),
-                'name'                => $seller->getFullName(),
-                'identification_card' => $seller->getIdentificationCard()->getValue(),
-                'email'               => $seller->getEmail()->getValue(),
-                'phone'               => $seller->getPhone(),
-            ],
-            'profile' => $profile?->toArray() ?? [
+        $sellerDto = [
+            'id'                  => $seller->getId(),
+            'uuid'                => $seller->getUuid()->getValue(),
+            'name'                => $seller->getFullName(),
+            'identification_card' => $seller->getIdentificationCard()->getValue(),
+            'email'               => $seller->getEmail()->getValue(),
+            'phone'               => $seller->getPhone(),
+        ];
+
+        $profileDto = $profile !== null
+            ? SellerProfileResponseDto::fromEntity($profile)->toArray()
+            : [
                 'user_id'          => $seller->getId(),
                 'commission_rate'  => 10.00,
                 'has_bank_details' => false,
-            ],
-            'bank' => $bankInfo,
+            ];
+
+        Response::json([
+            'seller'  => $sellerDto,
+            'profile' => $profileDto,
+            'bank'    => $bankInfo,
         ], 200, 'success', 'Perfil comercial de vendedora consultado exitosamente.');
     }
 
@@ -400,7 +418,7 @@ class SellerController
         try {
             $profile = $this->manageSellerBankAccount->execute($seller->getId(), $request->all());
             Response::json(
-                $profile->toArray(),
+                SellerProfileResponseDto::fromEntity($profile)->toArray(),
                 200,
                 'success',
                 'Datos bancarios nacionales registrados exitosamente.'
@@ -435,8 +453,15 @@ class SellerController
 
         try {
             $result = $this->listSellerCommissions->execute($seller->getId(), $statusFilter);
+            $dto = SellerCommissionsSummaryResponseDto::create(
+                wallet: $result['wallet'],
+                sellerProfile: $result['seller_profile'],
+                bank: $result['bank'],
+                commissions: $result['commissions']
+            );
+
             Response::json(
-                $result,
+                $dto->toArray(),
                 200,
                 'success',
                 'Historial de comisiones y billetera comercial consultado exitosamente.'
@@ -471,15 +496,22 @@ class SellerController
 
         try {
             $result = $this->requestCommissionWithdrawal->execute($seller->getId(), $commissionIds);
+            $dto = CommissionWithdrawalResponseDto::create(
+                requestedAmountUsd: (float)$result['requested_amount_usd'],
+                commissionsCount: (int)$result['commissions_count'],
+                commissions: $result['commissions'],
+                bankDetails: $result['bank_details']
+            );
+
             Response::json(
-                $result,
+                $dto->toArray(),
                 200,
                 'success',
-                "Solicitud de retiro procesada exitosamente. Total solicitado: \${$result['requested_amount_usd']} USD."
+                "Solicitud de retiro procesada exitosamente. Total solicitado: \${$dto->requested_amount_usd} USD."
             );
         } catch (Exception $e) {
             $code = $e->getCode() >= 400 && $e->getCode() <= 499 ? $e->getCode() : 500;
-            Response::json(['error' => $e->getMessage()], $code, 'fail', $e->getMessage());
+            Response::json([], $code, 'fail', $e->getMessage());
         }
     }
 }

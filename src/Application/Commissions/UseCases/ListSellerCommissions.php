@@ -2,9 +2,11 @@
 
 namespace App\Application\Commissions\UseCases;
 
-use App\Domain\Commissions\Enums\CommissionStatus;
-use App\Domain\Commissions\Repositories\CommissionRepositoryInterface;
-use App\Domain\Commissions\Repositories\SellerProfileRepositoryInterface;
+use App\Domain\Commissions\{
+    Enums\CommissionStatus,
+    Repositories\CommissionRepositoryInterface,
+    Repositories\SellerProfileRepositoryInterface
+};
 use App\Domain\Contracts\Repositories\PlanRepositoryInterface;
 use App\Domain\Payments\Repositories\OrderRepositoryInterface;
 
