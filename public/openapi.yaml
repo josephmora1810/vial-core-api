@@ -957,6 +957,530 @@ components:
           items:
             $ref: '#/components/schemas/CommissionResponseDto'
 
+    HomeGalleryResponseDto:
+      type: object
+      required:
+        - id
+        - title
+        - order_index
+        - is_active
+      properties:
+        id:
+          type: integer
+          example: 1
+        title:
+          type: string
+          example: Asistencia Vial 24/7 en Toda Venezuela
+        subtitle:
+          type: string
+          nullable: true
+          example: La red de grúas más rápida y confiable
+        description:
+          type: string
+          nullable: true
+          example: Solicita tu grúa en segundos o suscríbete a un plan anual de cobertura total.
+        button_text:
+          type: string
+          nullable: true
+          example: Ver Planes
+        button_link:
+          type: string
+          nullable: true
+          example: /planes
+        order_index:
+          type: integer
+          example: 1
+        is_active:
+          type: boolean
+          example: true
+        image_url:
+          type: string
+          nullable: true
+          example: https://ubik-go.s3.us-east-1.amazonaws.com/gallery/banner_abc123.jpg
+        created_at:
+          type: string
+          nullable: true
+          example: 2026-10-20 18:00:00
+
+    HomeGalleryDeletedResponseDto:
+      type: object
+      required:
+        - deleted
+        - id
+      properties:
+        deleted:
+          type: boolean
+          example: true
+        id:
+          type: integer
+          example: 1
+
+    DriverCraneRegistrationResponseDto:
+      type: object
+      required:
+        - crane
+        - is_fleet_ready
+        - status_message
+      properties:
+        crane:
+          $ref: '#/components/schemas/VehicleDto'
+        carnet_document_id:
+          type: integer
+          nullable: true
+          example: 55
+        license_document_id:
+          type: integer
+          nullable: true
+          example: 56
+        is_fleet_ready:
+          type: boolean
+          example: true
+        status_message:
+          type: string
+          example: Grúa registrada con éxito en el sistema.
+
+    DriverFleetCraneStatusDto:
+      type: object
+      required:
+        - crane
+        - carnet_status
+        - is_operable
+      properties:
+        crane:
+          $ref: '#/components/schemas/VehicleDto'
+        carnet_status:
+          type: string
+          enum: [NOT_SUBMITTED, PENDING, VERIFIED, REJECTED]
+          example: VERIFIED
+        carnet_file_path:
+          type: string
+          nullable: true
+          example: storage/documents/carnet_123.jpg
+        is_operable:
+          type: boolean
+          example: true
+
+    DriverFleetStatusResponseDto:
+      type: object
+      required:
+        - driver_id
+        - driver_name
+        - can_operate
+        - is_fleet_ready
+        - identity_card_status
+        - driving_license_status
+        - cranes_count
+        - cranes
+        - pending_requirements
+        - status_message
+      properties:
+        driver_id:
+          type: integer
+          example: 5
+        driver_name:
+          type: string
+          example: Pedro Conductor
+        can_operate:
+          type: boolean
+          example: true
+        is_fleet_ready:
+          type: boolean
+          example: true
+        identity_card_status:
+          type: string
+          enum: [NOT_SUBMITTED, PENDING, VERIFIED, REJECTED]
+          example: VERIFIED
+        driving_license_status:
+          type: string
+          enum: [NOT_SUBMITTED, PENDING, VERIFIED, REJECTED]
+          example: VERIFIED
+        cranes_count:
+          type: integer
+          example: 1
+        cranes:
+          type: array
+          items:
+            $ref: '#/components/schemas/DriverFleetCraneStatusDto'
+        pending_requirements:
+          type: array
+          items:
+            type: string
+          example: []
+        status_message:
+          type: string
+          example: Operativo y validado.
+
+    DriverLicenseResponseDto:
+      type: object
+      required:
+        - id
+        - document_type
+        - status
+        - message
+      properties:
+        id:
+          type: integer
+          example: 15
+        document_type:
+          type: string
+          example: driving_license
+        file_path:
+          type: string
+          nullable: true
+          example: storage/documents/driver_lic_5_abc123.jpg
+        status:
+          type: string
+          enum: [PENDING, VERIFIED, REJECTED]
+          example: PENDING
+        extracted_data:
+          type: object
+          nullable: true
+          properties:
+            grade:
+              type: string
+              example: 5TO GRADO
+        message:
+          type: string
+          example: Licencia de conducir cargada exitosamente.
+
+    DriverLocationResponseDto:
+      type: object
+      required:
+        - status
+        - driver_id
+        - crane_id
+        - coordinates
+        - speed_kmh
+        - recorded_at
+      properties:
+        status:
+          type: string
+          example: success
+        driver_id:
+          type: integer
+          example: 5
+        crane_id:
+          type: integer
+          example: 1
+        coordinates:
+          type: object
+          required:
+            - latitude
+            - longitude
+          properties:
+            latitude:
+              type: number
+              format: float
+              example: 10.4806
+            longitude:
+              type: number
+              format: float
+              example: -66.9036
+        speed_kmh:
+          type: number
+          format: float
+          example: 35.5
+        recorded_at:
+          type: string
+          example: 2026-10-23 20:30:00
+
+    DriverShiftActionResponseDto:
+      type: object
+      required:
+        - driver_id
+        - is_on_duty
+        - message
+      properties:
+        shift_id:
+          type: integer
+          example: 50
+        driver_id:
+          type: integer
+          example: 5
+        active_crane:
+          type: object
+          nullable: true
+          properties:
+            id:
+              type: string
+              example: "1"
+            uuid:
+              type: string
+              example: "0192a0b1-1234-7890-abcd-ef0123456789"
+            plate_number:
+              type: string
+              example: "AB123CD"
+            brand:
+              type: string
+              example: "Ford"
+            model:
+              type: string
+              example: "F-350"
+            color:
+              type: string
+              example: "Blanco"
+            year:
+              type: integer
+              example: 2021
+        is_on_duty:
+          type: boolean
+          example: true
+        started_at:
+          type: string
+          example: 2026-10-23 08:00:00
+        ended_at:
+          type: string
+          example: 2026-10-23 18:00:00
+        message:
+          type: string
+          example: Turno iniciado con éxito.
+
+    DriverShiftResponseDto:
+      type: object
+      required:
+        - is_active
+      properties:
+        is_active:
+          type: boolean
+          example: true
+        shift_id:
+          type: integer
+          nullable: true
+          example: 50
+        crane_id:
+          type: integer
+          nullable: true
+          example: 1
+        started_at:
+          type: string
+          nullable: true
+          example: 2026-10-23 08:00:00
+        crane:
+          type: object
+          nullable: true
+          properties:
+            id:
+              type: integer
+              example: 1
+            brand:
+              type: string
+              example: Ford
+            model:
+              type: string
+              example: F-350
+            plate_number:
+              type: string
+              example: AB123CD
+            color:
+              type: string
+              example: Blanco
+        last_location:
+          type: object
+          nullable: true
+          properties:
+            latitude:
+              type: number
+              format: float
+              example: 10.4806
+            longitude:
+              type: number
+              format: float
+              example: -66.9036
+            last_ping_at:
+              type: string
+              example: 2026-10-23 10:15:00
+
+    BankBalanceResponseDto:
+      type: object
+      required:
+        - success
+        - balance
+        - accounts
+      properties:
+        success:
+          type: boolean
+          example: true
+        balance:
+          type: number
+          format: float
+          example: 125000.50
+        accounts:
+          type: array
+          items:
+            type: object
+            properties:
+              account_number:
+                type: string
+                example: "01140001000000000001"
+              currency_code:
+                type: string
+                example: VES
+              currency_name:
+                type: string
+                example: Bolívares
+              available:
+                type: number
+                format: float
+                example: 120000.00
+              balance:
+                type: number
+                format: float
+                example: 125000.50
+              blocked:
+                type: number
+                format: float
+                example: 5000.50
+        message:
+          type: string
+          nullable: true
+          example: Saldos consultados exitosamente.
+        raw_data:
+          type: object
+          nullable: true
+
+    ExchangeRateResponseDto:
+      type: object
+      required:
+        - currency
+        - type
+        - rate
+        - date
+      properties:
+        currency:
+          type: string
+          example: USD
+        type:
+          type: string
+          enum: [compra, venta]
+          example: venta
+        rate:
+          type: number
+          format: float
+          example: 36.50
+        date:
+          type: string
+          example: 2026-10-23
+
+    ExchangeRatesResponseDto:
+      type: object
+      required:
+        - usd_venta
+        - usd_compra
+        - rates
+      properties:
+        usd_venta:
+          type: number
+          format: float
+          example: 36.50
+        usd_compra:
+          type: number
+          format: float
+          example: 36.40
+        rates:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExchangeRateResponseDto'
+
+    ExchangeRatesSyncResponseDto:
+      type: object
+      required:
+        - synced_rates
+      properties:
+        synced_rates:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExchangeRateResponseDto'
+
+    IntegrationLogsResponseDto:
+      type: object
+      required:
+        - filter_service
+        - count
+        - logs
+      properties:
+        filter_service:
+          type: string
+          nullable: true
+          example: bancaribe
+        count:
+          type: integer
+          example: 5
+        logs:
+          type: array
+          items:
+            type: string
+          example:
+            - "2026-10-23 20:00:00 [bancaribe] Request to token OK"
+            - "2026-10-23 20:00:01 [bancaribe] Payment C2P successful"
+
+    PaymentResultResponseDto:
+      type: object
+      required:
+        - uuid
+        - payment_method
+        - amount_ves
+        - status
+      properties:
+        uuid:
+          type: string
+          format: uuid
+          example: 0192a0b1-1234-7890-abcd-ef0123456789
+        transaction_id:
+          type: string
+          nullable: true
+          example: TX-12345678
+        payment_method:
+          type: string
+          enum: [c2p, pago_movil]
+          example: pago_movil
+        amount_ves:
+          type: number
+          format: float
+          example: 1825.00
+        status:
+          type: string
+          enum: [pending, completed, failed]
+          example: completed
+        paid_at:
+          type: string
+          nullable: true
+          example: 2026-10-23 10:05:00
+        bank_message:
+          type: string
+          nullable: true
+          example: Aprobado
+
+    PaymentProcessResponseDto:
+      type: object
+      required:
+        - payment
+        - order
+      properties:
+        payment:
+          $ref: '#/components/schemas/PaymentResultResponseDto'
+        order:
+          $ref: '#/components/schemas/OrderDto'
+        contract:
+          $ref: '#/components/schemas/ServiceContractDto'
+
+    WebhookResponseDto:
+      type: object
+      required:
+        - order
+        - message
+      properties:
+        order:
+          $ref: '#/components/schemas/OrderDto'
+        contract:
+          $ref: '#/components/schemas/ServiceContractDto'
+        status:
+          type: string
+          nullable: true
+          example: paid
+        message:
+          type: string
+          example: Webhook procesado exitosamente.
+
 paths:
   # ==========================================
   # SISTEMA
@@ -4349,35 +4873,7 @@ paths:
                   data:
                     type: array
                     items:
-                      type: object
-                      properties:
-                        id:
-                          type: integer
-                          example: 1
-                        title:
-                          type: string
-                          example: Asistencia Vial 24/7 en Toda Venezuela
-                        subtitle:
-                          type: string
-                          example: La red de grúas más rápida y confiable
-                        description:
-                          type: string
-                          example: Solicita tu grúa en segundos o suscríbete a un plan anual de cobertura total.
-                        button_text:
-                          type: string
-                          example: Ver Planes
-                        button_link:
-                          type: string
-                          example: /planes
-                        order_index:
-                          type: integer
-                          example: 1
-                        is_active:
-                          type: boolean
-                          example: true
-                        image_url:
-                          type: string
-                          example: https://ubik-go.s3.us-east-1.amazonaws.com/gallery/banner_abc123.jpg
+                      $ref: '#/components/schemas/HomeGalleryResponseDto'
 
   /admin/home-gallery:
     get:
@@ -4390,6 +4886,36 @@ paths:
       responses:
         '200':
           description: Listado administrativo de banners consultado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: Listado administrativo de galería consultado.
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/HomeGalleryResponseDto'
+        '401':
+          description: No autenticado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: No autorizado (requiere rol admin)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
     post:
       summary: Crear Nuevo Banner de Galería con Imagen S3 (FR-36)
@@ -4437,6 +4963,46 @@ paths:
       responses:
         '201':
           description: Banner creado y publicado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  code:
+                    type: integer
+                    example: 201
+                  message:
+                    type: string
+                    example: Banner de galería creado exitosamente.
+                  data:
+                    $ref: '#/components/schemas/HomeGalleryResponseDto'
+        '400':
+          description: Error al procesar imagen o archivo ilegible
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: No autenticado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: No autorizado o ruta de archivo no permitida
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Título obligatorio o formato de archivo no permitido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
   /admin/home-gallery/{id}:
     put:
@@ -4478,6 +5044,46 @@ paths:
       responses:
         '200':
           description: Banner actualizado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: Banner de galería actualizado exitosamente.
+                  data:
+                    $ref: '#/components/schemas/HomeGalleryResponseDto'
+        '400':
+          description: Error al procesar imagen o archivo ilegible
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: No autenticado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Banner de galería no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Formato o extensión de archivo no permitido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
     delete:
       summary: Eliminar Banner de Galería (FR-36)
@@ -4495,6 +5101,34 @@ paths:
       responses:
         '200':
           description: Banner eliminado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: Banner eliminado exitosamente.
+                  data:
+                    $ref: '#/components/schemas/HomeGalleryDeletedResponseDto'
+        '401':
+          description: No autenticado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Banner no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
   # ==========================================
   # MODERACIÓN DE USUARIOS Y AVATARES (FR-35, FR-36)

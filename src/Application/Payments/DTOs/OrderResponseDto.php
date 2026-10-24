@@ -37,6 +37,29 @@ readonly class OrderResponseDto
         );
     }
 
+    /**
+     * @param array<string, mixed> $data
+     */
+    public static function fromArray(array $data): self
+    {
+        return new self(
+            id: (string)($data['id'] ?? ''),
+            order_number: (string)($data['order_number'] ?? ''),
+            orderable_type: (string)($data['orderable_type'] ?? ''),
+            orderable_id: (int)($data['orderable_id'] ?? 0),
+            amount_usd: (float)($data['amount_usd'] ?? 0),
+            exchange_rate: (float)($data['exchange_rate'] ?? 0),
+            amount_ves: (float)($data['amount_ves'] ?? 0),
+            bancaribe_ref: isset($data['bancaribe_ref']) ? (string)$data['bancaribe_ref'] : null,
+            status: (string)($data['status'] ?? ''),
+            paid_at: isset($data['paid_at']) ? (string)$data['paid_at'] : null,
+            created_at: (string)($data['created_at'] ?? '')
+        );
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public function toArray(): array
     {
         return [

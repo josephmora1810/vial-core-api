@@ -3,10 +3,9 @@
 namespace App\Infrastructure\Services\Bancaribe;
 
 use App\Domain\Payments\Entities\Order;
-use App\Domain\Payments\Services\ExchangeRateServiceInterface;
-use App\Domain\Payments\Services\PaymentGatewayInterface;
+use App\Domain\Payments\Services\{ExchangeRateServiceInterface, PaymentGatewayInterface};
 use App\Domain\Payments\ValueObjects\PaymentResult;
-use App\Infrastructure\Http\HttpClientInterface;
+use App\Infrastructure\Http\{HttpClientException, HttpClientInterface, HttpResponse};
 use App\Infrastructure\Logging\IntegrationLogger;
 use Throwable;
 
@@ -83,7 +82,7 @@ class BancaribePaymentService implements PaymentGatewayInterface
             );
         }
 
-        $data = $response->json();
+        $data = $this->decodeJson($response);
 
         if (!$response->isSuccessful()) {
             $errorMsg = $data['error'] ?? $data['message'] ?? $response->body();
@@ -179,7 +178,7 @@ class BancaribePaymentService implements PaymentGatewayInterface
             );
         }
 
-        $responseBody = $response->json();
+        $responseBody = $this->decodeJson($response);
 
         if (!$response->isSuccessful()) {
             $msg = is_array($responseBody)
@@ -234,6 +233,21 @@ class BancaribePaymentService implements PaymentGatewayInterface
             requestPayload: $payload,
             responsePayload: is_array($responseBody) ? $responseBody : []
         );
+    }
+
+    /**
+     * Decodifica el cuerpo de la respuesta; un JSON inválido (ej. HTML de un gateway caído) devuelve null
+     * en lugar de propagar la excepción, para que el fallo se traduzca en un PaymentResult declinado.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function decodeJson(HttpResponse $response): ?array
+    {
+        try {
+            return $response->json();
+        } catch (HttpClientException) {
+            return null;
+        }
     }
 
     /**

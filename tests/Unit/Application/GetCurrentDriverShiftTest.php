@@ -8,8 +8,7 @@ use App\Domain\Vehicles\Entities\Vehicle;
 use App\Domain\Vehicles\ValueObjects\PlateNumber;
 use DateTimeImmutable;
 use PHPUnit\Framework\TestCase;
-use Tests\Doubles\InMemoryDriverShiftRepository;
-use Tests\Doubles\InMemoryVehicleRepository;
+use Tests\Doubles\{InMemoryDriverShiftRepository, InMemoryVehicleRepository};
 
 class GetCurrentDriverShiftTest extends TestCase
 {

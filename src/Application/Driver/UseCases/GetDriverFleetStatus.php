@@ -3,8 +3,7 @@
 namespace App\Application\Driver\UseCases;
 
 use App\Application\Vehicles\DTOs\VehicleResponseDto;
-use App\Domain\Auth\Enums\DocumentStatus;
-use App\Domain\Auth\Enums\DocumentType;
+use App\Domain\Auth\Enums\{DocumentStatus, DocumentType};
 use App\Domain\Auth\Repositories\DocumentRepositoryInterface;
 use App\Domain\Users\Enums\UserRole;
 use App\Domain\Users\Repositories\UserRepositoryInterface;

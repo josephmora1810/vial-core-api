@@ -3,8 +3,7 @@
 namespace App\Infrastructure\Services\Bancaribe;
 
 use App\Domain\Payments\Services\BalanceGatewayInterface;
-use App\Infrastructure\Database\Redis;
-use App\Infrastructure\Http\HttpClientInterface;
+use App\Infrastructure\{Database\Redis, Http\HttpClientException, Http\HttpClientInterface};
 use Throwable;
 
 class BancaribeBalanceService implements BalanceGatewayInterface
@@ -89,7 +88,15 @@ class BancaribeBalanceService implements BalanceGatewayInterface
             ];
         }
 
-        $responseBody = $response->json();
+        try {
+            $responseBody = $response->json();
+        } catch (HttpClientException) {
+            return [
+                'success' => false,
+                'balance' => 0.0,
+                'message' => 'Respuesta del banco con formato inesperado.',
+            ];
+        }
 
         if (!$response->isSuccessful()) {
             $errorMsg = is_array($responseBody)

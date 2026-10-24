@@ -5,8 +5,7 @@ namespace App\Infrastructure\Services\Bancaribe;
 use App\Domain\Payments\Entities\ExchangeRate;
 use App\Domain\Payments\Repositories\ExchangeRateRepositoryInterface;
 use App\Domain\Payments\Services\ExchangeRateServiceInterface;
-use App\Infrastructure\Database\Redis;
-use App\Infrastructure\Http\HttpClientInterface;
+use App\Infrastructure\{Database\Redis, Http\HttpClientException, Http\HttpClientInterface};
 use DateTimeImmutable;
 use RuntimeException;
 use Throwable;
@@ -114,7 +113,11 @@ class BancaribeExchangeService implements ExchangeRateServiceInterface
             throw new RuntimeException('Error consultando tasas BCV en Bancaribe: ' . $response->body(), 502);
         }
 
-        $data = $response->json();
+        try {
+            $data = $response->json();
+        } catch (HttpClientException $e) {
+            throw new RuntimeException('Respuesta de tasas BCV de Bancaribe inválida: no es un JSON válido.', 502, $e);
+        }
         return $this->processAndSaveRates(is_array($data) ? $data : []);
     }
 

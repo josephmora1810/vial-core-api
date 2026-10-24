@@ -2,8 +2,11 @@
 
 namespace App\Application\Landing\UseCases;
 
-use App\Domain\Landing\Entities\HomeGallery;
-use App\Domain\Landing\Repositories\HomeGalleryRepositoryInterface;
+use App\Application\Landing\DTOs\HomeGalleryDeletedResponseDto;
+use App\Domain\Landing\{
+    Entities\HomeGallery,
+    Repositories\HomeGalleryRepositoryInterface
+};
 use App\Domain\Shared\Services\StorageServiceInterface;
 use Exception;
 
@@ -14,10 +17,12 @@ class ManageHomeGallery
         private StorageServiceInterface $storageService
     ) {}
 
+    /**
+     * @return list<HomeGallery>
+     */
     public function listAll(): array
     {
-        $items = $this->galleryRepository->findAll();
-        return array_map(fn($item) => $item->toArray(), $items);
+        return $this->galleryRepository->findAll();
     }
 
     public function create(
@@ -30,7 +35,7 @@ class ManageHomeGallery
         bool $isActive = true,
         ?string $localImageFilePath = null,
         ?string $imageUrl = null
-    ): array {
+    ): HomeGallery {
         if (trim($title) === '') {
             throw new Exception('El título del banner de galería es obligatorio.', 422);
         }
@@ -38,27 +43,7 @@ class ManageHomeGallery
         // Si se subió un archivo local, subirlo a S3
         $finalImageUrl = $imageUrl;
         if (!empty($localImageFilePath)) {
-            if (!file_exists($localImageFilePath) || !is_readable($localImageFilePath)) {
-                throw new Exception('El archivo de imagen no fue encontrado o es ilegible.', 400);
-            }
-
-            // Blindaje contra Path Traversal / CWE-73 / CWE-59: Solo permitir procesar y eliminar archivos en storage o temp
-            $realPath = realpath($localImageFilePath);
-            $storageDir = realpath(dirname(__DIR__, 4) . '/storage');
-            $tempDir = realpath(sys_get_temp_dir());
-            $isSafeStorage = ($storageDir !== false && $realPath !== false && str_starts_with($realPath, $storageDir));
-            $isSafeTemp = ($tempDir !== false && $realPath !== false && str_starts_with($realPath, $tempDir));
-
-            if (!$isSafeStorage && !$isSafeTemp) {
-                throw new Exception('Acceso denegado: la ruta del archivo no está autorizada para carga de imágenes.', 403);
-            }
-
-            $ext = strtolower(pathinfo($localImageFilePath, PATHINFO_EXTENSION)) ?: 'jpg';
-            $s3Key = sprintf('gallery/banner_%s.%s', bin2hex(random_bytes(6)), $ext);
-            $finalImageUrl = $this->storageService->upload($localImageFilePath, $s3Key);
-            if (is_file($localImageFilePath)) {
-                @unlink($localImageFilePath);
-            }
+            $finalImageUrl = $this->uploadLocalImage($localImageFilePath);
         }
 
         $item = HomeGallery::create(
@@ -74,7 +59,7 @@ class ManageHomeGallery
 
         $this->galleryRepository->save($item, $finalImageUrl);
 
-        return $item->toArray();
+        return $item;
     }
 
     public function update(
@@ -88,7 +73,7 @@ class ManageHomeGallery
         ?bool $isActive = null,
         ?string $localImageFilePath = null,
         ?string $imageUrl = null
-    ): array {
+    ): HomeGallery {
         $item = $this->galleryRepository->findById($id);
         if ($item === null) {
             throw new Exception('Banner de galería no encontrado.', 404);
@@ -106,42 +91,56 @@ class ManageHomeGallery
 
         $newImageUrl = $imageUrl;
         if (!empty($localImageFilePath)) {
-            if (!file_exists($localImageFilePath) || !is_readable($localImageFilePath)) {
-                throw new Exception('El archivo de imagen no fue encontrado o es ilegible.', 400);
-            }
-
-            // Blindaje contra Path Traversal / CWE-73 / CWE-59: Solo permitir procesar y eliminar archivos en storage o temp
-            $realPath = realpath($localImageFilePath);
-            $storageDir = realpath(dirname(__DIR__, 4) . '/storage');
-            $tempDir = realpath(sys_get_temp_dir());
-            $isSafeStorage = ($storageDir !== false && $realPath !== false && str_starts_with($realPath, $storageDir));
-            $isSafeTemp = ($tempDir !== false && $realPath !== false && str_starts_with($realPath, $tempDir));
-
-            if (!$isSafeStorage && !$isSafeTemp) {
-                throw new Exception('Acceso denegado: la ruta del archivo no está autorizada para carga de imágenes.', 403);
-            }
-
-            $ext = strtolower(pathinfo($localImageFilePath, PATHINFO_EXTENSION)) ?: 'jpg';
-            $s3Key = sprintf('gallery/banner_%s.%s', bin2hex(random_bytes(6)), $ext);
-            $newImageUrl = $this->storageService->upload($localImageFilePath, $s3Key);
-            if (is_file($localImageFilePath)) {
-                @unlink($localImageFilePath);
-            }
+            $newImageUrl = $this->uploadLocalImage($localImageFilePath);
             $item->setImageUrl($newImageUrl);
         }
 
         $this->galleryRepository->save($item, $newImageUrl);
 
-        return $item->toArray();
+        return $item;
     }
 
-    public function delete(int $id): bool
+    public function delete(int $id): HomeGalleryDeletedResponseDto
     {
         $item = $this->galleryRepository->findById($id);
         if ($item === null) {
             throw new Exception('Banner de galería no encontrado.', 404);
         }
 
-        return $this->galleryRepository->delete($id);
+        return new HomeGalleryDeletedResponseDto(
+            deleted: $this->galleryRepository->delete($id),
+            id: $id
+        );
+    }
+
+    /**
+     * Valida la ruta local (blindaje CWE-73 / CWE-59), la sube al almacenamiento remoto
+     * y elimina el archivo local. Retorna la URL final de la imagen.
+     */
+    private function uploadLocalImage(string $localImageFilePath): string
+    {
+        if (!file_exists($localImageFilePath) || !is_readable($localImageFilePath)) {
+            throw new Exception('El archivo de imagen no fue encontrado o es ilegible.', 400);
+        }
+
+        // Blindaje contra Path Traversal / CWE-73 / CWE-59: Solo permitir procesar y eliminar archivos en storage o temp
+        $realPath = realpath($localImageFilePath);
+        $storageDir = realpath(dirname(__DIR__, 4) . '/storage');
+        $tempDir = realpath(sys_get_temp_dir());
+        $isSafeStorage = ($storageDir !== false && $realPath !== false && str_starts_with($realPath, $storageDir));
+        $isSafeTemp = ($tempDir !== false && $realPath !== false && str_starts_with($realPath, $tempDir));
+
+        if (!$isSafeStorage && !$isSafeTemp) {
+            throw new Exception('Acceso denegado: la ruta del archivo no está autorizada para carga de imágenes.', 403);
+        }
+
+        $ext = strtolower(pathinfo($localImageFilePath, PATHINFO_EXTENSION)) ?: 'jpg';
+        $s3Key = sprintf('gallery/banner_%s.%s', bin2hex(random_bytes(6)), $ext);
+        $url = $this->storageService->upload($localImageFilePath, $s3Key);
+        if (is_file($localImageFilePath)) {
+            @unlink($localImageFilePath);
+        }
+
+        return $url;
     }
 }

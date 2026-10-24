@@ -3,8 +3,7 @@
 namespace App\Infrastructure\Services\Bancaribe;
 
 use App\Domain\Payments\Entities\Order;
-use App\Domain\Payments\Services\PaymentGatewayInterface;
-use App\Domain\Payments\Services\PaymentStrategyInterface;
+use App\Domain\Payments\Services\{PaymentGatewayInterface, PaymentStrategyInterface};
 use App\Domain\Payments\ValueObjects\PaymentResult;
 
 class C2pStrategy implements PaymentStrategyInterface

@@ -2,25 +2,36 @@
 
 namespace App\Controllers;
 
-use App\Application\Payments\UseCases\HandleBancaribeWebhook;
 use App\Application\Contracts\UseCases\ListUserContractsAndOrders;
-use App\Application\Payments\UseCases\ProcessPayment;
-use App\Core\Request;
-use App\Core\Response;
+use App\Application\Payments\DTOs\{
+    BankBalanceResponseDto,
+    ExchangeRatesResponseDto,
+    ExchangeRatesSyncResponseDto,
+    IntegrationLogsResponseDto,
+    OrderResponseDto,
+    PaymentProcessResponseDto,
+    WebhookResponseDto
+};
+use App\Application\Payments\UseCases\{HandleBancaribeWebhook, ProcessPayment};
+use App\Core\{Request, Response};
+use App\Domain\Payments\Services\{BalanceGatewayInterface, ExchangeRateServiceInterface};
 use App\Domain\Users\Entities\User;
-use App\Domain\Payments\Services\BalanceGatewayInterface;
-use App\Domain\Payments\Services\ExchangeRateServiceInterface;
 use App\Infrastructure\Logging\IntegrationLogger;
 use Exception;
+use PDOException;
 
 class PaymentController
 {
+    /** Mensaje genérico para errores 5xx: nunca se filtran detalles internos o respuestas crudas del banco. */
+    private const GENERIC_SERVER_ERROR = 'Servicio de pagos no disponible temporalmente. Intente más tarde.';
+
     public function __construct(
         private ProcessPayment $processPayment,
         private HandleBancaribeWebhook $handleWebhook,
         private ListUserContractsAndOrders $listContractsAndOrders,
         private ExchangeRateServiceInterface $exchangeRateService,
-        private BalanceGatewayInterface $balanceGateway
+        private BalanceGatewayInterface $balanceGateway,
+        private IntegrationLogger $integrationLogger
     ) {}
 
     /**
@@ -30,26 +41,25 @@ class PaymentController
     public function exchangeRates(Request $request): void
     {
         try {
-            $rates = $this->exchangeRateService->getAllCurrentRates();
-            Response::json($rates, 200, 'success', 'Tasas de cambio consultadas exitosamente.');
+            $rates = ExchangeRatesResponseDto::fromArray($this->exchangeRateService->getAllCurrentRates());
+            Response::json($rates->toArray(), 200, 'success', 'Tasas de cambio consultadas exitosamente.');
         } catch (Exception $e) {
-            $code = (is_int($e->getCode()) && $e->getCode() >= 400 && $e->getCode() < 600) ? $e->getCode() : 503;
-            Response::json([], $code, 'fail', $e->getMessage());
+            $this->failFromException($e, 503);
         }
     }
 
     /**
      * POST /api/v1/exchange-rates/sync
-     * Fuerza la sincronización de tasas BCV con el microservicio de Bancaribe
+     * Fuerza la sincronización de tasas BCV con el microservicio de Bancaribe (Solo Admin)
      */
     public function syncExchangeRates(Request $request): void
     {
         try {
-            $synced = $this->exchangeRateService->fetchAndSaveTodayRates();
-            Response::json(['synced_rates' => $synced], 200, 'success', 'Tasas de cambio sincronizadas con Bancaribe exitosamente.');
+            $synced = ExchangeRatesSyncResponseDto::fromArray($this->exchangeRateService->fetchAndSaveTodayRates());
+            Response::json($synced->toArray(), 200, 'success', 'Tasas de cambio sincronizadas con Bancaribe exitosamente.');
         } catch (Exception $e) {
-            $code = (is_int($e->getCode()) && $e->getCode() >= 400 && $e->getCode() < 600) ? $e->getCode() : 502;
-            Response::json([], $code, 'fail', $e->getMessage());
+            // Endpoint exclusivo de administradores: se permite ver el detalle del error del banco
+            $this->failFromException($e, 502, exposeServerErrors: true);
         }
     }
 
@@ -67,18 +77,15 @@ class PaymentController
         }
 
         $body = $request->body();
-        $orderId = $body['order_id'] ?? $body['order_uuid'] ?? $body['order_number'] ?? null;
+        $orderId = $this->extractOrderIdentifier($body);
 
-        if (empty($orderId)) {
+        if ($orderId === null) {
             Response::json(['order_id' => 'Debe indicar el order_id, order_uuid u order_number a pagar.'], 422, 'fail', 'Falta identificador de la orden.');
             return;
         }
 
         // Autocompletar documento de identidad desde el perfil del usuario si no se envió en el body
-        $idCard = $user->getIdentificationCard()->getValue(); // ej. V-80123456
-        $parts = explode('-', $idCard);
-        $defaultDocType = $parts[0] ?? 'V';
-        $defaultDocNum = $parts[1] ?? preg_replace('/[^0-9]/', '', $idCard);
+        [$defaultDocType, $defaultDocNum] = $this->splitIdentification($user->getIdentificationCard()->getValue());
 
         $body['documentType'] ??= $defaultDocType;
         $body['documentNumber'] ??= $defaultDocNum;
@@ -94,10 +101,14 @@ class PaymentController
                 isSeller: $user->hasRole('seller'),
                 isAdmin: $user->hasRole('admin')
             );
-            Response::json($result, 200, 'success', 'Pago verificado y contrato activado exitosamente.');
+            Response::json(
+                PaymentProcessResponseDto::fromArray($result)->toArray(),
+                200,
+                'success',
+                'Pago verificado y contrato activado exitosamente.'
+            );
         } catch (Exception $e) {
-            $code = (is_int($e->getCode()) && $e->getCode() >= 400 && $e->getCode() < 600) ? $e->getCode() : 422;
-            Response::json([], $code, 'fail', $e->getMessage());
+            $this->failFromException($e, 422);
         }
     }
 
@@ -113,11 +124,10 @@ class PaymentController
         $signature = $request->header('X-Bancaribe-Signature') ?? $request->header('X-Webhook-Signature');
 
         try {
-            $result = $this->handleWebhook->execute($payload, $signature, $rawPayload);
-            Response::json($result, 200, 'success', $result['message'] ?? 'Webhook procesado.');
+            $result = WebhookResponseDto::fromArray($this->handleWebhook->execute($payload, $signature, $rawPayload));
+            Response::json($result->toArray(), 200, 'success', $result->message);
         } catch (Exception $e) {
-            $code = (is_int($e->getCode()) && $e->getCode() >= 400 && $e->getCode() < 600) ? $e->getCode() : 400;
-            Response::json([], $code, 'fail', $e->getMessage());
+            $this->failFromException($e, 400);
         }
     }
 
@@ -134,7 +144,10 @@ class PaymentController
             return;
         }
 
-        $orders = $this->listContractsAndOrders->listOrders($user->getId());
+        $orders = array_map(
+            static fn(array $order): array => OrderResponseDto::fromArray($order)->toArray(),
+            $this->listContractsAndOrders->listOrders($user->getId())
+        );
         Response::json($orders, 200, 'success', 'Órdenes de pago consultadas con éxito.');
     }
 
@@ -148,12 +161,12 @@ class PaymentController
         $forceRefresh = filter_var($request->input('refresh', false), FILTER_VALIDATE_BOOLEAN);
 
         try {
-            $result = $this->balanceGateway->getBalance($accountNumber, $forceRefresh);
-            if (!($result['success'] ?? false)) {
-                Response::json($result, 502, 'fail', $result['message'] ?? 'Error al consultar saldos bancarios.');
+            $balance = BankBalanceResponseDto::fromArray($this->balanceGateway->getBalance($accountNumber, $forceRefresh));
+            if (!$balance->success) {
+                Response::json($balance->toArray(), 502, 'fail', $balance->message ?? 'Error al consultar saldos bancarios.');
                 return;
             }
-            Response::json($result, 200, 'success', 'Saldos bancarios consultados exitosamente.');
+            Response::json($balance->toArray(), 200, 'success', 'Saldos bancarios consultados exitosamente.');
         } catch (Exception $e) {
             Response::json([], 502, 'fail', 'Error de conexión con el banco: ' . $e->getMessage());
         }
@@ -168,13 +181,58 @@ class PaymentController
         $service = $request->input('service') !== null ? trim((string)$request->input('service')) : null;
         $limit = (int)$request->input('limit', 50);
 
-        $logger = new IntegrationLogger();
-        $logs = $logger->readLogs($service, $limit);
+        $logs = IntegrationLogsResponseDto::fromLogs($service, $this->integrationLogger->readLogs($service, $limit));
 
-        Response::json([
-            'filter_service' => $service,
-            'count'          => count($logs),
-            'logs'           => $logs,
-        ], 200, 'success', 'Logs de integraciones de terceros consultados exitosamente.');
+        Response::json($logs->toArray(), 200, 'success', 'Logs de integraciones de terceros consultados exitosamente.');
+    }
+
+    /**
+     * Responde con un error derivado de una excepción.
+     * El código de la excepción solo se usa como HTTP status si es un entero 4xx/5xx válido;
+     * cualquier otro valor (códigos de driver, SQLSTATE, 0...) se sustituye por el código por defecto.
+     * Los errores 5xx y de base de datos nunca exponen su mensaje interno salvo que se autorice explícitamente.
+     */
+    private function failFromException(Exception $e, int $defaultCode, bool $exposeServerErrors = false): void
+    {
+        $code = ($e instanceof PDOException) ? 500 : $this->resolveHttpCode($e->getCode(), $defaultCode);
+        $message = ($code >= 500 && !$exposeServerErrors) ? self::GENERIC_SERVER_ERROR : $e->getMessage();
+
+        Response::json([], $code, 'fail', $message);
+    }
+
+    private function resolveHttpCode(mixed $exceptionCode, int $defaultCode): int
+    {
+        return (is_int($exceptionCode) && $exceptionCode >= 400 && $exceptionCode < 600)
+            ? $exceptionCode
+            : $defaultCode;
+    }
+
+    /**
+     * @param array<string, mixed> $body
+     */
+    private function extractOrderIdentifier(array $body): string|int|null
+    {
+        $orderId = $body['order_id'] ?? $body['order_uuid'] ?? $body['order_number'] ?? null;
+
+        if (is_int($orderId)) {
+            return $orderId;
+        }
+        if (is_string($orderId) && trim($orderId) !== '') {
+            return trim($orderId);
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array{0: string, 1: string} [tipo de documento, número de documento]
+     */
+    private function splitIdentification(string $idCard): array
+    {
+        if (preg_match('/^([A-Za-z])-?(\d+)$/', trim($idCard), $matches) === 1) {
+            return [strtoupper($matches[1]), $matches[2]];
+        }
+
+        return ['V', (string)preg_replace('/[^0-9]/', '', $idCard)];
     }
 }

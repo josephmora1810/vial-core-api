@@ -103,6 +103,7 @@ use App\Controllers\{
     VehicleController
 };
 use App\Domain\Vehicles\Services\VehicleMatcherService;
+use App\Infrastructure\Logging\IntegrationLogger;
 use App\Infrastructure\Pdf\FpdfContractPdfGenerator;
 
 final class ControllerServiceProvider
@@ -258,7 +259,8 @@ final class ControllerServiceProvider
                     $infra['bancaribe_exchange']($repos)
                 ),
                 exchangeRateService: $infra['bancaribe_exchange']($repos),
-                balanceGateway: $infra['bancaribe_balance']($repos)
+                balanceGateway: $infra['bancaribe_balance']($repos),
+                integrationLogger: new IntegrationLogger()
             ),
             SellerController::class => fn() => new SellerController(
                 new SearchClientByNationalId(

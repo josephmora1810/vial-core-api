@@ -2,8 +2,10 @@
 
 namespace App\Infrastructure\Database\Repositories\Landing;
 
-use App\Domain\Landing\Entities\HomeGallery;
-use App\Domain\Landing\Repositories\HomeGalleryRepositoryInterface;
+use App\Domain\Landing\{
+    Entities\HomeGallery,
+    Repositories\HomeGalleryRepositoryInterface
+};
 use App\Domain\Shared\Repositories\ImageRepositoryInterface;
 use DateTimeImmutable;
 use PDO;

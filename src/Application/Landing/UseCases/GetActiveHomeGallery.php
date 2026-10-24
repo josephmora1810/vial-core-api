@@ -2,6 +2,7 @@
 
 namespace App\Application\Landing\UseCases;
 
+use App\Domain\Landing\Entities\HomeGallery;
 use App\Domain\Landing\Repositories\HomeGalleryRepositoryInterface;
 
 class GetActiveHomeGallery
@@ -13,11 +14,10 @@ class GetActiveHomeGallery
     /**
      * Retorna los banners activos de la Landing Page ordenados para la web de Vue.js (FR-36).
      *
-     * @return list<array<string, mixed>>
+     * @return list<HomeGallery>
      */
     public function execute(): array
     {
-        $items = $this->galleryRepository->findAllActive();
-        return array_map(fn($item) => $item->toArray(), $items);
+        return $this->galleryRepository->findAllActive();
     }
 }

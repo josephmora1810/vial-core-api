@@ -28,28 +28,32 @@ use App\Domain\Shared\ValueObjects\{
     Money,
     Uuid
 };
-use App\Domain\Users\Entities\User;
-use App\Domain\Users\Enums\UserRole;
-use App\Domain\Users\ValueObjects\BirthDate;
-use App\Domain\Users\ValueObjects\Email;
-use App\Domain\Users\ValueObjects\Names;
-use App\Domain\Users\ValueObjects\NationalId;
 use App\Domain\Auth\ValueObjects\Password;
-use App\Domain\Users\ValueObjects\Phone;
-use App\Domain\Users\ValueObjects\Surnames;
+use App\Domain\Users\{
+    Entities\User,
+    Enums\UserRole,
+    ValueObjects\BirthDate,
+    ValueObjects\Email,
+    ValueObjects\Names,
+    ValueObjects\NationalId,
+    ValueObjects\Phone,
+    ValueObjects\Surnames
+};
 use App\Infrastructure\Database\Redis;
 use App\Infrastructure\Database\Repositories\Shared\CachedImageRepository;
 use App\Infrastructure\Logging\IntegrationLogger;
 use DateTimeImmutable;
 use Exception;
 use PHPUnit\Framework\TestCase;
-use Tests\Doubles\InMemoryDocumentRepository;
-use Tests\Doubles\InMemoryHomeGalleryRepository;
-use Tests\Doubles\InMemoryImageRepository;
-use Tests\Doubles\InMemoryPersonalAccessTokenRepository;
-use Tests\Doubles\InMemoryQueueService;
-use Tests\Doubles\InMemoryStorageService;
-use Tests\Doubles\InMemoryUserRepository;
+use Tests\Doubles\{
+    InMemoryDocumentRepository,
+    InMemoryHomeGalleryRepository,
+    InMemoryImageRepository,
+    InMemoryPersonalAccessTokenRepository,
+    InMemoryQueueService,
+    InMemoryStorageService,
+    InMemoryUserRepository
+};
 
 class UserModerationAndGalleryTest extends TestCase
 {
@@ -303,25 +307,26 @@ class UserModerationAndGalleryTest extends TestCase
         $activeBanners = $getActiveGallery->execute();
         $this->assertCount(2, $activeBanners);
         // Debe ordenar por orderIndex (1 primero, luego 2)
-        $this->assertEquals('¡Bienvenido a UbikGo!', $activeBanners[0]['title']);
-        $this->assertEquals('Asistencia Vial 24/7', $activeBanners[1]['title']);
+        $this->assertEquals('¡Bienvenido a UbikGo!', $activeBanners[0]->getTitle());
+        $this->assertEquals('Asistencia Vial 24/7', $activeBanners[1]->getTitle());
 
         // Test Update
         $updated = $manageGallery->update(
-            id: $banner1['id'],
+            id: $banner1->getId(),
             title: 'Asistencia Vial Premium 24/7',
             orderIndex: 0
         );
-        $this->assertEquals('Asistencia Vial Premium 24/7', $updated['title']);
-        $this->assertEquals(0, $updated['order_index']);
+        $this->assertEquals('Asistencia Vial Premium 24/7', $updated->getTitle());
+        $this->assertEquals(0, $updated->getOrderIndex());
 
         // Ahora Banner 1 tiene orden 0, debe quedar de primero en los activos
         $activeReordered = $getActiveGallery->execute();
-        $this->assertEquals('Asistencia Vial Premium 24/7', $activeReordered[0]['title']);
+        $this->assertEquals('Asistencia Vial Premium 24/7', $activeReordered[0]->getTitle());
 
         // Test Delete
-        $deleted = $manageGallery->delete($banner3['id']);
-        $this->assertTrue($deleted);
+        $deleted = $manageGallery->delete($banner3->getId());
+        $this->assertTrue($deleted->deleted);
+        $this->assertSame($banner3->getId(), $deleted->id);
         $this->assertCount(2, $manageGallery->listAll());
     }
 

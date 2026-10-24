@@ -2,19 +2,26 @@
 
 namespace App\Controllers;
 
-use App\Application\Driver\UseCases\EndDriverShift;
-use App\Application\Driver\UseCases\GetDriverFleetStatus;
-use App\Application\Driver\UseCases\RegisterDriverCrane;
-use App\Application\Driver\UseCases\StartDriverShift;
-use App\Application\Driver\UseCases\GetCurrentDriverShift;
-use App\Application\Driver\UseCases\UpdateDriverLocation;
-use App\Application\Driver\UseCases\UploadDriverLicense;
+use App\Application\Driver\DTOs\{
+    DriverCraneRegistrationResponseDto,
+    DriverFleetStatusResponseDto,
+    DriverLicenseResponseDto,
+    DriverLocationResponseDto,
+    DriverShiftActionResponseDto
+};
+use App\Application\Driver\UseCases\{
+    EndDriverShift,
+    GetCurrentDriverShift,
+    GetDriverFleetStatus,
+    RegisterDriverCrane,
+    StartDriverShift,
+    UpdateDriverLocation,
+    UploadDriverLicense
+};
 use App\Application\Vehicles\DTOs\VehicleResponseDto;
-use App\Core\Request;
-use App\Core\Response;
+use App\Core\{Request, Response};
 use App\Domain\Driver\Repositories\DriverShiftRepositoryInterface;
 use App\Domain\Shared\ValueObjects\Coordinates;
-use App\Domain\Users\Entities\User;
 use App\Domain\Vehicles\Repositories\VehicleRepositoryInterface;
 use DomainException;
 use Exception;
@@ -39,70 +46,21 @@ class DriverController
      */
     public function registerCrane(Request $request): void
     {
-        /** @var User|null $user */
-        $user = $request->user();
-        if ($user === null || $user->getId() === null) {
-            Response::json([], 401, 'fail', 'No autorizado.');
+        $userId = $this->authenticatedUserId($request);
+        if ($userId === null) {
+            $this->unauthorized();
             return;
         }
 
-        // Manejo de archivo multipart para el Carnet de la grúa
-        $carnetFilePath = null;
-        if (!empty($_FILES['carnet']['tmp_name'])) {
-            $uploaded = $_FILES['carnet'];
-            $ext = pathinfo($uploaded['name'], PATHINFO_EXTENSION);
-            $uploadsDir = dirname(__DIR__, 2) . '/storage/documents';
-            if (!is_dir($uploadsDir)) {
-                mkdir($uploadsDir, 0755, true);
-            }
-            $targetName = sprintf('crane_carnet_%d_%s.%s', $user->getId(), bin2hex(random_bytes(6)), $ext ?: 'jpg');
-            $targetPath = $uploadsDir . '/' . $targetName;
-            $moved = is_uploaded_file($uploaded['tmp_name'])
-                ? move_uploaded_file($uploaded['tmp_name'], $targetPath)
-                : copy($uploaded['tmp_name'], $targetPath);
-            if ($moved) {
-                $carnetFilePath = $targetPath;
-            }
-        } elseif (!empty($request->input('carnet_file_path'))) {
-            $inputPath = (string)$request->input('carnet_file_path');
-            $real = realpath($inputPath);
-            $storage = realpath(dirname(__DIR__, 2) . '/storage');
-            $temp = realpath(sys_get_temp_dir());
-            if ($real !== false && (($storage && str_starts_with($real, $storage)) || ($temp && str_starts_with($real, $temp)))) {
-                $carnetFilePath = $real;
-            }
-        }
+        // Archivo del Carnet de la grúa (multipart o ruta pre-existente confiable)
+        $carnetFilePath = $this->resolveUploadedFile($request, 'carnet', 'carnet_file_path', 'crane_carnet', $userId);
 
-        // Manejo de archivo multipart opcional para Licencia de Conducir
-        $licenseFilePath = null;
-        if (!empty($_FILES['license']['tmp_name'])) {
-            $uploadedLic = $_FILES['license'];
-            $ext = pathinfo($uploadedLic['name'], PATHINFO_EXTENSION);
-            $uploadsDir = dirname(__DIR__, 2) . '/storage/documents';
-            if (!is_dir($uploadsDir)) {
-                mkdir($uploadsDir, 0755, true);
-            }
-            $targetName = sprintf('driver_lic_%d_%s.%s', $user->getId(), bin2hex(random_bytes(6)), $ext ?: 'jpg');
-            $targetPath = $uploadsDir . '/' . $targetName;
-            $moved = is_uploaded_file($uploadedLic['tmp_name'])
-                ? move_uploaded_file($uploadedLic['tmp_name'], $targetPath)
-                : copy($uploadedLic['tmp_name'], $targetPath);
-            if ($moved) {
-                $licenseFilePath = $targetPath;
-            }
-        } elseif (!empty($request->input('license_file_path'))) {
-            $inputPath = (string)$request->input('license_file_path');
-            $real = realpath($inputPath);
-            $storage = realpath(dirname(__DIR__, 2) . '/storage');
-            $temp = realpath(sys_get_temp_dir());
-            if ($real !== false && (($storage && str_starts_with($real, $storage)) || ($temp && str_starts_with($real, $temp)))) {
-                $licenseFilePath = $real;
-            }
-        }
+        // Archivo opcional de la Licencia de Conducir
+        $licenseFilePath = $this->resolveUploadedFile($request, 'license', 'license_file_path', 'driver_lic', $userId);
 
         try {
             $result = $this->registerDriverCrane->execute(
-                driverUserId: $user->getId(),
+                driverUserId: $userId,
                 rawPlate: $request->input('plate_number'),
                 rawNiv: $request->input('niv'),
                 rawYear: $request->input('year') !== null ? (int)$request->input('year') : null,
@@ -118,11 +76,10 @@ class DriverController
                 licenseGrade: $request->input('license_grade', '5TO GRADO')
             );
 
-            Response::json($result, 201, 'success', 'Grúa registrada con éxito en el sistema.');
+            $dto = DriverCraneRegistrationResponseDto::fromArray($result);
+            Response::json($dto->toArray(), 201, 'success', 'Grúa registrada con éxito en el sistema.');
         } catch (Exception $e) {
-            $code = $e->getCode();
-            $httpCode = (is_int($code) && $code >= 400 && $code < 600) ? $code : 400;
-            Response::json([], $httpCode, 'fail', $e->getMessage());
+            $this->fail($e, 400);
         }
     }
 
@@ -132,38 +89,13 @@ class DriverController
      */
     public function uploadLicense(Request $request): void
     {
-        /** @var User|null $user */
-        $user = $request->user();
-        if ($user === null || $user->getId() === null) {
-            Response::json([], 401, 'fail', 'No autorizado.');
+        $userId = $this->authenticatedUserId($request);
+        if ($userId === null) {
+            $this->unauthorized();
             return;
         }
 
-        $licenseFilePath = null;
-        if (!empty($_FILES['license']['tmp_name'])) {
-            $uploaded = $_FILES['license'];
-            $ext = pathinfo($uploaded['name'], PATHINFO_EXTENSION);
-            $uploadsDir = dirname(__DIR__, 2) . '/storage/documents';
-            if (!is_dir($uploadsDir)) {
-                mkdir($uploadsDir, 0755, true);
-            }
-            $targetName = sprintf('driver_lic_%d_%s.%s', $user->getId(), bin2hex(random_bytes(6)), $ext ?: 'jpg');
-            $targetPath = $uploadsDir . '/' . $targetName;
-            $moved = is_uploaded_file($uploaded['tmp_name'])
-                ? move_uploaded_file($uploaded['tmp_name'], $targetPath)
-                : copy($uploaded['tmp_name'], $targetPath);
-            if ($moved) {
-                $licenseFilePath = $targetPath;
-            }
-        } elseif (!empty($request->input('file_path'))) {
-            $inputPath = (string)$request->input('file_path');
-            $real = realpath($inputPath);
-            $storage = realpath(dirname(__DIR__, 2) . '/storage');
-            $temp = realpath(sys_get_temp_dir());
-            if ($real !== false && (($storage && str_starts_with($real, $storage)) || ($temp && str_starts_with($real, $temp)))) {
-                $licenseFilePath = $real;
-            }
-        }
+        $licenseFilePath = $this->resolveUploadedFile($request, 'license', 'file_path', 'driver_lic', $userId);
 
         if (empty($licenseFilePath)) {
             Response::json(['license' => 'Debe adjuntar la imagen de la Licencia de Conducir.'], 422, 'fail', 'Archivo requerido.');
@@ -172,17 +104,16 @@ class DriverController
 
         try {
             $result = $this->uploadDriverLicense->execute(
-                driverUserId: $user->getId(),
+                driverUserId: $userId,
                 filePath: $licenseFilePath,
                 grade: $request->input('grade', '5TO GRADO'),
                 expirationDate: $request->input('expiration_date')
             );
 
-            Response::json($result, 201, 'success', 'Licencia de conducir cargada exitosamente.');
+            $dto = DriverLicenseResponseDto::fromArray($result);
+            Response::json($dto->toArray(), 201, 'success', 'Licencia de conducir cargada exitosamente.');
         } catch (Exception $e) {
-            $code = $e->getCode();
-            $httpCode = (is_int($code) && $code >= 400 && $code < 600) ? $code : 400;
-            Response::json([], $httpCode, 'fail', $e->getMessage());
+            $this->fail($e, 400);
         }
     }
 
@@ -192,20 +123,18 @@ class DriverController
      */
     public function status(Request $request): void
     {
-        /** @var User|null $user */
-        $user = $request->user();
-        if ($user === null || $user->getId() === null) {
-            Response::json([], 401, 'fail', 'No autorizado.');
+        $userId = $this->authenticatedUserId($request);
+        if ($userId === null) {
+            $this->unauthorized();
             return;
         }
 
         try {
-            $status = $this->getDriverFleetStatus->execute($user->getId());
-            Response::json($status, 200, 'success', 'Estado de flota y documentación consultado con éxito.');
+            $status = $this->getDriverFleetStatus->execute($userId);
+            $dto = DriverFleetStatusResponseDto::fromArray($status);
+            Response::json($dto->toArray(), 200, 'success', 'Estado de flota y documentación consultado con éxito.');
         } catch (Exception $e) {
-            $code = $e->getCode();
-            $httpCode = (is_int($code) && $code >= 400 && $code < 600) ? $code : 400;
-            Response::json([], $httpCode, 'fail', $e->getMessage());
+            $this->fail($e, 400);
         }
     }
 
@@ -215,10 +144,9 @@ class DriverController
      */
     public function listCranes(Request $request): void
     {
-        /** @var User|null $user */
-        $user = $request->user();
-        if ($user === null || $user->getId() === null) {
-            Response::json([], 401, 'fail', 'No autorizado.');
+        $userId = $this->authenticatedUserId($request);
+        if ($userId === null) {
+            $this->unauthorized();
             return;
         }
 
@@ -227,10 +155,35 @@ class DriverController
             return;
         }
 
-        $cranes = $this->vehicleRepository->findCranesByUserId($user->getId());
+        $cranes = $this->vehicleRepository->findCranesByUserId($userId);
         $dtos = array_map(fn($c) => VehicleResponseDto::fromEntity($c)->toArray(), $cranes);
 
         Response::json($dtos, 200, 'success', 'Grúas del operador consultadas con éxito.');
+    }
+
+    /**
+     * GET /api/v1/driver/shift/current
+     * Retorna el turno activo del chofer (o un estado inactivo si no tiene turno en curso).
+     */
+    public function currentShift(Request $request): void
+    {
+        $userId = $this->authenticatedUserId($request);
+        if ($userId === null) {
+            $this->unauthorized();
+            return;
+        }
+
+        if ($this->getCurrentDriverShift === null) {
+            Response::json([], 500, 'error', 'Servicio de turnos no configurado.');
+            return;
+        }
+
+        try {
+            $dto = $this->getCurrentDriverShift->execute($userId);
+            Response::json($dto->toArray(), 200, 'success', 'Turno actual consultado con éxito.');
+        } catch (Exception $e) {
+            $this->fail($e, 500, 'error');
+        }
     }
 
     /**
@@ -239,10 +192,9 @@ class DriverController
      */
     public function startShift(Request $request): void
     {
-        /** @var User|null $user */
-        $user = $request->user();
-        if ($user === null || $user->getId() === null) {
-            Response::json([], 401, 'fail', 'No autorizado.');
+        $userId = $this->authenticatedUserId($request);
+        if ($userId === null) {
+            $this->unauthorized();
             return;
         }
 
@@ -265,34 +217,32 @@ class DriverController
             $lngVal = ($lng !== null && is_numeric($lng)) ? (float)$lng : null;
 
             $result = $this->startDriverShift->execute(
-                driverUserId: (int)$user->getId(),
+                driverUserId: $userId,
                 craneIdentifier: $craneId,
                 initialLatitude: $latVal,
                 initialLongitude: $lngVal
             );
 
-            Response::json($result, 200, 'success', $result['message']);
+            $dto = DriverShiftActionResponseDto::fromArray($result);
+            Response::json($dto->toArray(), 200, 'success', $dto->message);
         } catch (DomainException $e) {
-            $code = $e->getCode();
-            $httpCode = (is_int($code) && $code >= 400 && $code < 600) ? $code : 422;
-            Response::json([], $httpCode, 'fail', $e->getMessage());
+            $this->fail($e, 422);
         } catch (Exception $e) {
-            $code = $e->getCode();
-            $httpCode = (is_int($code) && $code >= 400 && $code < 600) ? $code : 500;
-            Response::json([], $httpCode, 'error', $e->getMessage());
+            $this->fail($e, 500, 'error');
         }
     }
 
     /**
      * POST /api/v1/driver/cranes/{id}/activate
      * Activa una grúa específica para el turno del chofer (desactivando cualquier otra unidad de su flota).
+     *
+     * @param array<string, mixed> $params
      */
     public function activateCrane(Request $request, array $params = []): void
     {
-        /** @var User|null $user */
-        $user = $request->user();
-        if ($user === null || $user->getId() === null) {
-            Response::json([], 401, 'fail', 'No autorizado.');
+        $userId = $this->authenticatedUserId($request);
+        if ($userId === null) {
+            $this->unauthorized();
             return;
         }
 
@@ -309,19 +259,16 @@ class DriverController
 
         try {
             $result = $this->startDriverShift->execute(
-                driverUserId: (int)$user->getId(),
+                driverUserId: $userId,
                 craneIdentifier: $craneId
             );
 
-            Response::json($result, 200, 'success', 'Grúa activada como unidad de guardia para el chofer.');
+            $dto = DriverShiftActionResponseDto::fromArray($result);
+            Response::json($dto->toArray(), 200, 'success', 'Grúa activada como unidad de guardia para el chofer.');
         } catch (DomainException $e) {
-            $code = $e->getCode();
-            $httpCode = (is_int($code) && $code >= 400 && $code < 600) ? $code : 409;
-            Response::json([], $httpCode, 'fail', $e->getMessage());
+            $this->fail($e, 409);
         } catch (Exception $e) {
-            $code = $e->getCode();
-            $httpCode = (is_int($code) && $code >= 400 && $code < 600) ? $code : 500;
-            Response::json([], $httpCode, 'error', $e->getMessage());
+            $this->fail($e, 500, 'error');
         }
     }
 
@@ -331,10 +278,9 @@ class DriverController
      */
     public function endShift(Request $request): void
     {
-        /** @var User|null $user */
-        $user = $request->user();
-        if ($user === null || $user->getId() === null) {
-            Response::json([], 401, 'fail', 'No autorizado.');
+        $userId = $this->authenticatedUserId($request);
+        if ($userId === null) {
+            $this->unauthorized();
             return;
         }
 
@@ -344,16 +290,13 @@ class DriverController
         }
 
         try {
-            $result = $this->endDriverShift->execute((int)$user->getId());
-            Response::json($result, 200, 'success', $result['message']);
+            $result = $this->endDriverShift->execute($userId);
+            $dto = DriverShiftActionResponseDto::fromArray($result);
+            Response::json($dto->toArray(), 200, 'success', $dto->message);
         } catch (DomainException $e) {
-            $code = $e->getCode();
-            $httpCode = (is_int($code) && $code >= 400 && $code < 600) ? $code : 409;
-            Response::json([], $httpCode, 'fail', $e->getMessage());
+            $this->fail($e, 409);
         } catch (Exception $e) {
-            $code = $e->getCode();
-            $httpCode = (is_int($code) && $code >= 400 && $code < 600) ? $code : 500;
-            Response::json([], $httpCode, 'error', $e->getMessage());
+            $this->fail($e, 500, 'error');
         }
     }
 
@@ -363,10 +306,9 @@ class DriverController
      */
     public function updateLocation(Request $request): void
     {
-        /** @var User|null $user */
-        $user = $request->user();
-        if ($user === null || $user->getId() === null) {
-            Response::json([], 401, 'fail', 'No autorizado.');
+        $userId = $this->authenticatedUserId($request);
+        if ($userId === null) {
+            $this->unauthorized();
             return;
         }
 
@@ -387,20 +329,88 @@ class DriverController
         try {
             $coords = new Coordinates((float)$lat, (float)$lng);
             $result = $this->updateDriverLocation->execute(
-                driverUserId: (int)$user->getId(),
+                driverUserId: $userId,
                 coordinates: $coords,
                 speedKmh: $speed
             );
 
-            Response::json($result, 200, 'success', 'Ubicación de radar actualizada con éxito.');
+            $dto = DriverLocationResponseDto::fromArray($result);
+            Response::json($dto->toArray(), 200, 'success', 'Ubicación de radar actualizada con éxito.');
         } catch (DomainException $e) {
-            $code = $e->getCode();
-            $httpCode = (is_int($code) && $code >= 400 && $code < 600) ? $code : 400;
-            Response::json([], $httpCode, 'fail', $e->getMessage());
+            $this->fail($e, 400);
         } catch (Exception $e) {
-            $code = $e->getCode();
-            $httpCode = (is_int($code) && $code >= 400 && $code < 600) ? $code : 500;
-            Response::json([], $httpCode, 'error', $e->getMessage());
+            $this->fail($e, 500, 'error');
         }
+    }
+
+    /**
+     * Retorna el ID del usuario autenticado o null si la petición no está autenticada.
+     */
+    private function authenticatedUserId(Request $request): ?int
+    {
+        $user = $request->user();
+        if ($user === null || $user->getId() === null) {
+            return null;
+        }
+
+        return (int)$user->getId();
+    }
+
+    private function unauthorized(): void
+    {
+        Response::json([], 401, 'fail', 'No autorizado.');
+    }
+
+    /**
+     * Emite una respuesta de error usando el código de la excepción si es un HTTP 4xx/5xx válido;
+     * en caso contrario utiliza el código por defecto indicado.
+     */
+    private function fail(Exception $e, int $defaultCode, string $status = 'fail'): void
+    {
+        $code = $e->getCode();
+        $httpCode = (is_int($code) && $code >= 400 && $code < 600) ? $code : $defaultCode;
+        Response::json([], $httpCode, $status, $e->getMessage());
+    }
+
+    /**
+     * Resuelve la ruta local de un archivo recibido por la petición:
+     *  1. Archivo multipart ($_FILES[$fileKey]): se guarda en storage/documents con nombre aleatorio.
+     *  2. Ruta pre-existente ($pathInputKey): solo se acepta si reside dentro de /storage o del directorio temporal.
+     *
+     * @return string|null Ruta absoluta del archivo o null si no hay archivo válido.
+     */
+    private function resolveUploadedFile(
+        Request $request,
+        string $fileKey,
+        string $pathInputKey,
+        string $filePrefix,
+        int $userId
+    ): ?string {
+        if (!empty($_FILES[$fileKey]['tmp_name'])) {
+            $uploaded = $_FILES[$fileKey];
+            $ext = pathinfo((string)$uploaded['name'], PATHINFO_EXTENSION);
+            $uploadsDir = dirname(__DIR__, 2) . '/storage/documents';
+            if (!is_dir($uploadsDir)) {
+                mkdir($uploadsDir, 0755, true);
+            }
+            $targetName = sprintf('%s_%d_%s.%s', $filePrefix, $userId, bin2hex(random_bytes(6)), $ext ?: 'jpg');
+            $targetPath = $uploadsDir . '/' . $targetName;
+            $moved = is_uploaded_file($uploaded['tmp_name'])
+                ? move_uploaded_file($uploaded['tmp_name'], $targetPath)
+                : copy($uploaded['tmp_name'], $targetPath);
+
+            return $moved ? $targetPath : null;
+        }
+
+        if (!empty($request->input($pathInputKey))) {
+            $real = realpath((string)$request->input($pathInputKey));
+            $storage = realpath(dirname(__DIR__, 2) . '/storage');
+            $temp = realpath(sys_get_temp_dir());
+            if ($real !== false && (($storage && str_starts_with($real, $storage)) || ($temp && str_starts_with($real, $temp)))) {
+                return $real;
+            }
+        }
+
+        return null;
     }
 }

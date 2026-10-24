@@ -3,8 +3,7 @@
 namespace App\Infrastructure\Services\Bancaribe;
 
 use App\Domain\Payments\Repositories\BankTokenRepositoryInterface;
-use App\Infrastructure\Database\Redis;
-use App\Infrastructure\Http\HttpClientInterface;
+use App\Infrastructure\{Database\Redis, Http\HttpClientException, Http\HttpClientInterface};
 use DateTimeImmutable;
 use RuntimeException;
 use Throwable;
@@ -87,7 +86,11 @@ class BancaribeAuthService
             throw new RuntimeException('Error al obtener el token de acceso de Bancaribe: ' . $response->body(), 502);
         }
 
-        $data = $response->json();
+        try {
+            $data = $response->json();
+        } catch (HttpClientException $e) {
+            throw new RuntimeException('Respuesta OAuth2 de Bancaribe inválida: no es un JSON válido.', 502, $e);
+        }
         if (empty($data['access_token'])) {
             throw new RuntimeException('Respuesta OAuth2 de Bancaribe inválida: falta access_token.', 502);
         }

@@ -3,16 +3,12 @@
 namespace App\Application\Payments\UseCases;
 
 use App\Application\Commissions\UseCases\GenerateOrderCommission;
-use App\Application\Payments\DTOs\OrderResponseDto;
 use App\Application\Contracts\DTOs\ServiceContractResponseDto;
+use App\Application\Payments\DTOs\OrderResponseDto;
+use App\Domain\Contracts\Repositories\{PlanRepositoryInterface, ServiceContractRepositoryInterface};
 use App\Domain\Payments\Entities\Payment;
-use App\Domain\Payments\Enums\OrderableType;
-use App\Domain\Payments\Enums\PaymentMethod;
-use App\Domain\Payments\Enums\PaymentStatus;
-use App\Domain\Payments\Repositories\OrderRepositoryInterface;
-use App\Domain\Payments\Repositories\PaymentRepositoryInterface;
-use App\Domain\Contracts\Repositories\PlanRepositoryInterface;
-use App\Domain\Contracts\Repositories\ServiceContractRepositoryInterface;
+use App\Domain\Payments\Enums\{OrderableType, PaymentMethod, PaymentStatus};
+use App\Domain\Payments\Repositories\{OrderRepositoryInterface, PaymentRepositoryInterface};
 use DateTimeImmutable;
 use Exception;
 

@@ -2,34 +2,21 @@
 
 namespace Tests\Unit\Application;
 
-use App\Application\Driver\UseCases\EndDriverShift;
-use App\Application\Driver\UseCases\StartDriverShift;
-use App\Application\Driver\UseCases\UpdateDriverLocation;
+use App\Application\Driver\UseCases\{EndDriverShift, StartDriverShift, UpdateDriverLocation};
 use App\Domain\Auth\Entities\Role;
 use App\Domain\Auth\ValueObjects\Password;
-use App\Domain\Shared\ValueObjects\Coordinates;
-use App\Domain\Shared\ValueObjects\Money;
-use App\Domain\Shared\ValueObjects\Uuid;
+use App\Domain\Shared\ValueObjects\{Coordinates, Money, Uuid};
 use App\Domain\Towing\Entities\TowService;
 use App\Domain\Users\Entities\User;
 use App\Domain\Users\Enums\UserRole;
-use App\Domain\Users\ValueObjects\BirthDate;
-use App\Domain\Users\ValueObjects\Email;
-use App\Domain\Users\ValueObjects\Names;
-use App\Domain\Users\ValueObjects\NationalId;
-use App\Domain\Users\ValueObjects\Phone;
-use App\Domain\Users\ValueObjects\Surnames;
+use App\Domain\Users\ValueObjects\{BirthDate, Email, Names, NationalId, Phone, Surnames};
 use App\Domain\Vehicles\Entities\Vehicle;
-use App\Domain\Vehicles\Enums\VehicleStatus;
-use App\Domain\Vehicles\Enums\VehicleType;
+use App\Domain\Vehicles\Enums\{VehicleStatus, VehicleType};
 use App\Domain\Vehicles\ValueObjects\PlateNumber;
 use DomainException;
 use Exception;
 use PHPUnit\Framework\TestCase;
-use Tests\Doubles\InMemoryDriverShiftRepository;
-use Tests\Doubles\InMemoryTowServiceRepository;
-use Tests\Doubles\InMemoryUserRepository;
-use Tests\Doubles\InMemoryVehicleRepository;
+use Tests\Doubles\{InMemoryDriverShiftRepository, InMemoryTowServiceRepository, InMemoryUserRepository, InMemoryVehicleRepository};
 
 class DriverShiftAndCraneActivationTest extends TestCase
 {

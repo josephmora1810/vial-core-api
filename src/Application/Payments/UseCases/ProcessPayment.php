@@ -3,25 +3,18 @@
 namespace App\Application\Payments\UseCases;
 
 use App\Application\Commissions\UseCases\GenerateOrderCommission;
-use App\Application\Payments\DTOs\OrderResponseDto;
 use App\Application\Contracts\DTOs\ServiceContractResponseDto;
+use App\Application\Payments\DTOs\{OrderResponseDto, PaymentResultResponseDto};
 use App\Application\Towing\DTOs\TowServiceResponseDto;
+use App\Domain\Contracts\Repositories\{PlanRepositoryInterface, ServiceContractRepositoryInterface};
 use App\Domain\Payments\Entities\Payment;
-use App\Domain\Payments\Enums\OrderableType;
-use App\Domain\Payments\Enums\PaymentMethod;
-use App\Domain\Payments\Enums\PaymentStatus;
-use App\Domain\Payments\Repositories\OrderRepositoryInterface;
-use App\Domain\Payments\Repositories\PaymentRepositoryInterface;
-use App\Domain\Contracts\Repositories\PlanRepositoryInterface;
-use App\Domain\Contracts\Repositories\ServiceContractRepositoryInterface;
-use App\Domain\Payments\Services\ExchangeRateServiceInterface;
-use App\Domain\Payments\Services\PaymentGatewayInterface;
-use App\Domain\Shared\Services\BroadcasterInterface;
-use App\Domain\Shared\Services\PushNotificationInterface;
+use App\Domain\Payments\Enums\{OrderableType, PaymentMethod, PaymentStatus};
+use App\Domain\Payments\Repositories\{OrderRepositoryInterface, PaymentRepositoryInterface};
+use App\Domain\Payments\Services\{ExchangeRateServiceInterface, PaymentGatewayInterface};
+use App\Domain\Shared\Services\{BroadcasterInterface, PushNotificationInterface};
 use App\Domain\Towing\Enums\TowServiceStatus;
 use App\Domain\Towing\Repositories\TowServiceRepositoryInterface;
-use App\Infrastructure\Services\Bancaribe\C2pStrategy;
-use App\Infrastructure\Services\Bancaribe\PagoMovilStrategy;
+use App\Infrastructure\Services\Bancaribe\{C2pStrategy, PagoMovilStrategy};
 use DateTimeImmutable;
 use Exception;
 
@@ -266,15 +259,7 @@ class ProcessPayment
         }
 
         return [
-            'payment' => [
-                'uuid'           => $completedPayment->getUuid()->getValue(),
-                'transaction_id' => $completedPayment->getTransactionId(),
-                'payment_method' => $completedPayment->getPaymentMethod()->getValue(),
-                'amount_ves'     => $completedPayment->getAmount()->getAmount(),
-                'status'         => $completedPayment->getStatus()->getValue(),
-                'paid_at'        => $completedPayment->getPaidAt()?->format('Y-m-d H:i:s'),
-                'bank_message'   => $result->message,
-            ],
+            'payment'  => PaymentResultResponseDto::fromEntity($completedPayment, $result->message)->toArray(),
             'order'    => OrderResponseDto::fromEntity($order)->toArray(),
             'contract' => $activatedContractDto,
         ];

@@ -4,34 +4,19 @@ namespace Tests\Unit\Application\UseCases;
 
 use App\Application\Auth\UseCases\ReviewKycDocument;
 use App\Application\Documents\UseCases\EnqueueDocumentS3Upload;
-use App\Application\Driver\UseCases\GetDriverFleetStatus;
-use App\Application\Driver\UseCases\RegisterDriverCrane;
-use App\Application\Driver\UseCases\UploadDriverLicense;
-use App\Domain\Auth\Entities\Document;
-use App\Domain\Auth\Entities\Role;
-use App\Domain\Auth\Enums\DocumentStatus;
-use App\Domain\Auth\Enums\DocumentType;
+use App\Application\Driver\UseCases\{GetDriverFleetStatus, RegisterDriverCrane, UploadDriverLicense};
+use App\Domain\Auth\Entities\{Document, Role};
+use App\Domain\Auth\Enums\{DocumentStatus, DocumentType};
 use App\Domain\Auth\ValueObjects\Password;
-use App\Domain\Shared\ValueObjects\Money;
-use App\Domain\Shared\ValueObjects\Uuid;
+use App\Domain\Shared\ValueObjects\{Money, Uuid};
 use App\Domain\Users\Entities\User;
 use App\Domain\Users\Enums\UserRole;
-use App\Domain\Users\ValueObjects\BirthDate;
-use App\Domain\Users\ValueObjects\Email;
-use App\Domain\Users\ValueObjects\Names;
-use App\Domain\Users\ValueObjects\NationalId;
-use App\Domain\Users\ValueObjects\Phone;
-use App\Domain\Users\ValueObjects\Surnames;
-use App\Domain\Vehicles\Enums\VehicleStatus;
-use App\Domain\Vehicles\Enums\VehicleType;
+use App\Domain\Users\ValueObjects\{BirthDate, Email, Names, NationalId, Phone, Surnames};
+use App\Domain\Vehicles\Enums\{VehicleStatus, VehicleType};
 use DateTimeImmutable;
 use Exception;
 use PHPUnit\Framework\TestCase;
-use Tests\Doubles\FakeDocumentExtractor;
-use Tests\Doubles\InMemoryDocumentRepository;
-use Tests\Doubles\InMemoryQueueService;
-use Tests\Doubles\InMemoryUserRepository;
-use Tests\Doubles\InMemoryVehicleRepository;
+use Tests\Doubles\{FakeDocumentExtractor, InMemoryDocumentRepository, InMemoryQueueService, InMemoryUserRepository, InMemoryVehicleRepository};
 
 class DriverFleetValidationTest extends TestCase
 {

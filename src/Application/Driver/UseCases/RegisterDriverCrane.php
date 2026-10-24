@@ -5,21 +5,16 @@ namespace App\Application\Driver\UseCases;
 use App\Application\Documents\UseCases\EnqueueDocumentS3Upload;
 use App\Application\Vehicles\DTOs\VehicleResponseDto;
 use App\Domain\Auth\Entities\Document;
-use App\Domain\Auth\Enums\DocumentStatus;
-use App\Domain\Auth\Enums\DocumentType;
+use App\Domain\Auth\Enums\{DocumentStatus, DocumentType};
 use App\Domain\Auth\Exceptions\DocumentExtractionException;
 use App\Domain\Auth\Repositories\DocumentRepositoryInterface;
 use App\Domain\Auth\Services\DocumentExtractorInterface;
 use App\Domain\Users\Enums\UserRole;
 use App\Domain\Users\Repositories\UserRepositoryInterface;
 use App\Domain\Vehicles\Entities\Vehicle;
-use App\Domain\Vehicles\Enums\VehicleStatus;
-use App\Domain\Vehicles\Enums\VehicleType;
-use App\Domain\Vehicles\Repositories\VehicleCatalogRepositoryInterface;
-use App\Domain\Vehicles\Repositories\VehicleRepositoryInterface;
-use App\Domain\Vehicles\ValueObjects\EngineSerial;
-use App\Domain\Vehicles\ValueObjects\Niv;
-use App\Domain\Vehicles\ValueObjects\PlateNumber;
+use App\Domain\Vehicles\Enums\{VehicleStatus, VehicleType};
+use App\Domain\Vehicles\Repositories\{VehicleCatalogRepositoryInterface, VehicleRepositoryInterface};
+use App\Domain\Vehicles\ValueObjects\{EngineSerial, Niv, PlateNumber};
 use Exception;
 
 class RegisterDriverCrane
