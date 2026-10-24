@@ -4,7 +4,6 @@ namespace App\Infrastructure\Queue;
 
 use App\Domain\Shared\Services\QueueServiceInterface;
 use App\Infrastructure\Database\Redis;
-use JsonException;
 use Throwable;
 
 class RedisQueueService implements QueueServiceInterface

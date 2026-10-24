@@ -7,7 +7,7 @@ use App\Domain\Contracts\Entities\ServiceContract;
 readonly class ServiceContractResponseDto
 {
     public function __construct(
-        public string $id,
+        public string $uuid,
         public int $client_id,
         public ?int $seller_id,
         public int $plan_id,
@@ -29,7 +29,7 @@ readonly class ServiceContractResponseDto
         ?string $vehiclePlate = null
     ): self {
         return new self(
-            id: $contract->getUuid()->getValue(),
+            uuid: $contract->getUuid()->getValue(),
             client_id: $contract->getClientId(),
             seller_id: $contract->getSellerId(),
             plan_id: $contract->getPlanId(),
@@ -49,7 +49,7 @@ readonly class ServiceContractResponseDto
     public function toArray(): array
     {
         return [
-            'id'                 => $this->id,
+            'uuid'               => $this->uuid,
             'client_id'          => $this->client_id,
             'seller_id'          => $this->seller_id,
             'plan_id'            => $this->plan_id,

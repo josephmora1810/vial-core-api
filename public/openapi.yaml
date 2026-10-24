@@ -273,9 +273,6 @@ components:
     ServiceContractDto:
       type: object
       properties:
-        id:
-          type: integer
-          example: 1
         uuid:
           type: string
           format: uuid
@@ -493,6 +490,125 @@ components:
         created_at:
           type: string
           example: 2026-10-22 23:15:00
+
+    DocumentResponseDto:
+      type: object
+      required:
+        - id
+        - documentable_type
+        - documentable_id
+        - document_type
+        - status
+      properties:
+        id:
+          type: integer
+          example: 12
+        documentable_type:
+          type: string
+          enum: [user, vehicle]
+          example: user
+        documentable_id:
+          type: integer
+          example: 1
+        document_type:
+          type: string
+          enum: [identity_card, passport, vehicle_registration, niv_certificate, driving_license]
+          example: identity_card
+        file_path:
+          type: string
+          nullable: true
+          example: storage/documents/doc_1_identity_card_abc123.jpg
+        status:
+          type: string
+          enum: [PENDING, VERIFIED, REJECTED]
+          example: PENDING
+        extracted_data:
+          type: object
+          nullable: true
+          properties:
+            names:
+              type: string
+              example: JUAN CARLOS
+            surnames:
+              type: string
+              example: PÉREZ GÓMEZ
+            national_id:
+              type: string
+              example: V-12345678
+            birth_date:
+              type: string
+              example: 1990-05-15
+        vehicle_verified:
+          type: boolean
+          nullable: true
+          example: true
+        message:
+          type: string
+          nullable: true
+          example: Documento procesado con éxito.
+        created_at:
+          type: string
+          nullable: true
+          example: 2026-10-23 10:00:00
+        updated_at:
+          type: string
+          nullable: true
+          example: 2026-10-23 10:15:00
+
+    KycStatusResponseDto:
+      type: object
+      required:
+        - user_id
+        - is_identity_verified
+        - has_verified_vehicle
+        - is_fully_kyc_passed
+        - documents
+      properties:
+        user_id:
+          type: integer
+          example: 1
+        is_identity_verified:
+          type: boolean
+          example: true
+        has_verified_vehicle:
+          type: boolean
+          example: false
+        is_fully_kyc_passed:
+          type: boolean
+          example: false
+        documents:
+          type: object
+          properties:
+            identity_card:
+              type: object
+              nullable: true
+              properties:
+                status:
+                  type: string
+                  example: VERIFIED
+                file_path:
+                  type: string
+                  example: storage/documents/doc_1_identity_card_abc.jpg
+            passport:
+              type: object
+              nullable: true
+              properties:
+                status:
+                  type: string
+                  example: PENDING
+                file_path:
+                  type: string
+                  example: storage/documents/doc_1_passport_def.jpg
+            driving_license:
+              type: object
+              nullable: true
+              properties:
+                status:
+                  type: string
+                  example: VERIFIED
+                file_path:
+                  type: string
+                  example: storage/documents/doc_1_license_ghi.jpg
 
     CommissionResponseDto:
       type: object
@@ -1501,20 +1617,7 @@ paths:
                     type: string
                     example: Documento procesado con éxito.
                   data:
-                    type: object
-                    properties:
-                      document_id:
-                        type: integer
-                        example: 12
-                      document_type:
-                        type: string
-                        example: vehicle_registration
-                      status:
-                        type: string
-                        example: pending
-                      file_path:
-                        type: string
-                        example: storage/documents/doc_1_vehicle_registration_abcdef1234.jpg
+                    $ref: '#/components/schemas/DocumentResponseDto'
         '400':
           description: Parámetros inválidos o error en el archivo
           content:
@@ -1534,7 +1637,13 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '422':
-          description: Falta document_type o archivo
+          description: Falta document_type o archivo no soportado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '501':
+          description: Servicio no soportado o módulo deshabilitado
           content:
             application/json:
               schema:
@@ -1566,39 +1675,7 @@ paths:
                     type: string
                     example: Estado KYC consultado con éxito.
                   data:
-                    type: object
-                    properties:
-                      user_id:
-                        type: integer
-                        example: 1
-                      is_identity_verified:
-                        type: boolean
-                        example: true
-                      has_verified_vehicle:
-                        type: boolean
-                        example: false
-                      is_fully_kyc_passed:
-                        type: boolean
-                        example: false
-                      documents:
-                        type: object
-                        properties:
-                          identity_card:
-                            type: object
-                            nullable: true
-                            properties:
-                              status:
-                                type: string
-                                example: verified
-                              file_path:
-                                type: string
-                                example: storage/documents/cedula_1_a1b2c3.jpg
-                          passport:
-                            type: object
-                            nullable: true
-                          driving_license:
-                            type: object
-                            nullable: true
+                    $ref: '#/components/schemas/KycStatusResponseDto'
         '401':
           description: No autenticado
           content:
@@ -3876,6 +3953,48 @@ paths:
       responses:
         '200':
           description: Documentos KYC consultados exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: Documentos KYC consultados exitosamente.
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/DocumentResponseDto'
+        '400':
+          description: Parámetros inválidos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: No autenticado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: No autorizado (requiere rol admin o permiso audit_kyc)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '501':
+          description: Revisión de documentos no configurada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
   /admin/documents/{id}/review:
     post:
@@ -3912,6 +4031,58 @@ paths:
       responses:
         '200':
           description: Documento KYC revisado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  code:
+                    type: integer
+                    example: 200
+                  message:
+                    type: string
+                    example: Documento KYC revisado exitosamente.
+                  data:
+                    $ref: '#/components/schemas/DocumentResponseDto'
+        '400':
+          description: Parámetros inválidos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: No autenticado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: No autorizado (requiere rol admin o permiso audit_kyc)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Documento no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Estado no válido (debe ser VERIFIED o REJECTED) o error en la transición
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '501':
+          description: Revisión de documentos no configurada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
   # ==========================================
   # OPERADORES DE GRÚA Y VALIDACIÓN DE FLOTA (FR-09, FR-10)
@@ -4500,6 +4671,35 @@ paths:
           description: Origen fuera de la geocerca de cobertura.
 
   /sos:
+    get:
+      summary: Alias de Historial Paginado (/api/v1/sos)
+      description: Retorna el mismo historial paginado que /sos/history.
+      tags:
+        - Asistencia Vial y Telemetría
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 10
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 0
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            example: COMPLETED
+      responses:
+        '200':
+          description: Historial paginado.
     post:
       summary: Solicitar Asistencia Vial de Emergencia SOS (FR-20, FR-22, FR-23-B)
       description: |
@@ -4740,18 +4940,6 @@ paths:
       responses:
         '200':
           description: Historial paginado consultado exitosamente.
-
-  /sos:
-    get:
-      summary: Alias de Historial Paginado (/api/v1/sos)
-      description: Retorna el mismo historial paginado que /sos/history.
-      tags:
-        - Asistencia Vial y Telemetría
-      security:
-        - BearerAuth: []
-      responses:
-        '200':
-          description: Historial paginado.
 
   /sos/{uuid}:
     get:

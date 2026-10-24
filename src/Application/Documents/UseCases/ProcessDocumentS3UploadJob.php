@@ -3,9 +3,11 @@
 namespace App\Application\Documents\UseCases;
 
 use App\Domain\Auth\Repositories\DocumentRepositoryInterface;
-use App\Domain\Shared\Repositories\ImageRepositoryInterface;
-use App\Domain\Shared\Services\QueueServiceInterface;
-use App\Domain\Shared\Services\StorageServiceInterface;
+use App\Domain\Shared\{
+    Repositories\ImageRepositoryInterface,
+    Services\QueueServiceInterface,
+    Services\StorageServiceInterface
+};
 use App\Infrastructure\Logging\IntegrationLogger;
 use Throwable;
 

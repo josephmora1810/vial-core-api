@@ -2,17 +2,14 @@
 
 namespace App\Infrastructure\Services;
 
-use App\Domain\Auth\Exceptions\DocumentExtractionException;
-use App\Domain\Auth\Services\DocumentExtractorInterface;
-use App\Domain\Users\ValueObjects\BirthDate;
-use App\Domain\Auth\ValueObjects\ExtractedIdentity;
-use App\Domain\Auth\ValueObjects\ExtractedVehicleRegistration;
-use App\Domain\ValueObjects\LastNames;
-use App\Domain\Users\ValueObjects\Names;
-use App\Domain\Users\ValueObjects\NationalId;
-use App\Domain\Users\ValueObjects\Surnames;
+use App\Domain\Auth\{
+    Exceptions\DocumentExtractionException,
+    Services\DocumentExtractorInterface,
+    ValueObjects\ExtractedIdentity,
+    ValueObjects\ExtractedVehicleRegistration
+};
+use App\Domain\Users\ValueObjects\{BirthDate, Names, NationalId, Surnames};
 use App\Infrastructure\Http\HttpClientInterface;
-use DateTimeImmutable;
 use Throwable;
 
 /**
@@ -144,19 +141,21 @@ class LaVenezolanaDocumentExtractor implements DocumentExtractorInterface
         $fields = $data['fields'] ?? [];
         $returnedDocType = $data['document_type'] ?? $ocrDocType;
 
-        return [
-            'document_type' => $returnedDocType,
-            'plate_number'  => $fields['license_plate']['value'] ?? $fields['plate_number']['value'] ?? null,
-            'brand'         => $fields['make']['value'] ?? $fields['brand']['value'] ?? null,
-            'model'         => $fields['model']['value'] ?? null,
-            'year'          => !empty($fields['year']['value']) ? (int)$fields['year']['value'] : null,
-            'color'         => $fields['color']['value'] ?? null,
-            'engine_serial' => $fields['engine_serial']['value'] ?? null,
-            'niv'           => $fields['vin']['value'] ?? $fields['niv']['value'] ?? null,
-            'vehicle_class' => $fields['vehicle_type']['value'] ?? $fields['vehicle_class']['value'] ?? null,
-            'confidence'    => (float)($fields['license_plate']['confidence'] ?? $fields['vin']['confidence'] ?? 0.0),
-            'warnings'      => $data['warnings'] ?? [],
-            'raw_payload'   => $data,
-        ];
+        return new ExtractedVehicleRegistration(
+            documentType: (string)$returnedDocType,
+            plateNumber: $fields['license_plate']['value'] ?? $fields['plate_number']['value'] ?? null,
+            brand: $fields['make']['value'] ?? $fields['brand']['value'] ?? null,
+            model: $fields['model']['value'] ?? null,
+            year: !empty($fields['year']['value']) ? (int)$fields['year']['value'] : null,
+            color: $fields['color']['value'] ?? null,
+            engineSerial: $fields['engine_serial']['value'] ?? null,
+            niv: $fields['vin']['value'] ?? $fields['niv']['value'] ?? null,
+            vehicleClass: $fields['vehicle_type']['value'] ?? $fields['vehicle_class']['value'] ?? null,
+            ownerNationalId: $fields['owner_id']['value'] ?? $fields['owner_national_id']['value'] ?? null,
+            ownerName: $fields['owner_name']['value'] ?? null,
+            confidence: (float)($fields['license_plate']['confidence'] ?? $fields['vin']['confidence'] ?? 0.0),
+            warnings: is_array($data['warnings'] ?? null) ? $data['warnings'] : [],
+            rawPayload: $data
+        );
     }
 }

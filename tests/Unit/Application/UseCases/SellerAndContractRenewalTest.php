@@ -292,7 +292,7 @@ class SellerAndContractRenewalTest extends TestCase
         $this->assertSame(50, $checkoutResult['contract']['seller_id']);
         $this->assertSame(['pago_movil'], $checkoutResult['payment_instructions']['supported_methods']);
         $orderNumber = $checkoutResult['order']['order_number'];
-        $contractUuid = $checkoutResult['contract']['id'];
+        $contractUuid = $checkoutResult['contract']['uuid'];
 
         $processPayment = new ProcessPayment(
             $this->orderRepo,

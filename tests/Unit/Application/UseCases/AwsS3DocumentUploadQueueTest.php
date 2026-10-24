@@ -3,29 +3,36 @@
 namespace Tests\Unit\Application\UseCases;
 
 use App\Application\Auth\UseCases\UploadKycDocument;
-use App\Application\Documents\UseCases\EnqueueDocumentS3Upload;
-use App\Application\Documents\UseCases\ProcessDocumentS3UploadJob;
-use App\Domain\Auth\Entities\Document;
-use App\Domain\Auth\Enums\DocumentStatus;
-use App\Domain\Auth\Enums\DocumentType;
+use App\Application\Documents\UseCases\{
+    EnqueueDocumentS3Upload,
+    ProcessDocumentS3UploadJob
+};
+use App\Domain\Auth\{
+    Entities\Document,
+    Enums\DocumentStatus,
+    Enums\DocumentType,
+    ValueObjects\Password
+};
+use App\Domain\Shared\ValueObjects\{Money, Uuid};
 use App\Domain\Users\Entities\User;
 use App\Domain\Users\Enums\UserRole;
-use App\Domain\Users\ValueObjects\BirthDate;
-use App\Domain\Users\ValueObjects\Email;
-use App\Domain\Shared\ValueObjects\Money;
-use App\Domain\Users\ValueObjects\Names;
-use App\Domain\Users\ValueObjects\NationalId;
-use App\Domain\Auth\ValueObjects\Password;
-use App\Domain\Users\ValueObjects\Phone;
-use App\Domain\Users\ValueObjects\Surnames;
-use App\Domain\Shared\ValueObjects\Uuid;
+use App\Domain\Users\ValueObjects\{
+    BirthDate,
+    Email,
+    Names,
+    NationalId,
+    Phone,
+    Surnames
+};
 use App\Infrastructure\Logging\IntegrationLogger;
 use DateTimeImmutable;
 use PHPUnit\Framework\TestCase;
-use Tests\Doubles\InMemoryDocumentRepository;
-use Tests\Doubles\InMemoryQueueService;
-use Tests\Doubles\InMemoryStorageService;
-use Tests\Doubles\InMemoryUserRepository;
+use Tests\Doubles\{
+    InMemoryDocumentRepository,
+    InMemoryQueueService,
+    InMemoryStorageService,
+    InMemoryUserRepository
+};
 
 class AwsS3DocumentUploadQueueTest extends TestCase
 {

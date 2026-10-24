@@ -2,11 +2,16 @@
 
 namespace App\Controllers;
 
-use App\Application\Auth\UseCases\GetKycStatus;
-use App\Application\Auth\UseCases\ReviewKycDocument;
-use App\Application\Auth\UseCases\UploadKycDocument;
-use App\Core\Request;
-use App\Core\Response;
+use App\Application\Auth\UseCases\{
+    GetKycStatus,
+    ReviewKycDocument,
+    UploadKycDocument
+};
+use App\Application\Documents\DTOs\{
+    DocumentResponseDto,
+    KycStatusResponseDto
+};
+use App\Core\{Request, Response};
 use App\Domain\Users\Entities\User;
 use Exception;
 
@@ -57,7 +62,6 @@ class DocumentController
         // CWE-434: Validación estricta del tipo MIME real del binario
         $finfo = finfo_open(FILEINFO_MIME_TYPE);
         $mime = finfo_file($finfo, $uploaded['tmp_name']);
-        finfo_close($finfo);
 
         $allowedMimes = ['image/jpeg', 'image/png', 'application/pdf'];
         if (!in_array($mime, $allowedMimes, true)) {
@@ -91,7 +95,8 @@ class DocumentController
                 vehicleId: $vehicleId
             );
 
-            Response::json($result, 201, 'success', 'Documento procesado con éxito.');
+            $dto = DocumentResponseDto::fromArray($result);
+            Response::json($dto->toArray(), 201, 'success', 'Documento procesado con éxito.');
         } catch (Exception $e) {
             $code = $e->getCode();
             $httpCode = (is_int($code) && $code >= 400 && $code < 600) ? $code : 400;
@@ -114,7 +119,8 @@ class DocumentController
 
         try {
             $status = $this->getKycStatus->execute($user->getId());
-            Response::json($status, 200, 'success', 'Estado KYC consultado con éxito.');
+            $dto = KycStatusResponseDto::fromArray($status);
+            Response::json($dto->toArray(), 200, 'success', 'Estado KYC consultado con éxito.');
         } catch (Exception $e) {
             Response::json([], 400, 'fail', $e->getMessage());
         }
@@ -138,7 +144,11 @@ class DocumentController
 
         try {
             $docs = $this->reviewKycDocument->listByStatus($status);
-            Response::json($docs, 200, 'success', 'Documentos KYC consultados exitosamente.');
+            $dtos = array_map(
+                static fn(array $d) => DocumentResponseDto::fromArray($d)->toArray(),
+                $docs
+            );
+            Response::json($dtos, 200, 'success', 'Documentos KYC consultados exitosamente.');
         } catch (Exception $e) {
             Response::json([], 400, 'fail', $e->getMessage());
         }
@@ -167,7 +177,8 @@ class DocumentController
                 reason: $reason,
                 adminUserId: $admin?->getId()
             );
-            Response::json($result, 200, 'success', 'Documento KYC revisado exitosamente.');
+            $dto = DocumentResponseDto::fromArray($result);
+            Response::json($dto->toArray(), 200, 'success', 'Documento KYC revisado exitosamente.');
         } catch (Exception $e) {
             $code = (int)$e->getCode();
             $httpCode = ($code >= 400 && $code < 600) ? $code : 422;

@@ -3,8 +3,8 @@
 <!-- <p align="center">
   <img src="https://img.shields.io/badge/PHP-8.5%2B%20Puro-777BB4?style=for-the-badge&logo=php&logoColor=white" alt="PHP 8.5+" />
   <img src="https://img.shields.io/badge/Architecture-Hexagonal%20%2F%20DDD-blue?style=for-the-badge" alt="Hexagonal DDD" />
-  <img src="https://img.shields.io/badge/Tests-320%20Passing-success?style=for-the-badge&logo=phpunit&logoColor=white" alt="320 Tests Passing" />
-  <img src="https://img.shields.io/badge/Assertions-1218%20Verified-brightgreen?style=for-the-badge" alt="1218 Assertions" />
+  <img src="https://img.shields.io/badge/Tests-447%20Passing-success?style=for-the-badge&logo=phpunit&logoColor=white" alt="447 Tests Passing" />
+  <img src="https://img.shields.io/badge/Assertions-1777%20Verified-brightgreen?style=for-the-badge" alt="1777 Assertions" />
   <img src="https://img.shields.io/badge/Database-MariaDB%2010.11%2B-003545?style=for-the-badge&logo=mariadb&logoColor=white" alt="MariaDB" />
   <img src="https://img.shields.io/badge/Cache%20%26%20Queues-Redis%206%2B-DC382D?style=for-the-badge&logo=redis&logoColor=white" alt="Redis" />
   <img src="https://img.shields.io/badge/Broadcasting-Pusher%20WebSockets-300D4F?style=for-the-badge&logo=pusher&logoColor=white" alt="Pusher" />
@@ -1025,27 +1025,29 @@ PHPUnit 13.4.2 by Sebastian Bergmann and contributors.
 Runtime:       PHP 8.5.11
 Configuration: C:\Users\josep\Documents\vial-core-api\phpunit.xml
 
-...............................................................  63 / 320 ( 19%)
-............................................................... 126 / 320 ( 39%)
-............................................................... 189 / 320 ( 59%)
-............................................................... 252 / 320 ( 78%)
-............................................................... 315 / 320 ( 98%)
-.....                                                           320 / 320 (100%)
+...............................................................  63 / 447 ( 14%)
+............................................................... 126 / 447 ( 28%)
+............................................................... 189 / 447 ( 42%)
+............................................................... 252 / 447 ( 56%)
+............................................................... 315 / 447 ( 70%)
+............................................................... 378 / 447 ( 84%)
+............................................................... 441 / 447 ( 98%)
+......                                                          447 / 447 (100%)
 
-Time: 00:34.218, Memory: 44.00 MB
+Time: 00:40.190, Memory: 46.00 MB
 
-OK (418 tests, 1638 assertions) - 100% Passing (0 errores, 0 fallos, 0 avisos)
+OK (447 tests, 1777 assertions) - 100% Passing (0 errores, 0 fallos, 0 avisos)
 ```
 
 ### 📊 Desglose de Cobertura de la Suite de Pruebas
 
 | Capa Arquitectural | Componentes y Casos Evaluados | Tests / Aserciones |
 | :--- | :--- | :--- |
-| **Dominio y Core** | Entidades de Dominio (`Commission`, `SellerProfile`, `DriverShift`, `TowService`, `Policy`, `AffiliationContract`), Value Objects (`ExtractedVehicleRegistration`, `CancellationReason`, `Uuid`, `Coordinates`, `Plate`, `Price`), Máquinas de Estados y Enums (`CommissionStatus`, `TowServiceStatus`, `OrderStatus`, `Role`), Servicios de Dominio (`VehicleMatcherService`, `PushNotificationInterface`). | 104 tests / 412 aserciones |
-| **Casos de Uso, DTOs y Controladores** | Auditoría y DTOs Fuertemente Tipados de Comisiones (`AdminCommissionController`, `SellerController`, DTOs de Comisiones), Reanudación reactiva de sesión SOS (`GetActiveTowService`), DTOs Enriquecidos (Chofer, Grúa, Cliente, Vehículo), Consulta de Turno Actual (`GetCurrentDriverShift`), Historial Paginado (`ListTowServiceHistory`), Pre-Cotización SOS con verificación de radares, Gestión de Turnos y Activación Exclusiva de Grúa, Registro multi-rol, Login JWT, KYC y OCR con La Venezolana, Registro Vehicular 3NF, Emisión de Pólizas, Despacho Dual (Pusher Beams + WebSockets), Hitos de Llegada y Finalización con Broadcasts, Conciliación C2P Bancaribe, Retiro y Pago de Comisiones. | 192 tests / 762 aserciones |
-| **Seguridad y Autorización** | Invariante de 1 grúa activa por chofer, Bloqueo de finalización de turno durante servicio activo, Auditoría OWASP API1:2023 (Protección BOLA en `/api/v1/sos/{uuid}`), Bloqueo de Bypass de Pago en SOS Express, Validación de firmas de canales privados Pusher (`/api/v1/broadcasting/auth`), Calificación bidireccional estricta. | 38 tests / 154 aserciones |
-| **Infraestructura y Adaptadores** | `MariaDbCommissionRepository`, `MariaDbSellerProfileRepository`, `MariaDbDriverShiftRepository`, `PusherBeamsService` (FCM + APNs push gateway), `MariaDbUserRepository`, `MariaDbTowServiceRepository`, `MariaDbVehicleRepository`, `CachedVehicleCatalogRepository`, Motor de Migraciones MariaDB, `RedisRateLimiter`, `PusherBroadcaster`, `BancaribePaymentGateway`, `S3DocumentUploader`, `SmtpEmailDispatcher`. | 84 tests / 310 aserciones |
-| **Total General** | **Batería Automatizada Completa** | **418 tests / 1638 aserciones (100% OK)** |
+| **Dominio y Core** | Entidades de Dominio (`Commission`, `SellerProfile`, `DriverShift`, `TowService`, `Policy`, `AffiliationContract`, `Document`), Value Objects (`ExtractedVehicleRegistration`, `CancellationReason`, `Uuid`, `Coordinates`, `Plate`, `Price`), Máquinas de Estados y Enums (`CommissionStatus`, `TowServiceStatus`, `OrderStatus`, `Role`, `DocumentType`, `DocumentStatus`), Servicios de Dominio (`VehicleMatcherService`, `PushNotificationInterface`). | 112 tests / 453 aserciones |
+| **Casos de Uso, DTOs y Controladores** | Auditoría y DTOs Fuertemente Tipados de Documentos y KYC (`DocumentResponseDto`, `KycStatusResponseDto`, `DocumentS3JobResultDto`, `DocumentController`), Auditoría y DTOs Fuertemente Tipados de Comisiones (`AdminCommissionController`, `SellerController`, DTOs de Comisiones), Garantía de Seguridad de Contratos (`ServiceContractResponseDto` solo expone UUID público, nunca ID entero), Reanudación reactiva de sesión SOS (`GetActiveTowService`), DTOs Enriquecidos (Chofer, Grúa, Cliente, Vehículo), Consulta de Turno Actual (`GetCurrentDriverShift`), Historial Paginado (`ListTowServiceHistory`), Pre-Cotización SOS con verificación de radares, Gestión de Turnos y Activación Exclusiva de Grúa, Registro multi-rol, Login JWT, KYC y OCR con La Venezolana, Registro Vehicular 3NF, Emisión de Pólizas, Despacho Dual (Pusher Beams + WebSockets), Hitos de Llegada y Finalización con Broadcasts, Conciliación C2P Bancaribe, Retiro y Pago de Comisiones. | 211 tests / 856 aserciones |
+| **Seguridad y Autorización** | Invariante de 1 grúa activa por chofer, Bloqueo de finalización de turno durante servicio activo, Auditoría OWASP API1:2023 (Protección BOLA en `/api/v1/sos/{uuid}` y `ServiceContractResponseDto`), Bloqueo de Bypass de Pago en SOS Express, Validación de firmas de canales privados Pusher (`/api/v1/broadcasting/auth`), Calificación bidireccional estricta, Sanitización EXIF en documentos. | 38 tests / 154 aserciones |
+| **Infraestructura y Adaptadores** | `LaVenezolanaDocumentExtractor` (OCR y carnet INTT con tipado estricto `ExtractedVehicleRegistration`), `AwsS3StorageService` (subida a S3 y generación de URLs prefirmadas), `RedisQueueService` (cola asíncrona de uploads `queue:s3_document_uploads`), `MariaDbCommissionRepository`, `MariaDbSellerProfileRepository`, `MariaDbDriverShiftRepository`, `PusherBeamsService` (FCM + APNs push gateway), `MariaDbUserRepository`, `MariaDbTowServiceRepository`, `MariaDbVehicleRepository`, `CachedVehicleCatalogRepository`, Motor de Migraciones MariaDB, `RedisRateLimiter`, `PusherBroadcaster`, `BancaribePaymentGateway`, `SmtpEmailDispatcher`. | 86 tests / 314 aserciones |
+| **Total General** | **Batería Automatizada Completa** | **447 tests / 1777 aserciones (100% OK)** |
 
 ### 🔬 Scripts de Smoke Test de Integración en Vivo
 
