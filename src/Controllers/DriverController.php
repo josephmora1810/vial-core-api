@@ -20,6 +20,7 @@ use App\Application\Driver\UseCases\{
 };
 use App\Application\Vehicles\DTOs\VehicleResponseDto;
 use App\Core\{Request, Response};
+use App\Infrastructure\Security\UploadedFileSecurity;
 use App\Domain\Driver\Repositories\DriverShiftRepositoryInterface;
 use App\Domain\Shared\ValueObjects\Coordinates;
 use App\Domain\Vehicles\Repositories\VehicleRepositoryInterface;
@@ -53,10 +54,13 @@ class DriverController
         }
 
         // Archivo del Carnet de la grúa (multipart o ruta pre-existente confiable)
-        $carnetFilePath = $this->resolveUploadedFile($request, 'carnet', 'carnet_file_path', 'crane_carnet', $userId);
-
-        // Archivo opcional de la Licencia de Conducir
-        $licenseFilePath = $this->resolveUploadedFile($request, 'license', 'license_file_path', 'driver_lic', $userId);
+        try {
+            $carnetFilePath = UploadedFileSecurity::resolveRequestFile($request, 'carnet', 'crane_carnet_' . $userId, 'carnet_file_path');
+            $licenseFilePath = UploadedFileSecurity::resolveRequestFile($request, 'license', 'driver_lic_' . $userId, 'license_file_path');
+        } catch (\InvalidArgumentException $e) {
+            Response::json(['document' => $e->getMessage()], 422, 'fail', $e->getMessage());
+            return;
+        }
 
         try {
             $result = $this->registerDriverCrane->execute(
@@ -95,7 +99,12 @@ class DriverController
             return;
         }
 
-        $licenseFilePath = $this->resolveUploadedFile($request, 'license', 'file_path', 'driver_lic', $userId);
+        try {
+            $licenseFilePath = UploadedFileSecurity::resolveRequestFile($request, 'license', 'driver_lic_' . $userId, 'file_path');
+        } catch (\InvalidArgumentException $e) {
+            Response::json(['license' => $e->getMessage()], 422, 'fail', $e->getMessage());
+            return;
+        }
 
         if (empty($licenseFilePath)) {
             Response::json(['license' => 'Debe adjuntar la imagen de la Licencia de Conducir.'], 422, 'fail', 'Archivo requerido.');
@@ -372,45 +381,4 @@ class DriverController
         Response::json([], $httpCode, $status, $e->getMessage());
     }
 
-    /**
-     * Resuelve la ruta local de un archivo recibido por la petición:
-     *  1. Archivo multipart ($_FILES[$fileKey]): se guarda en storage/documents con nombre aleatorio.
-     *  2. Ruta pre-existente ($pathInputKey): solo se acepta si reside dentro de /storage o del directorio temporal.
-     *
-     * @return string|null Ruta absoluta del archivo o null si no hay archivo válido.
-     */
-    private function resolveUploadedFile(
-        Request $request,
-        string $fileKey,
-        string $pathInputKey,
-        string $filePrefix,
-        int $userId
-    ): ?string {
-        if (!empty($_FILES[$fileKey]['tmp_name'])) {
-            $uploaded = $_FILES[$fileKey];
-            $ext = pathinfo((string)$uploaded['name'], PATHINFO_EXTENSION);
-            $uploadsDir = dirname(__DIR__, 2) . '/storage/documents';
-            if (!is_dir($uploadsDir)) {
-                mkdir($uploadsDir, 0755, true);
-            }
-            $targetName = sprintf('%s_%d_%s.%s', $filePrefix, $userId, bin2hex(random_bytes(6)), $ext ?: 'jpg');
-            $targetPath = $uploadsDir . '/' . $targetName;
-            $moved = is_uploaded_file($uploaded['tmp_name'])
-                ? move_uploaded_file($uploaded['tmp_name'], $targetPath)
-                : copy($uploaded['tmp_name'], $targetPath);
-
-            return $moved ? $targetPath : null;
-        }
-
-        if (!empty($request->input($pathInputKey))) {
-            $real = realpath((string)$request->input($pathInputKey));
-            $storage = realpath(dirname(__DIR__, 2) . '/storage');
-            $temp = realpath(sys_get_temp_dir());
-            if ($real !== false && (($storage && str_starts_with($real, $storage)) || ($temp && str_starts_with($real, $temp)))) {
-                return $real;
-            }
-        }
-
-        return null;
-    }
 }

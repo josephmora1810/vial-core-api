@@ -19,7 +19,13 @@ class EnforceJsonResponseMiddleware implements MiddlewareInterface
     {
         $isPdfRoute = str_ends_with(rtrim($request->uri(), '/'), '/pdf');
 
-        // 1. Inyectar el encabezado de respuesta JSON por defecto (salvo rutas de descarga de PDF)
+        // 1. Inyectar cabeceras de seguridad HTTP globales (CWE-693 / Defensa en Profundidad)
+        header('X-Content-Type-Options: nosniff');
+        header('X-Frame-Options: DENY');
+        header('Referrer-Policy: strict-origin-when-cross-origin');
+        header('X-XSS-Protection: 1; mode=block');
+
+        // 2. Inyectar el encabezado de respuesta JSON por defecto (salvo rutas de descarga de PDF)
         if (!$isPdfRoute) {
             header('Content-Type: application/json; charset=utf-8');
         }

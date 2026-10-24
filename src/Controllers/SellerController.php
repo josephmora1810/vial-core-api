@@ -23,6 +23,7 @@ use App\Application\Users\UseCases\{
 };
 use App\Application\Vehicles\UseCases\RegisterVehicle;
 use App\Core\{Request, Response};
+use App\Infrastructure\Security\UploadedFileSecurity;
 use App\Domain\Commissions\Repositories\SellerProfileRepositoryInterface;
 use App\Domain\Contracts\Repositories\PlanRepositoryInterface;
 use App\Domain\Shared\ValueObjects\Uuid;
@@ -111,21 +112,11 @@ class SellerController
             return;
         }
 
-        $filePath = null;
-        if (!empty($_FILES['document']['tmp_name'])) {
-            $uploaded = $_FILES['document'];
-            $ext = pathinfo($uploaded['name'], PATHINFO_EXTENSION);
-            $uploadsDir = dirname(__DIR__, 2) . '/storage/documents';
-            if (!is_dir($uploadsDir)) {
-                mkdir($uploadsDir, 0755, true);
-            }
-            $targetName = sprintf('seller_cedula_%d_%s.%s', $seller->getId(), bin2hex(random_bytes(8)), $ext ?: 'jpg');
-            $targetPath = $uploadsDir . '/' . $targetName;
-            if (move_uploaded_file($uploaded['tmp_name'], $targetPath)) {
-                $filePath = $targetPath;
-            }
-        } elseif (!empty($request->input('file_path'))) {
-            $filePath = (string)$request->input('file_path');
+        try {
+            $filePath = UploadedFileSecurity::resolveRequestFile($request, 'document', 'seller_cedula_' . $seller->getId());
+        } catch (\InvalidArgumentException $e) {
+            Response::json(['document' => $e->getMessage()], 422, 'fail', $e->getMessage());
+            return;
         }
 
         try {
@@ -172,19 +163,11 @@ class SellerController
             return;
         }
 
-        $carnetFilePath = $request->input('carnet_file_path') ? (string)$request->input('carnet_file_path') : null;
-        if ($carnetFilePath === null && !empty($_FILES['document']['tmp_name'])) {
-            $uploaded = $_FILES['document'];
-            $ext = pathinfo($uploaded['name'], PATHINFO_EXTENSION);
-            $uploadsDir = dirname(__DIR__, 2) . '/storage/documents';
-            if (!is_dir($uploadsDir)) {
-                mkdir($uploadsDir, 0755, true);
-            }
-            $targetName = sprintf('seller_carnet_%d_%s.%s', $clientId, bin2hex(random_bytes(8)), $ext ?: 'jpg');
-            $targetPath = $uploadsDir . '/' . $targetName;
-            if (move_uploaded_file($uploaded['tmp_name'], $targetPath)) {
-                $carnetFilePath = $targetPath;
-            }
+        try {
+            $carnetFilePath = UploadedFileSecurity::resolveRequestFile($request, 'document', 'seller_carnet_' . $clientId, 'carnet_file_path');
+        } catch (\InvalidArgumentException $e) {
+            Response::json(['document' => $e->getMessage()], 422, 'fail', $e->getMessage());
+            return;
         }
 
         try {

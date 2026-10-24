@@ -13,6 +13,7 @@ use App\Application\Auth\UseCases\{
 };
 use App\Application\Users\DTOs\UserResponseDto;
 use App\Core\{Request, Response};
+use App\Infrastructure\Security\UploadedFileSecurity;
 use App\Domain\Shared\Repositories\ImageRepositoryInterface;
 use Exception;
 
@@ -56,22 +57,11 @@ class AuthController
      */
     public function scanIdentity(Request $request): void
     {
-        $filePath = null;
-        if ($request->hasFile('document')) {
-            $uploaded = $_FILES['document'];
-            $ext = pathinfo($uploaded['name'], PATHINFO_EXTENSION);
-            $uploadsDir = dirname(__DIR__, 2) . '/storage/documents';
-            if (!is_dir($uploadsDir)) {
-                mkdir($uploadsDir, 0755, true);
-            }
-            $targetPath = sprintf('%s/cedula_scan_%s.%s', $uploadsDir, bin2hex(random_bytes(8)), $ext ?: 'jpg');
-            if (move_uploaded_file($uploaded['tmp_name'], $targetPath)) {
-                $filePath = $targetPath;
-            } else {
-                $filePath = $uploaded['tmp_name'];
-            }
-        } elseif (!empty($request->input('file_path'))) {
-            $filePath = (string)$request->input('file_path');
+        try {
+            $filePath = UploadedFileSecurity::resolveRequestFile($request, 'document', 'cedula_scan');
+        } catch (\InvalidArgumentException $e) {
+            Response::json(['document' => $e->getMessage()], 422, 'fail', $e->getMessage());
+            return;
         }
 
         if (empty($filePath)) {
@@ -121,22 +111,11 @@ class AuthController
         $rawBirthDate = !empty($body['birth_date']) ? trim($body['birth_date']) : null;
 
         // Comprobar archivo del documento de identidad para KYC (FR-07)
-        $filePath = null;
-        if ($request->hasFile('document')) {
-            $uploaded = $_FILES['document'];
-            $ext = pathinfo($uploaded['name'], PATHINFO_EXTENSION);
-            $uploadsDir = dirname(__DIR__, 2) . '/storage/documents';
-            if (!is_dir($uploadsDir)) {
-                mkdir($uploadsDir, 0755, true);
-            }
-            $targetPath = sprintf('%s/cedula_%s.%s', $uploadsDir, bin2hex(random_bytes(8)), $ext ?: 'jpg');
-            if (move_uploaded_file($uploaded['tmp_name'], $targetPath)) {
-                $filePath = $targetPath;
-            } else {
-                $filePath = $uploaded['tmp_name'];
-            }
-        } elseif (!empty($body['file_path'])) {
-            $filePath = (string)$body['file_path'];
+        try {
+            $filePath = UploadedFileSecurity::resolveRequestFile($request, 'document', 'cedula');
+        } catch (\InvalidArgumentException $e) {
+            Response::json(['document' => $e->getMessage()], 422, 'fail', $e->getMessage());
+            return;
         }
 
         if (empty($filePath) && empty($rawNationalId)) {

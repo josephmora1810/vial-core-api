@@ -17,6 +17,7 @@ use App\Application\Vehicles\UseCases\{
     ScanVehicleRegistration
 };
 use App\Core\{Request, Response};
+use App\Infrastructure\Security\UploadedFileSecurity;
 use App\Domain\Shared\ValueObjects\Uuid;
 use App\Domain\Users\Entities\User;
 use App\Domain\Vehicles\Repositories\{
@@ -104,20 +105,11 @@ class VehicleController
             return;
         }
 
-        $filePath = null;
-        if (!empty($_FILES['document']['tmp_name'])) {
-            $uploaded = $_FILES['document'];
-            $ext = pathinfo($uploaded['name'], PATHINFO_EXTENSION);
-            $uploadsDir = dirname(__DIR__, 2) . '/storage/documents';
-            if (!is_dir($uploadsDir)) {
-                mkdir($uploadsDir, 0755, true);
-            }
-            $targetPath = sprintf('%s/carnet_%d_%s.%s', $uploadsDir, $user->getId(), bin2hex(random_bytes(6)), $ext ?: 'jpg');
-            if (move_uploaded_file($uploaded['tmp_name'], $targetPath)) {
-                $filePath = $targetPath;
-            }
-        } elseif (!empty($request->input('file_path'))) {
-            $filePath = (string)$request->input('file_path');
+        try {
+            $filePath = UploadedFileSecurity::resolveRequestFile($request, 'document', 'carnet_' . $user->getId());
+        } catch (\InvalidArgumentException $e) {
+            Response::json(['document' => $e->getMessage()], 422, 'fail', $e->getMessage());
+            return;
         }
 
         if (empty($filePath)) {
