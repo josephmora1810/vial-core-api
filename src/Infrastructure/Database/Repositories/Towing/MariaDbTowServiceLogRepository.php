@@ -3,8 +3,10 @@
 namespace App\Infrastructure\Database\Repositories\Towing;
 
 use App\Domain\Shared\ValueObjects\Coordinates;
-use App\Domain\Towing\Entities\TowServiceLog;
-use App\Domain\Towing\Repositories\TowServiceLogRepositoryInterface;
+use App\Domain\Towing\{
+    Entities\TowServiceLog,
+    Repositories\TowServiceLogRepositoryInterface
+};
 use DateTimeImmutable;
 use InvalidArgumentException;
 use PDO;

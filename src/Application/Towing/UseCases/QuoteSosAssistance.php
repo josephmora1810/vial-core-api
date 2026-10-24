@@ -5,10 +5,11 @@ namespace App\Application\Towing\UseCases;
 use App\Domain\Contracts\Repositories\ServiceContractRepositoryInterface;
 use App\Domain\Driver\Repositories\DriverShiftRepositoryInterface;
 use App\Domain\Payments\Services\ExchangeRateServiceInterface;
-use App\Domain\Shared\ValueObjects\Coordinates;
-use App\Domain\Shared\ValueObjects\Uuid;
-use App\Domain\Towing\Repositories\CoverageZoneRepositoryInterface;
-use App\Domain\Towing\Service\RoutingServiceInterface;
+use App\Domain\Shared\ValueObjects\{Coordinates, Uuid};
+use App\Domain\Towing\{
+    Repositories\CoverageZoneRepositoryInterface,
+    Service\RoutingServiceInterface
+};
 use App\Domain\Users\Repositories\SavedAddressRepositoryInterface;
 use App\Domain\Vehicles\Repositories\VehicleRepositoryInterface;
 use App\Infrastructure\Database\Redis;

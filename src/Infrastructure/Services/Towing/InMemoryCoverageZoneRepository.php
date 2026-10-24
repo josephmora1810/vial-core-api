@@ -1,15 +1,20 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Infrastructure\Services\Towing;
 
 use App\Domain\Shared\ValueObjects\Coordinates;
-use App\Domain\Towing\Repositories\CoverageZoneRepositoryInterface;
-use App\Domain\Towing\ValueObjects\CoverageZone;
+use App\Domain\Towing\{
+    Repositories\CoverageZoneRepositoryInterface,
+    ValueObjects\CoverageZone
+};
 
 class InMemoryCoverageZoneRepository implements CoverageZoneRepositoryInterface
 {
     /** @var CoverageZone[] */
     private array $zones;
+
     public function __construct()
     {
         $this->zones = [

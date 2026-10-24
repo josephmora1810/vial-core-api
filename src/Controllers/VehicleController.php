@@ -1,18 +1,28 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Controllers;
 
-use App\Application\Vehicles\DTOs\VehicleDetailedResponseDto;
-use App\Application\Vehicles\UseCases\DeleteVehicle;
-use App\Application\Vehicles\UseCases\ListUserVehicles;
-use App\Application\Vehicles\UseCases\RegisterVehicle;
-use App\Application\Vehicles\UseCases\ScanVehicleRegistration;
-use App\Core\Request;
-use App\Core\Response;
+use App\Application\Vehicles\DTOs\{
+    VehicleDeletedResponseDto,
+    VehicleDetailedResponseDto,
+    VehicleResponseDto,
+    VehicleScanResponseDto
+};
+use App\Application\Vehicles\UseCases\{
+    DeleteVehicle,
+    ListUserVehicles,
+    RegisterVehicle,
+    ScanVehicleRegistration
+};
+use App\Core\{Request, Response};
 use App\Domain\Shared\ValueObjects\Uuid;
 use App\Domain\Users\Entities\User;
-use App\Domain\Vehicles\Repositories\VehicleCatalogRepositoryInterface;
-use App\Domain\Vehicles\Repositories\VehicleRepositoryInterface;
+use App\Domain\Vehicles\Repositories\{
+    VehicleCatalogRepositoryInterface,
+    VehicleRepositoryInterface
+};
 use Exception;
 
 class VehicleController
@@ -75,7 +85,7 @@ class VehicleController
             }
 
             $dto = VehicleDetailedResponseDto::fromViewRow($row);
-            Response::json($dto->toArray(), 200, 'success', 'Detalle de vehículo consultado.');
+            Response::json($dto, 200, 'success', 'Detalle de vehículo consultado.');
         } catch (Exception $e) {
             Response::json([], 400, 'fail', $e->getMessage());
         }
@@ -120,7 +130,8 @@ class VehicleController
 
         try {
             $suggestion = $this->scanVehicleRegistration->execute($filePath, $documentType);
-            Response::json($suggestion, 200, 'success', 'Documento vehicular procesado exitosamente.');
+            $dto = VehicleScanResponseDto::fromArray($suggestion);
+            Response::json($dto, 200, 'success', 'Documento vehicular procesado exitosamente.');
         } catch (Exception $e) {
             Response::json([], 400, 'fail', $e->getMessage());
         }
@@ -195,7 +206,8 @@ class VehicleController
 
         try {
             $this->deleteVehicle->execute($id, $user->getId());
-            Response::json([], 200, 'success', 'Vehículo eliminado con éxito.');
+            $dto = new VehicleDeletedResponseDto(id: $id, deleted: true);
+            Response::json($dto, 200, 'success', 'Vehículo eliminado con éxito.');
         } catch (Exception $e) {
             $code = $e->getCode();
             $httpCode = (is_int($code) && $code >= 400 && $code < 600) ? $code : 400;

@@ -1,12 +1,19 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Controllers;
 
-use App\Application\Users\UseCases\ActivateUser;
-use App\Application\Users\UseCases\SuspendUser;
-use App\Application\Users\UseCases\UploadUserAvatar;
-use App\Core\Request;
-use App\Core\Response;
+use App\Application\Users\DTOs\{
+    UserAvatarResponseDto,
+    UserModerationResponseDto
+};
+use App\Application\Users\UseCases\{
+    ActivateUser,
+    SuspendUser,
+    UploadUserAvatar
+};
+use App\Core\{Request, Response};
 use App\Domain\Users\Entities\User;
 use Exception;
 
@@ -41,7 +48,8 @@ class UserModerationController
                 adminUserId: $admin?->getId()
             );
 
-            Response::json($result, 200, 'success', 'Usuario suspendido exitosamente.');
+            $dto = UserModerationResponseDto::fromArray($result);
+            Response::json($dto, 200, 'success', 'Usuario suspendido exitosamente.');
         } catch (Exception $e) {
             $code = $e->getCode();
             $httpCode = (is_int($code) && $code >= 400 && $code < 600) ? $code : 400;
@@ -65,7 +73,8 @@ class UserModerationController
                 adminUserId: $admin?->getId()
             );
 
-            Response::json($result, 200, 'success', 'Usuario reactivado exitosamente.');
+            $dto = UserModerationResponseDto::fromArray($result);
+            Response::json($dto, 200, 'success', 'Usuario reactivado exitosamente.');
         } catch (Exception $e) {
             $code = $e->getCode();
             $httpCode = (is_int($code) && $code >= 400 && $code < 600) ? $code : 400;
@@ -108,7 +117,6 @@ class UserModerationController
         // CWE-434: Validación estricta del tipo MIME real del binario
         $finfo = finfo_open(FILEINFO_MIME_TYPE);
         $mime = finfo_file($finfo, $uploaded['tmp_name']);
-        finfo_close($finfo);
 
         $allowedMimes = ['image/jpeg', 'image/png', 'image/webp'];
         if (!in_array($mime, $allowedMimes, true)) {
@@ -140,7 +148,8 @@ class UserModerationController
             );
             $result['initials'] = $user->getInitials();
 
-            Response::json($result, 200, 'success', 'Foto de perfil actualizada exitosamente.');
+            $dto = UserAvatarResponseDto::fromArray($result);
+            Response::json($dto, 200, 'success', 'Foto de perfil actualizada exitosamente.');
         } catch (Exception $e) {
             $code = $e->getCode();
             $httpCode = (is_int($code) && $code >= 400 && $code < 600) ? $code : 400;

@@ -1,22 +1,25 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Domain\Users\Entities;
 
-
-
-use App\Domain\Auth\Entities\Permission;
-use App\Domain\Auth\Entities\Role;
-use App\Domain\Auth\Entities\Concerns\HasRolesAndPermissions;
-use App\Domain\Users\ValueObjects\BirthDate;
-use App\Domain\Users\ValueObjects\Email;
-use App\Domain\Shared\ValueObjects\Money;
-use App\Domain\Users\ValueObjects\Names;
-use App\Domain\Users\ValueObjects\NationalId;
-use App\Domain\Users\ValueObjects\Passport;
+use App\Domain\Auth\Entities\{
+    Concerns\HasRolesAndPermissions,
+    Permission,
+    Role
+};
 use App\Domain\Auth\ValueObjects\Password;
-use App\Domain\Users\ValueObjects\Phone;
-use App\Domain\Users\ValueObjects\Surnames;
-use App\Domain\Shared\ValueObjects\Uuid;
+use App\Domain\Shared\ValueObjects\{Money, Uuid};
+use App\Domain\Users\ValueObjects\{
+    BirthDate,
+    Email,
+    Names,
+    NationalId,
+    Passport,
+    Phone,
+    Surnames
+};
 use DateTimeImmutable;
 
 class User

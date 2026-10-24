@@ -1,23 +1,36 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Controllers;
 
-use App\Application\Towing\UseCases\AcceptSosService;
-use App\Application\Towing\UseCases\ArriveTowService;
-use App\Application\Towing\UseCases\CancelTowService;
-use App\Application\Towing\UseCases\CompleteTowService;
-use App\Application\Towing\UseCases\FindNearbyPendingServices;
-use App\Domain\Towing\Enums\CancellationReason;
-use App\Application\Towing\UseCases\GetActiveTowService;
-use App\Application\Towing\UseCases\ListTowServiceHistory;
-use App\Application\Towing\UseCases\GetTowService;
-use App\Application\Towing\UseCases\QuoteSosAssistance;
-use App\Application\Towing\UseCases\RateTowService;
-use App\Application\Towing\UseCases\RequestSosAssistance;
-use App\Application\Towing\UseCases\UpdateCraneTelemetry;
-use App\Core\Request;
-use App\Core\Response;
+use App\Application\Towing\DTOs\{
+    CancellationReasonsResponseDto,
+    RatingResponseDto,
+    SosHistoryResponseDto,
+    SosQuoteResponseDto,
+    SosRadarResponseDto,
+    SosRequestResponseDto,
+    TelemetryLoggedResponseDto,
+    TowServiceResponseDto
+};
+use App\Application\Towing\UseCases\{
+    AcceptSosService,
+    ArriveTowService,
+    CancelTowService,
+    CompleteTowService,
+    FindNearbyPendingServices,
+    GetActiveTowService,
+    GetTowService,
+    ListTowServiceHistory,
+    QuoteSosAssistance,
+    RateTowService,
+    RequestSosAssistance,
+    UpdateCraneTelemetry
+};
+use App\Core\{Request, Response};
 use App\Domain\Shared\ValueObjects\Coordinates;
+use App\Domain\Towing\Enums\CancellationReason;
 use App\Domain\Users\Entities\User;
 use DomainException;
 use Exception;
@@ -95,7 +108,8 @@ class TowingController
                 searchRadiusKm: $radiusKm
             );
 
-            Response::json($result, 200, 'success', 'Cotización calculada exitosamente.');
+            $dto = SosQuoteResponseDto::fromArray($result);
+            Response::json($dto, 200, 'success', 'Cotización calculada exitosamente.');
         } catch (DomainException $e) {
             $code = $e->getCode();
             $httpCode = (is_int($code) && $code >= 400 && $code < 600) ? $code : 422;
@@ -170,7 +184,8 @@ class TowingController
                 savedAddressIdentifier: $savedAddressId
             );
 
-            Response::json($result, 201, 'success', 'Solicitud de auxilio vial (SOS) registrada exitosamente.');
+            $dto = SosRequestResponseDto::fromArray($result);
+            Response::json($dto, 201, 'success', 'Solicitud de auxilio vial (SOS) registrada exitosamente.');
         } catch (DomainException $e) {
             $code = (is_int($e->getCode()) && $e->getCode() >= 400 && $e->getCode() < 600) ? $e->getCode() : 422;
             Response::json([], $code, 'fail', $e->getMessage());
@@ -199,7 +214,8 @@ class TowingController
             $driverLoc = new Coordinates((float)$lat, (float)$lng);
             $services = $this->findNearbyPendingServices->execute($driverLoc, (float)$radiusKm);
 
-            Response::json(['services' => $services], 200, 'success', 'Radar de solicitudes cercanas consultado exitosamente.');
+            $dto = SosRadarResponseDto::fromList($services);
+            Response::json($dto, 200, 'success', 'Radar de solicitudes cercanas consultado exitosamente.');
         } catch (Exception $e) {
             $code = (is_int($e->getCode()) && $e->getCode() >= 400 && $e->getCode() < 600) ? $e->getCode() : 400;
             Response::json([], $code, 'fail', $e->getMessage());
@@ -239,7 +255,8 @@ class TowingController
                 status: $status
             );
 
-            Response::json($history, 200, 'success', 'Historial de asistencia vial consultado exitosamente.');
+            $dto = SosHistoryResponseDto::fromArray($history);
+            Response::json($dto, 200, 'success', 'Historial de asistencia vial consultado exitosamente.');
         } catch (Exception $e) {
             $code = (is_int($e->getCode()) && $e->getCode() >= 400 && $e->getCode() < 600) ? $e->getCode() : 400;
             Response::json([], $code, 'fail', $e->getMessage());
@@ -353,7 +370,8 @@ class TowingController
             $coords = new Coordinates((float)$lat, (float)$lng);
             $log = $this->updateCraneTelemetry->execute($uuid, (int)$user->getId(), $coords, (float)$speed);
 
-            Response::json($log, 200, 'success', 'Pulso de telemetría registrado exitosamente.');
+            $dto = TelemetryLoggedResponseDto::fromArray($log);
+            Response::json($dto, 200, 'success', 'Pulso de telemetría registrado exitosamente.');
         } catch (DomainException $e) {
             $code = (is_int($e->getCode()) && $e->getCode() >= 400 && $e->getCode() < 600) ? $e->getCode() : 400;
             Response::json([], $code, 'fail', $e->getMessage());
@@ -426,7 +444,8 @@ class TowingController
             default  => CancellationReason::catalog(),
         };
 
-        Response::json($catalog, 200, 'success', 'Catálogo de motivos de cancelación consultado exitosamente.');
+        $dto = CancellationReasonsResponseDto::fromArray($catalog);
+        Response::json($dto, 200, 'success', 'Catálogo de motivos de cancelación consultado exitosamente.');
     }
 
     /**
@@ -491,7 +510,16 @@ class TowingController
                 comment: $comment !== null ? (string)$comment : null
             );
 
-            Response::json($result, 201, 'success', 'Calificación registrada exitosamente.');
+            $dto = ($result instanceof RatingResponseDto)
+                ? $result
+                : new RatingResponseDto(
+                    rating: (int)($result['rating'] ?? $rating),
+                    comment: $result['comment'] ?? $comment,
+                    created_at: $result['created_at'] ?? null,
+                    service_id: $result['service_id'] ?? $uuid
+                );
+
+            Response::json($dto, 201, 'success', 'Calificación registrada exitosamente.');
         } catch (DomainException $e) {
             $code = (is_int($e->getCode()) && $e->getCode() >= 400 && $e->getCode() < 600) ? $e->getCode() : 400;
             Response::json([], $code, 'fail', $e->getMessage());

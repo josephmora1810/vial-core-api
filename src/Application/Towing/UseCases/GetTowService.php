@@ -5,8 +5,10 @@ namespace App\Application\Towing\UseCases;
 use App\Application\Towing\DTOs\TowServiceResponseDto;
 use App\Domain\Driver\Repositories\DriverShiftRepositoryInterface;
 use App\Domain\Shared\ValueObjects\Uuid;
-use App\Domain\Towing\Repositories\RatingRepositoryInterface;
-use App\Domain\Towing\Repositories\TowServiceRepositoryInterface;
+use App\Domain\Towing\Repositories\{
+    RatingRepositoryInterface,
+    TowServiceRepositoryInterface
+};
 use App\Domain\Users\Repositories\UserRepositoryInterface;
 use App\Domain\Vehicles\Repositories\VehicleRepositoryInterface;
 use Exception;

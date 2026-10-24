@@ -2,11 +2,12 @@
 
 namespace App\Infrastructure\Database\Repositories\Towing;
 
-use App\Domain\Shared\ValueObjects\Coordinates;
-use App\Domain\Shared\ValueObjects\Uuid;
-use App\Domain\Towing\Entities\TowService;
-use App\Domain\Towing\Enums\TowServiceStatus;
-use App\Domain\Towing\Repositories\TowServiceRepositoryInterface;
+use App\Domain\Shared\ValueObjects\{Coordinates, Uuid};
+use App\Domain\Towing\{
+    Entities\TowService,
+    Enums\TowServiceStatus,
+    Repositories\TowServiceRepositoryInterface
+};
 use DateTimeImmutable;
 use PDO;
 

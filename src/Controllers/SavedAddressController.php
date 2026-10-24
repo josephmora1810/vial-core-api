@@ -1,12 +1,19 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Controllers;
 
-use App\Application\Users\UseCases\CreateSavedAddress;
-use App\Application\Users\UseCases\DeleteSavedAddress;
-use App\Application\Users\UseCases\ListSavedAddresses;
-use App\Core\Request;
-use App\Core\Response;
+use App\Application\Users\DTOs\{
+    SavedAddressDeletedResponseDto,
+    SavedAddressResponseDto
+};
+use App\Application\Users\UseCases\{
+    CreateSavedAddress,
+    DeleteSavedAddress,
+    ListSavedAddresses
+};
+use App\Core\{Request, Response};
 use App\Domain\Users\Entities\User;
 use Exception;
 
@@ -101,7 +108,8 @@ class SavedAddressController
 
         try {
             $this->deleteSavedAddress->execute($id, $user->getId());
-            Response::json([], 200, 'success', 'Dirección eliminada correctamente.');
+            $dto = new SavedAddressDeletedResponseDto(id: $id, deleted: true);
+            Response::json($dto, 200, 'success', 'Dirección eliminada correctamente.');
         } catch (Exception $e) {
             $code = $e->getCode();
             $httpCode = (is_int($code) && $code >= 400 && $code < 600) ? $code : 400;

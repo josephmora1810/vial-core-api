@@ -1,9 +1,10 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Middlewares;
 
-use App\Core\MiddlewareInterface;
-use App\Core\Request;
+use App\Core\{MiddlewareInterface, Request};
 use Closure;
 use Exception;
 

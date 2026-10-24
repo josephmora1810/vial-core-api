@@ -5,11 +5,15 @@ namespace App\Application\Users\UseCases;
 use App\Application\Contracts\DTOs\ServiceContractResponseDto;
 use App\Application\Users\DTOs\UserResponseDto;
 use App\Application\Vehicles\DTOs\VehicleResponseDto;
-use App\Domain\Contracts\Enums\ContractStatus;
-use App\Domain\Contracts\Repositories\PlanRepositoryInterface;
-use App\Domain\Contracts\Repositories\ServiceContractRepositoryInterface;
-use App\Domain\Users\Repositories\UserRepositoryInterface;
-use App\Domain\Users\ValueObjects\NationalId;
+use App\Domain\Contracts\{
+    Enums\ContractStatus,
+    Repositories\PlanRepositoryInterface,
+    Repositories\ServiceContractRepositoryInterface
+};
+use App\Domain\Users\{
+    Repositories\UserRepositoryInterface,
+    ValueObjects\NationalId
+};
 use App\Domain\Vehicles\Repositories\VehicleRepositoryInterface;
 use App\Infrastructure\Database\Redis;
 use Exception;

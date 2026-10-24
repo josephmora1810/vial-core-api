@@ -3,11 +3,12 @@
 namespace App\Domain\Vehicles\Entities;
 
 use App\Domain\Shared\ValueObjects\Uuid;
-use App\Domain\Vehicles\Enums\VehicleStatus;
-use App\Domain\Vehicles\Enums\VehicleType;
-use App\Domain\Vehicles\ValueObjects\EngineSerial;
-use App\Domain\Vehicles\ValueObjects\Niv;
-use App\Domain\Vehicles\ValueObjects\PlateNumber;
+use App\Domain\Vehicles\Enums\{VehicleStatus, VehicleType};
+use App\Domain\Vehicles\ValueObjects\{
+    EngineSerial,
+    Niv,
+    PlateNumber
+};
 use DateTimeImmutable;
 use DomainException;
 

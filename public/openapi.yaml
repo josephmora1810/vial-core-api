@@ -1481,6 +1481,292 @@ components:
           type: string
           example: Webhook procesado exitosamente.
 
+    SosQuoteResponseDto:
+      type: object
+      required:
+        - can_request_service
+        - nearby_cranes_count
+        - search_radius_km
+        - route
+        - pricing
+      properties:
+        can_request_service:
+          type: boolean
+          example: true
+        nearby_cranes_count:
+          type: integer
+          example: 3
+        search_radius_km:
+          type: number
+          example: 15.0
+        route:
+          type: object
+          properties:
+            distance_km:
+              type: number
+              example: 12.5
+            duration_minutes:
+              type: number
+              example: 25.0
+            geometry:
+              type: string
+              nullable: true
+        pricing:
+          type: object
+          properties:
+            base_fee_usd:
+              type: number
+              example: 25.0
+            per_km_usd:
+              type: number
+              example: 1.5
+            total_usd:
+              type: number
+              example: 43.75
+            total_ves:
+              type: number
+              example: 1575.0
+            bcv_rate:
+              type: number
+              example: 36.0
+        warning_message:
+          type: string
+          nullable: true
+          example: null
+
+    SosRequestResponseDto:
+      type: object
+      required:
+        - service
+        - requires_payment
+        - route
+      properties:
+        service:
+          $ref: '#/components/schemas/TowServiceResponseDto'
+        requires_payment:
+          type: boolean
+          example: false
+        order:
+          type: object
+          nullable: true
+        route:
+          type: object
+
+    SosRadarResponseDto:
+      type: object
+      required:
+        - services
+      properties:
+        services:
+          type: array
+          items:
+            $ref: '#/components/schemas/TowServiceResponseDto'
+
+    SosHistoryResponseDto:
+      type: object
+      required:
+        - items
+        - pagination
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/TowServiceResponseDto'
+        pagination:
+          type: object
+          properties:
+            total:
+              type: integer
+              example: 12
+            per_page:
+              type: integer
+              example: 10
+            current_page:
+              type: integer
+              example: 1
+            last_page:
+              type: integer
+              example: 2
+
+    CancellationReasonsResponseDto:
+      type: object
+      properties:
+        reasons:
+          type: array
+          items:
+            type: string
+          nullable: true
+        client:
+          type: array
+          items:
+            type: string
+          nullable: true
+        driver:
+          type: array
+          items:
+            type: string
+          nullable: true
+
+    TelemetryLoggedResponseDto:
+      type: object
+      required:
+        - status
+        - coordinates
+        - speed_kmh
+      properties:
+        status:
+          type: string
+          example: logged
+        coordinates:
+          type: object
+          properties:
+            latitude:
+              type: number
+              example: 10.48801
+            longitude:
+              type: number
+              example: -66.87919
+        speed_kmh:
+          type: number
+          example: 42.5
+        recorded_at:
+          type: string
+          nullable: true
+          example: '2026-10-23T18:30:00Z'
+
+    PusherAuthResponseDto:
+      type: object
+      required:
+        - auth
+      properties:
+        auth:
+          type: string
+          example: 'd1981248124:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'
+        channel_data:
+          type: string
+          nullable: true
+
+    PusherWebhookResponseDto:
+      type: object
+      required:
+        - processed
+        - events
+      properties:
+        processed:
+          type: integer
+          example: 1
+        events:
+          type: array
+          items:
+            type: object
+
+    SavedAddressDeletedResponseDto:
+      type: object
+      required:
+        - id
+        - deleted
+      properties:
+        id:
+          type: string
+          example: '018f2e4b-7000-7000-8000-000000000001'
+        deleted:
+          type: boolean
+          example: true
+
+    UserModerationResponseDto:
+      type: object
+      required:
+        - user_id
+        - status
+      properties:
+        user_id:
+          type: integer
+          example: 42
+        status:
+          type: string
+          example: suspended
+        reason:
+          type: string
+          nullable: true
+          example: Incumplimiento de términos y condiciones.
+
+    UserAvatarResponseDto:
+      type: object
+      required:
+        - url
+      properties:
+        url:
+          type: string
+          example: https://storage.vial.com/avatars/user-42.jpg
+        initials:
+          type: string
+          nullable: true
+          example: JD
+        image_id:
+          type: integer
+          nullable: true
+          example: 105
+
+    VehicleDeletedResponseDto:
+      type: object
+      required:
+        - id
+        - deleted
+      properties:
+        id:
+          type: string
+          example: '018f2e4b-7000-7000-8000-000000000001'
+        deleted:
+          type: boolean
+          example: true
+
+    VehicleScanResponseDto:
+      type: object
+      required:
+        - suggested_vehicle
+        - document_type
+        - warnings
+        - raw_ocr
+        - file_path
+        - message
+      properties:
+        suggested_vehicle:
+          type: object
+          properties:
+            plate_number:
+              type: string
+              example: ABC123D
+            vin:
+              type: string
+              example: 1HGCR2F83HA000000
+            brand:
+              type: string
+              example: TOYOTA
+            model:
+              type: string
+              example: COROLLA
+            year:
+              type: integer
+              example: 2021
+            color:
+              type: string
+              example: BLANCO
+        document_type:
+          type: string
+          example: vehicle_registration
+        warnings:
+          type: array
+          items:
+            type: string
+        raw_ocr:
+          type: object
+        file_path:
+          type: string
+          example: /uploads/documents/carnet-circulacion-9812.pdf
+        message:
+          type: string
+          example: Documento escaneado. Por favor verifique los campos sugeridos antes de confirmar.
+
 paths:
   # ==========================================
   # SISTEMA

@@ -3,20 +3,26 @@
 namespace App\Application\Vehicles\UseCases;
 
 use App\Application\Documents\UseCases\EnqueueDocumentS3Upload;
-use App\Application\Vehicles\DTOs\VehicleDetailedResponseDto;
-use App\Application\Vehicles\DTOs\VehicleResponseDto;
-use App\Domain\Auth\Entities\Document;
-use App\Domain\Auth\Enums\DocumentStatus;
-use App\Domain\Auth\Enums\DocumentType;
-use App\Domain\Auth\Repositories\DocumentRepositoryInterface;
+use App\Application\Vehicles\DTOs\{
+    VehicleDetailedResponseDto,
+    VehicleResponseDto
+};
+use App\Domain\Auth\{
+    Entities\Document,
+    Enums\DocumentStatus,
+    Enums\DocumentType,
+    Repositories\DocumentRepositoryInterface
+};
 use App\Domain\Users\Repositories\UserRepositoryInterface;
-use App\Domain\Vehicles\Entities\Vehicle;
-use App\Domain\Vehicles\Enums\VehicleStatus;
-use App\Domain\Vehicles\Repositories\VehicleCatalogRepositoryInterface;
-use App\Domain\Vehicles\Repositories\VehicleRepositoryInterface;
-use App\Domain\Vehicles\ValueObjects\EngineSerial;
-use App\Domain\Vehicles\ValueObjects\Niv;
-use App\Domain\Vehicles\ValueObjects\PlateNumber;
+use App\Domain\Vehicles\{
+    Entities\Vehicle,
+    Enums\VehicleStatus,
+    Repositories\VehicleCatalogRepositoryInterface,
+    Repositories\VehicleRepositoryInterface,
+    ValueObjects\EngineSerial,
+    ValueObjects\Niv,
+    ValueObjects\PlateNumber
+};
 use Exception;
 
 class RegisterVehicle

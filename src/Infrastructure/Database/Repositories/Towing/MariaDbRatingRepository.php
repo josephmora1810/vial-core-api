@@ -2,8 +2,10 @@
 
 namespace App\Infrastructure\Database\Repositories\Towing;
 
-use App\Domain\Towing\Entities\Rating;
-use App\Domain\Towing\Repositories\RatingRepositoryInterface;
+use App\Domain\Towing\{
+    Entities\Rating,
+    Repositories\RatingRepositoryInterface
+};
 use DateTimeImmutable;
 use InvalidArgumentException;
 use PDO;

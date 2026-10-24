@@ -3,10 +3,14 @@
 namespace App\Application\Towing\UseCases;
 
 use App\Application\Towing\DTOs\TowServiceResponseDto;
-use App\Domain\Shared\Services\BroadcasterInterface;
-use App\Domain\Shared\ValueObjects\Uuid;
-use App\Domain\Towing\Entities\TowService;
-use App\Domain\Towing\Repositories\TowServiceRepositoryInterface;
+use App\Domain\Shared\{
+    Services\BroadcasterInterface,
+    ValueObjects\Uuid
+};
+use App\Domain\Towing\{
+    Entities\TowService,
+    Repositories\TowServiceRepositoryInterface
+};
 use DomainException;
 use Exception;
 use LogicException;

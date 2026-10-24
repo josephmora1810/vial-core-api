@@ -1,10 +1,11 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Controllers;
 
-use App\Core\Request;
-use App\Core\Response;
-use App\Infrastructure\Database\Repositories\Towing\MariaDbTowServiceRepository;
+use App\Application\Towing\DTOs\PusherWebhookResponseDto;
+use App\Core\{Request, Response};
 use App\Infrastructure\Logging\IntegrationLogger;
 use Exception;
 
@@ -76,9 +77,11 @@ class PusherWebhookController
             );
         }
 
-        Response::json([
+        $dto = PusherWebhookResponseDto::fromArray([
             'processed' => count($processedEvents),
             'events'    => $processedEvents,
-        ], 200, 'success', 'Webhook de Pusher procesado exitosamente.');
+        ]);
+
+        Response::json($dto, 200, 'success', 'Webhook de Pusher procesado exitosamente.');
     }
 }

@@ -1,9 +1,11 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Controllers;
 
-use App\Core\Request;
-use App\Core\Response;
+use App\Application\Towing\DTOs\PusherAuthResponseDto;
+use App\Core\{Request, Response};
 use App\Domain\Shared\Services\BroadcasterInterface;
 use App\Domain\Shared\ValueObjects\Uuid;
 use App\Domain\Towing\Repositories\TowServiceRepositoryInterface;
@@ -95,7 +97,8 @@ class BroadcastingController
 
         try {
             $authData = $this->broadcaster->authorizeChannel($channelName, $socketId, $channelData);
-            Response::rawJson($authData, 200);
+            $dto = PusherAuthResponseDto::fromArray($authData);
+            Response::rawJson($dto->toArray(), 200);
         } catch (Exception $e) {
             Response::json([], 500, 'error', 'Error al autorizar canal: ' . $e->getMessage());
         }

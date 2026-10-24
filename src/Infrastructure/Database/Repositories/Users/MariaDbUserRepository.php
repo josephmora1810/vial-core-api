@@ -2,19 +2,22 @@
 
 namespace App\Infrastructure\Database\Repositories\Users;
 
-use App\Domain\Auth\Entities\Permission;
-use App\Domain\Auth\Entities\Role;
-use App\Domain\Users\Entities\User;
-use App\Domain\Users\Repositories\UserRepositoryInterface;
-use App\Domain\Users\ValueObjects\BirthDate;
-use App\Domain\Users\ValueObjects\Email;
-use App\Domain\Shared\ValueObjects\Money;
-use App\Domain\Users\ValueObjects\Names;
-use App\Domain\Users\ValueObjects\NationalId;
-use App\Domain\Auth\ValueObjects\Password;
-use App\Domain\Users\ValueObjects\Phone;
-use App\Domain\Users\ValueObjects\Surnames;
-use App\Domain\Shared\ValueObjects\Uuid;
+use App\Domain\Auth\{
+    Entities\Permission,
+    Entities\Role,
+    ValueObjects\Password
+};
+use App\Domain\Shared\ValueObjects\{Money, Uuid};
+use App\Domain\Users\{
+    Entities\User,
+    Repositories\UserRepositoryInterface,
+    ValueObjects\BirthDate,
+    ValueObjects\Email,
+    ValueObjects\Names,
+    ValueObjects\NationalId,
+    ValueObjects\Phone,
+    ValueObjects\Surnames
+};
 use DateTimeImmutable;
 use PDO;
 

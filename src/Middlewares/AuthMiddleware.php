@@ -2,11 +2,13 @@
 
 namespace App\Middlewares;
 
-use App\Core\JwtService;
-use App\Core\MiddlewareInterface;
-use App\Core\Request;
-use App\Domain\Users\Repositories\UserRepositoryInterface;
+use App\Core\{
+    JwtService,
+    MiddlewareInterface,
+    Request
+};
 use App\Domain\Shared\ValueObjects\Uuid;
+use App\Domain\Users\Repositories\UserRepositoryInterface;
 use Closure;
 use Exception;
 use InvalidArgumentException;

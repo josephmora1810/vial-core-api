@@ -1,15 +1,21 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Tests\Doubles;
 
-use App\Domain\Auth\Exceptions\DocumentExtractionException;
-use App\Domain\Auth\Services\DocumentExtractorInterface;
-use App\Domain\Users\ValueObjects\BirthDate;
-use App\Domain\Auth\ValueObjects\ExtractedIdentity;
-use App\Domain\Users\ValueObjects\Names;
-use App\Domain\Users\ValueObjects\NationalId;
-use App\Domain\Users\ValueObjects\Surnames;
-use App\Domain\Auth\ValueObjects\ExtractedVehicleRegistration;
+use App\Domain\Auth\{
+    Exceptions\DocumentExtractionException,
+    Services\DocumentExtractorInterface,
+    ValueObjects\ExtractedIdentity,
+    ValueObjects\ExtractedVehicleRegistration
+};
+use App\Domain\Users\ValueObjects\{
+    BirthDate,
+    Names,
+    NationalId,
+    Surnames
+};
 use DateTimeImmutable;
 
 /**

@@ -3,13 +3,15 @@
 namespace App\Infrastructure\Database\Repositories\Vehicles;
 
 use App\Domain\Shared\ValueObjects\Uuid;
-use App\Domain\Vehicles\Entities\Vehicle;
-use App\Domain\Vehicles\Enums\VehicleStatus;
-use App\Domain\Vehicles\Enums\VehicleType;
-use App\Domain\Vehicles\Repositories\VehicleRepositoryInterface;
-use App\Domain\Vehicles\ValueObjects\EngineSerial;
-use App\Domain\Vehicles\ValueObjects\Niv;
-use App\Domain\Vehicles\ValueObjects\PlateNumber;
+use App\Domain\Vehicles\{
+    Entities\Vehicle,
+    Enums\VehicleStatus,
+    Enums\VehicleType,
+    Repositories\VehicleRepositoryInterface,
+    ValueObjects\EngineSerial,
+    ValueObjects\Niv,
+    ValueObjects\PlateNumber
+};
 use DateTimeImmutable;
 use PDO;
 

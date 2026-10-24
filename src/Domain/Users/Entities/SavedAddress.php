@@ -2,8 +2,7 @@
 
 namespace App\Domain\Users\Entities;
 
-use App\Domain\Shared\ValueObjects\Coordinates;
-use App\Domain\Shared\ValueObjects\Uuid;
+use App\Domain\Shared\ValueObjects\{Coordinates, Uuid};
 use DateTimeImmutable;
 
 class SavedAddress

@@ -2,13 +2,17 @@
 
 namespace App\Application\Towing\UseCases;
 
-use App\Domain\Shared\Services\BroadcasterInterface;
-use App\Domain\Shared\ValueObjects\Coordinates;
-use App\Domain\Shared\ValueObjects\Uuid;
-use App\Domain\Towing\Entities\TowServiceLog;
-use App\Domain\Towing\Enums\TowServiceStatus;
-use App\Domain\Towing\Repositories\TowServiceLogRepositoryInterface;
-use App\Domain\Towing\Repositories\TowServiceRepositoryInterface;
+use App\Domain\Shared\{
+    Services\BroadcasterInterface,
+    ValueObjects\Coordinates,
+    ValueObjects\Uuid
+};
+use App\Domain\Towing\{
+    Entities\TowServiceLog,
+    Enums\TowServiceStatus,
+    Repositories\TowServiceLogRepositoryInterface,
+    Repositories\TowServiceRepositoryInterface
+};
 use DomainException;
 use Exception;
 

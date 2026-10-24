@@ -5,19 +5,25 @@ namespace App\Application\Towing\UseCases;
 use App\Application\Payments\DTOs\OrderResponseDto;
 use App\Application\Towing\DTOs\TowServiceResponseDto;
 use App\Domain\Contracts\Repositories\ServiceContractRepositoryInterface;
-use App\Domain\Payments\Entities\Order;
-use App\Domain\Payments\Enums\OrderableType;
-use App\Domain\Payments\Enums\OrderStatus;
-use App\Domain\Payments\Repositories\OrderRepositoryInterface;
-use App\Domain\Payments\Services\ExchangeRateServiceInterface;
-use App\Domain\Shared\Services\BroadcasterInterface;
-use App\Domain\Shared\Services\PushNotificationInterface;
-use App\Domain\Shared\ValueObjects\Coordinates;
-use App\Domain\Shared\ValueObjects\Uuid;
-use App\Domain\Towing\Entities\TowService;
-use App\Domain\Towing\Repositories\CoverageZoneRepositoryInterface;
-use App\Domain\Towing\Service\RoutingServiceInterface;
-use App\Domain\Towing\Repositories\TowServiceRepositoryInterface;
+use App\Domain\Payments\{
+    Entities\Order,
+    Enums\OrderableType,
+    Enums\OrderStatus,
+    Repositories\OrderRepositoryInterface,
+    Services\ExchangeRateServiceInterface
+};
+use App\Domain\Shared\{
+    Services\BroadcasterInterface,
+    Services\PushNotificationInterface,
+    ValueObjects\Coordinates,
+    ValueObjects\Uuid
+};
+use App\Domain\Towing\{
+    Entities\TowService,
+    Repositories\CoverageZoneRepositoryInterface,
+    Repositories\TowServiceRepositoryInterface,
+    Service\RoutingServiceInterface
+};
 use App\Domain\Users\Repositories\SavedAddressRepositoryInterface;
 use App\Domain\Vehicles\Repositories\VehicleRepositoryInterface;
 use DomainException;

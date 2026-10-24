@@ -1,12 +1,15 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Middlewares;
 
-use App\Core\MiddlewareInterface;
-use App\Core\Request;
+use App\Core\{MiddlewareInterface, Request};
+use App\Domain\Auth\{
+    Enums\DocumentType,
+    Repositories\DocumentRepositoryInterface
+};
 use App\Domain\Users\Entities\User;
-use App\Domain\Auth\Enums\DocumentType;
-use App\Domain\Auth\Repositories\DocumentRepositoryInterface;
 use Closure;
 use Exception;
 

@@ -3,8 +3,10 @@
 namespace App\Application\Users\UseCases;
 
 use App\Application\Users\DTOs\SavedAddressResponseDto;
-use App\Domain\Users\Repositories\SavedAddressRepositoryInterface;
-use App\Domain\Users\Repositories\UserRepositoryInterface;
+use App\Domain\Users\Repositories\{
+    SavedAddressRepositoryInterface,
+    UserRepositoryInterface
+};
 use Exception;
 
 class ListSavedAddresses

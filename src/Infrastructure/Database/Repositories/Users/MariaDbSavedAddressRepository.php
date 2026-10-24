@@ -2,10 +2,11 @@
 
 namespace App\Infrastructure\Database\Repositories\Users;
 
-use App\Domain\Users\Entities\SavedAddress;
-use App\Domain\Users\Repositories\SavedAddressRepositoryInterface;
-use App\Domain\Shared\ValueObjects\Coordinates;
-use App\Domain\Shared\ValueObjects\Uuid;
+use App\Domain\Shared\ValueObjects\{Coordinates, Uuid};
+use App\Domain\Users\{
+    Entities\SavedAddress,
+    Repositories\SavedAddressRepositoryInterface
+};
 use DateTimeImmutable;
 use PDO;
 

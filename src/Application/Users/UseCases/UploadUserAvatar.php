@@ -2,8 +2,10 @@
 
 namespace App\Application\Users\UseCases;
 
-use App\Domain\Shared\Repositories\ImageRepositoryInterface;
-use App\Domain\Shared\Services\StorageServiceInterface;
+use App\Domain\Shared\{
+    Repositories\ImageRepositoryInterface,
+    Services\StorageServiceInterface
+};
 use App\Domain\Users\Repositories\UserRepositoryInterface;
 use Exception;
 
