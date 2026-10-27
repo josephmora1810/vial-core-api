@@ -5,6 +5,7 @@ namespace App\Application\Towing\UseCases;
 use App\Domain\Contracts\Repositories\ServiceContractRepositoryInterface;
 use App\Domain\Driver\Repositories\DriverShiftRepositoryInterface;
 use App\Domain\Payments\Services\ExchangeRateServiceInterface;
+use App\Domain\Shared\Services\RedisClientInterface;
 use App\Domain\Shared\ValueObjects\{Coordinates, Uuid};
 use App\Domain\Towing\{
     Repositories\CoverageZoneRepositoryInterface,
@@ -12,7 +13,6 @@ use App\Domain\Towing\{
 };
 use App\Domain\Users\Repositories\SavedAddressRepositoryInterface;
 use App\Domain\Vehicles\Repositories\VehicleRepositoryInterface;
-use App\Infrastructure\Database\Redis;
 use DomainException;
 use Exception;
 use Throwable;
@@ -26,7 +26,7 @@ class QuoteSosAssistance
         private ServiceContractRepositoryInterface $contractRepository,
         private DriverShiftRepositoryInterface $driverShiftRepository,
         private ExchangeRateServiceInterface $exchangeRateService,
-        private ?Redis $redis = null,
+        private ?RedisClientInterface $redis = null,
         private ?SavedAddressRepositoryInterface $savedAddressRepository = null,
         private float $costPerExtraKm = 2.00,
         private float $baseSosPriceUsd = 35.00

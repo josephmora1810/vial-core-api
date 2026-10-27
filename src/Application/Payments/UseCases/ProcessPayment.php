@@ -11,12 +11,15 @@ use App\Domain\Payments\Entities\Payment;
 use App\Domain\Payments\Enums\{OrderableType, PaymentMethod, PaymentStatus};
 use App\Domain\Payments\Repositories\{OrderRepositoryInterface, PaymentRepositoryInterface};
 use App\Domain\Payments\Services\{ExchangeRateServiceInterface, PaymentGatewayInterface};
+use App\Domain\Payments\Strategies\{C2pStrategy, PagoMovilStrategy};
+use App\Domain\Payments\ValueObjects\{BankCode, OtpCode, PaymentReference};
 use App\Domain\Shared\Services\{BroadcasterInterface, PushNotificationInterface};
 use App\Domain\Towing\Enums\TowServiceStatus;
 use App\Domain\Towing\Repositories\TowServiceRepositoryInterface;
-use App\Infrastructure\Services\Bancaribe\{C2pStrategy, PagoMovilStrategy};
+use App\Domain\Users\ValueObjects\{NationalId, Phone};
 use DateTimeImmutable;
 use Exception;
+use InvalidArgumentException;
 
 class ProcessPayment
 {
@@ -113,13 +116,20 @@ class ProcessPayment
 
         // 3. Validaciones previas específicas según el método
         if ($method === PaymentMethod::PagoMovil) {
-            $reference = trim((string)($data['reference'] ?? ''));
+            $rawReference = trim((string)($data['reference'] ?? ''));
             $date = trim((string)($data['date'] ?? date('Y-m-d')));
             $identificador = trim((string)($data['identificadorPersona'] ?? ''));
             $reportedAmount = isset($data['amount']) ? (float)$data['amount'] : $expectedAmountVes;
 
-            if ($reference === '' || $identificador === '') {
+            if ($rawReference === '' || $identificador === '') {
                 throw new Exception('Para Pago Móvil debe suministrar reference e identificadorPersona (ej. V12345678).', 422);
+            }
+
+            try {
+                $reference = (string)PaymentReference::fromString($rawReference);
+                $data['reference'] = $reference;
+            } catch (\InvalidArgumentException $e) {
+                throw new Exception($e->getMessage(), 422);
             }
 
             // Anti-Replay: impedir reutilizar la misma referencia en dos órdenes distintas
@@ -149,6 +159,14 @@ class ProcessPayment
                     'Para pago C2P son obligatorios: bancoPagador (4 dígitos), documentType, documentNumber, telefonoPersona y otp.',
                     422
                 );
+            }
+
+            try {
+                $data['bancoPagador'] = (string)BankCode::fromString($bancoPagador);
+                $data['otp'] = (string)OtpCode::fromString($otp);
+                $data['telefonoPersona'] = Phone::fromString($telefonoPersona)->toNationalFormat();
+            } catch (InvalidArgumentException $e) {
+                throw new Exception($e->getMessage(), 422);
             }
 
             $strategy = new C2pStrategy($this->paymentGateway);

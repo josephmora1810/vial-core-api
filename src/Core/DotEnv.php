@@ -34,7 +34,7 @@ class DotEnv
 				[$name, $value] = explode('=', $line, 2);
 
 				$name = trim($name);
-				$value = trim($value, "\x00..\x1F\"");
+				$value = trim(trim($value), "\x00..\x1F\"");
 				$this->variable[$name] = $value;
 
 				if (!array_key_exists($name, $_SERVER) && !array_key_exists($name, $_ENV)) {
@@ -43,6 +43,11 @@ class DotEnv
 					$_SERVER[$name] = $value;
 				}
 			}
+		}
+
+		$timezone = $_ENV['APP_TIMEZONE'] ?? 'America/Caracas';
+		if (is_string($timezone) && $timezone !== '') {
+			@date_default_timezone_set($timezone);
 		}
 	}
 }

@@ -3,6 +3,7 @@
 namespace App\Application\Towing\UseCases;
 
 use App\Application\Towing\DTOs\RatingResponseDto;
+use App\Domain\Shared\Services\RedisClientInterface;
 use App\Domain\Shared\ValueObjects\Uuid;
 use App\Domain\Towing\{
     Entities\Rating,
@@ -10,7 +11,6 @@ use App\Domain\Towing\{
     Repositories\RatingRepositoryInterface,
     Repositories\TowServiceRepositoryInterface
 };
-use App\Infrastructure\Database\Redis;
 use DomainException;
 use Exception;
 use InvalidArgumentException;
@@ -21,7 +21,7 @@ class RateTowService
     public function __construct(
         private TowServiceRepositoryInterface $towServiceRepository,
         private RatingRepositoryInterface $ratingRepository,
-        private ?Redis $redis = null
+        private ?RedisClientInterface $redis = null
     ) {}
 
     /**

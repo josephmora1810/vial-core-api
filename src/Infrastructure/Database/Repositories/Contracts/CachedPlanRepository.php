@@ -4,8 +4,8 @@ namespace App\Infrastructure\Database\Repositories\Contracts;
 
 use App\Domain\Contracts\Entities\Plan;
 use App\Domain\Contracts\Repositories\PlanRepositoryInterface;
+use App\Domain\Shared\Services\RedisClientInterface;
 use App\Domain\Shared\ValueObjects\Uuid;
-use App\Infrastructure\Database\Redis;
 use DateTimeImmutable;
 use Throwable;
 
@@ -18,7 +18,7 @@ class CachedPlanRepository implements PlanRepositoryInterface
 
     public function __construct(
         private PlanRepositoryInterface $inner,
-        private ?Redis $redis = null
+        private ?RedisClientInterface $redis = null
     ) {}
 
     public function findAll(bool $onlyActive = true): array

@@ -3,19 +3,21 @@
 namespace App\Infrastructure\Services\Bancaribe;
 
 use App\Domain\Payments\Repositories\BankTokenRepositoryInterface;
-use App\Infrastructure\{Database\Redis, Http\HttpClientException, Http\HttpClientInterface};
+use App\Domain\Payments\Services\BankAuthServiceInterface;
+use App\Domain\Shared\Services\RedisClientInterface;
+use App\Infrastructure\Http\{HttpClientException, HttpClientInterface};
 use DateTimeImmutable;
 use RuntimeException;
 use Throwable;
 
-class BancaribeAuthService
+class BancaribeAuthService implements BankAuthServiceInterface
 {
     private const CACHE_KEY = 'bancaribe_access_token';
 
     public function __construct(
         private HttpClientInterface $httpClient,
         private BankTokenRepositoryInterface $tokenRepository,
-        private ?Redis $redis = null,
+        private ?RedisClientInterface $redis = null,
         private string $baseAuthUrl = '',
         private string $oauth2Endpoint = 'oauth2/token',
         private string $customerKey = '',
@@ -28,28 +30,36 @@ class BancaribeAuthService
         }
     }
 
-    public function getAccessToken(): string
+    public function getAccessToken(bool $forceRefresh = false): string
     {
-        // 1. Consultar caché en Redis
-        if ($this->redis !== null) {
+        if (!$forceRefresh) {
+            // 1. Consultar tabla bank_tokens en MariaDB primero (fuente de verdad persistente)
             try {
-                $cachedToken = $this->redis->execute('GET', self::CACHE_KEY);
-                if (is_string($cachedToken) && $cachedToken !== '') {
-                    return $cachedToken;
+                $record = $this->tokenRepository->findByGateway('bancaribe');
+                $now = new DateTimeImmutable();
+
+                if ($record !== null && !empty($record['access_token']) && $record['expires_at'] !== null && $record['expires_at'] > $now) {
+                    $remainingSeconds = $record['expires_at']->getTimestamp() - $now->getTimestamp();
+                    if ($remainingSeconds > 60) {
+                        $this->cacheToken($record['access_token'], max(60, $remainingSeconds - 60));
+                        return $record['access_token'];
+                    }
                 }
             } catch (Throwable) {
-                // Continuar a BD si Redis falla
+                // Continuar a caché o nueva solicitud si falla la consulta en BD
             }
-        }
 
-        // 2. Consultar tabla bank_tokens en MariaDB
-        $record = $this->tokenRepository->findByGateway('bancaribe');
-        $now = new DateTimeImmutable();
-
-        if ($record !== null && $record['expires_at'] !== null && $record['expires_at'] > $now) {
-            $ttl = max(60, $record['expires_at']->getTimestamp() - $now->getTimestamp() - 60);
-            $this->cacheToken($record['access_token'], $ttl);
-            return $record['access_token'];
+            // 2. Consultar caché en Redis como respaldo
+            if ($this->redis !== null) {
+                try {
+                    $cachedToken = $this->redis->execute('GET', self::CACHE_KEY);
+                    if (is_string($cachedToken) && $cachedToken !== '') {
+                        return $cachedToken;
+                    }
+                } catch (Throwable) {
+                    // Continuar si Redis falla
+                }
+            }
         }
 
         // 3. Solicitar nuevo token OAuth2 al banco
@@ -61,15 +71,26 @@ class BancaribeAuthService
         if ($this->sandboxMode) {
             $fakeToken = 'sandbox_bancaribe_token_' . bin2hex(random_bytes(8));
             $expiresAt = (new DateTimeImmutable())->modify('+3600 seconds');
-            $this->tokenRepository->upsert('bancaribe', $fakeToken, 'Bearer', $expiresAt);
+            try {
+                $this->tokenRepository->upsert('bancaribe', $fakeToken, 'Bearer', $expiresAt);
+            } catch (Throwable) {
+            }
             $this->cacheToken($fakeToken, 3540);
             return $fakeToken;
         }
 
+        $key = trim($this->customerKey);
+        $secret = trim($this->customerSecret);
+
+        if ($key === '' || $secret === '') {
+            throw new RuntimeException('Credenciales de Bancaribe no configuradas (Customer Key / Secret vacíos).', 502);
+        }
+
         $url = rtrim($this->baseAuthUrl, '/') . '/' . ltrim($this->oauth2Endpoint, '/');
-        $basicAuth = base64_encode("{$this->customerKey}:{$this->customerSecret}");
+        $basicAuth = base64_encode("{$key}:{$secret}");
 
         try {
+            // Intento 1: Estándar OAuth2 RFC 6749 con Basic Auth y x-www-form-urlencoded
             $response = $this->httpClient->postForm(
                 url: $url,
                 data: ['grant_type' => 'client_credentials'],
@@ -78,6 +99,21 @@ class BancaribeAuthService
                     'Accept'        => 'application/json',
                 ]
             );
+
+            // Intento 2: Si el reverse proxy bancario filtra la cabecera Authorization, enviar en el body
+            if (!$response->isSuccessful() && $response->status() === 401) {
+                $response = $this->httpClient->postForm(
+                    url: $url,
+                    data: [
+                        'grant_type'    => 'client_credentials',
+                        'client_id'     => $key,
+                        'client_secret' => $secret,
+                    ],
+                    headers: [
+                        'Accept' => 'application/json',
+                    ]
+                );
+            }
         } catch (Throwable $e) {
             throw new RuntimeException('Error de red al obtener el token de acceso de Bancaribe: ' . $e->getMessage(), 502, $e);
         }
@@ -100,7 +136,12 @@ class BancaribeAuthService
         $accessToken = (string)$data['access_token'];
         $tokenType = (string)($data['token_type'] ?? 'Bearer');
 
-        $this->tokenRepository->upsert('bancaribe', $accessToken, $tokenType, $expiresAt);
+        try {
+            $this->tokenRepository->upsert('bancaribe', $accessToken, $tokenType, $expiresAt);
+        } catch (Throwable) {
+            // No interrumpir si ocurre un error transitorio de BD
+        }
+
         $this->cacheToken($accessToken, max(60, $expiresIn - 60));
 
         return $accessToken;

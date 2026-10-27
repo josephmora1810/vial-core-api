@@ -2,10 +2,11 @@
 
 namespace App\Infrastructure\Logging;
 
+use App\Domain\Shared\Services\IntegrationLoggerInterface;
 use DateTimeImmutable;
 use Throwable;
 
-class IntegrationLogger
+class IntegrationLogger implements IntegrationLoggerInterface
 {
     private string $logFilePath;
 

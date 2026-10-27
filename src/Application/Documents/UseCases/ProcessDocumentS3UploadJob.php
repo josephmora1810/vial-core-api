@@ -5,10 +5,10 @@ namespace App\Application\Documents\UseCases;
 use App\Domain\Auth\Repositories\DocumentRepositoryInterface;
 use App\Domain\Shared\{
     Repositories\ImageRepositoryInterface,
+    Services\IntegrationLoggerInterface,
     Services\QueueServiceInterface,
     Services\StorageServiceInterface
 };
-use App\Infrastructure\Logging\IntegrationLogger;
 use Throwable;
 
 class ProcessDocumentS3UploadJob
@@ -19,11 +19,9 @@ class ProcessDocumentS3UploadJob
         private QueueServiceInterface $queueService,
         private StorageServiceInterface $storageService,
         private DocumentRepositoryInterface $documentRepository,
-        private ?IntegrationLogger $logger = null,
+        private ?IntegrationLoggerInterface $logger = null,
         private ?ImageRepositoryInterface $imageRepository = null
-    ) {
-        $this->logger ??= new IntegrationLogger();
-    }
+    ) {}
 
     /**
      * Procesa un trabajo extraído de la cola de subidas a S3.

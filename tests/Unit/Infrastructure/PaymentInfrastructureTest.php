@@ -82,7 +82,7 @@ class PaymentInfrastructureTest extends TestCase
             ->willReturn(new PaymentResult(true, 'Aprobado', 'TX-123'));
 
         $strategy = new C2pStrategy($gateway);
-        $result = $strategy->process($order, ['bancoPagador' => '0114', 'otp' => '1234'], 365.0);
+        $result = $strategy->process($order, ['bancoPagador' => '0114', 'otp' => '12345678'], 365.0);
 
         $this->assertTrue($result->success);
         $this->assertSame('TX-123', $result->transactionId);

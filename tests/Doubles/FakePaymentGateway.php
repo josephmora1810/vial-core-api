@@ -21,7 +21,7 @@ class FakePaymentGateway implements PaymentGatewayInterface
             return $this->nextResult;
         }
 
-        if (($paymentData['otp'] ?? '') === '000000') {
+        if (in_array($paymentData['otp'] ?? '', ['000000', '00000000'], true)) {
             return new PaymentResult(
                 success: false,
                 message: 'Transacción C2P rechazada por clave dinámica inválida.',

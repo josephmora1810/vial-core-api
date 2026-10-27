@@ -3,10 +3,10 @@
 namespace App\Application\Driver\UseCases;
 
 use App\Domain\Driver\Repositories\DriverShiftRepositoryInterface;
+use App\Domain\Shared\Services\RedisClientInterface;
 use App\Domain\Towing\Repositories\TowServiceRepositoryInterface;
 use App\Domain\Users\Enums\UserRole;
 use App\Domain\Users\Repositories\UserRepositoryInterface;
-use App\Infrastructure\Database\Redis;
 use DomainException;
 use Exception;
 use Throwable;
@@ -17,7 +17,7 @@ class EndDriverShift
         private DriverShiftRepositoryInterface $shiftRepository,
         private UserRepositoryInterface $userRepository,
         private TowServiceRepositoryInterface $towServiceRepository,
-        private ?Redis $redis = null
+        private ?RedisClientInterface $redis = null
     ) {}
 
     /**

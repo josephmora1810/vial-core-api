@@ -2,14 +2,13 @@
 
 namespace App\Infrastructure\Queue;
 
-use App\Domain\Shared\Services\QueueServiceInterface;
-use App\Infrastructure\Database\Redis;
+use App\Domain\Shared\Services\{QueueServiceInterface, RedisClientInterface};
 use Throwable;
 
 class RedisQueueService implements QueueServiceInterface
 {
     public function __construct(
-        private Redis $redis
+        private RedisClientInterface $redis
     ) {}
 
     public function push(string $queue, array $payload): void

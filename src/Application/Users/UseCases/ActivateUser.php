@@ -2,18 +2,16 @@
 
 namespace App\Application\Users\UseCases;
 
+use App\Domain\Shared\Services\IntegrationLoggerInterface;
 use App\Domain\Users\Repositories\UserRepositoryInterface;
-use App\Infrastructure\Logging\IntegrationLogger;
 use Exception;
 
 class ActivateUser
 {
     public function __construct(
         private UserRepositoryInterface $userRepository,
-        private ?IntegrationLogger $logger = null
-    ) {
-        $this->logger ??= new IntegrationLogger();
-    }
+        private ?IntegrationLoggerInterface $logger = null
+    ) {}
 
     /**
      * Reactiva una cuenta de usuario previamente suspendida o inactiva (FR-35).

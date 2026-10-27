@@ -4,8 +4,9 @@ namespace App\Infrastructure\Services\Bancaribe;
 
 use App\Domain\Payments\Entities\ExchangeRate;
 use App\Domain\Payments\Repositories\ExchangeRateRepositoryInterface;
-use App\Domain\Payments\Services\ExchangeRateServiceInterface;
-use App\Infrastructure\{Database\Redis, Http\HttpClientException, Http\HttpClientInterface};
+use App\Domain\Payments\Services\{BankAuthServiceInterface, ExchangeRateServiceInterface};
+use App\Domain\Shared\Services\RedisClientInterface;
+use App\Infrastructure\Http\{HttpClientException, HttpClientInterface};
 use DateTimeImmutable;
 use RuntimeException;
 use Throwable;
@@ -16,10 +17,10 @@ class BancaribeExchangeService implements ExchangeRateServiceInterface
     private const CACHE_TTL = 3600; // 1 hora en Redis
 
     public function __construct(
-        private BancaribeAuthService $authService,
+        private BankAuthServiceInterface $authService,
         private HttpClientInterface $httpClient,
         private ExchangeRateRepositoryInterface $rateRepository,
-        private ?Redis $redis = null,
+        private ?RedisClientInterface $redis = null,
         private string $baseUrl = '',
         private string $exchangeEndpoint = 'BCVMicro/1.0.0/consultaTasa/tasa',
         private string $exchangeHash = '',
@@ -91,11 +92,12 @@ class BancaribeExchangeService implements ExchangeRateServiceInterface
     {
         $token = $this->authService->getAccessToken();
         $url = rtrim($this->baseUrl, '/') . '/' . ltrim($this->exchangeEndpoint, '/');
+        $normalizedRif = str_replace('-', '', $this->rif);
 
         $payload = [
             'hash'        => $this->exchangeHash,
             'idTasa'      => '',
-            'cedulaRif'   => $this->rif,
+            'cedulaRif'   => $normalizedRif,
             'fechaInicio' => '',
             'fechaFin'    => '',
         ];
@@ -108,6 +110,19 @@ class BancaribeExchangeService implements ExchangeRateServiceInterface
                 'Accept'        => 'application/json',
             ]
         );
+
+        // Si el token fue rechazado con 401, forzar refresco y reintentar en caliente
+        if ($response->status() === 401) {
+            $token = $this->authService->getAccessToken(forceRefresh: true);
+            $response = $this->httpClient->postJson(
+                url: $url,
+                data: $payload,
+                headers: [
+                    'Authorization' => "Bearer {$token}",
+                    'Accept'        => 'application/json',
+                ]
+            );
+        }
 
         if (!$response->isSuccessful()) {
             throw new RuntimeException('Error consultando tasas BCV en Bancaribe: ' . $response->body(), 502);
@@ -152,13 +167,24 @@ class BancaribeExchangeService implements ExchangeRateServiceInterface
      */
     public function processAndSaveRates(array $data): array
     {
-        if (!isset($data['listTasasActuales']) || !is_array($data['listTasasActuales'])) {
+        $ratesList = null;
+        if (!empty($data['listTasasActuales']) && is_array($data['listTasasActuales'])) {
+            $ratesList = $data['listTasasActuales'];
+        } elseif (!empty($data['listTasaHistorico']) && is_array($data['listTasaHistorico'])) {
+            $ratesList = $data['listTasaHistorico'];
+        } elseif (!empty($data['data']['listTasasActuales']) && is_array($data['data']['listTasasActuales'])) {
+            $ratesList = $data['data']['listTasasActuales'];
+        } elseif (!empty($data['data']['listTasaHistorico']) && is_array($data['data']['listTasaHistorico'])) {
+            $ratesList = $data['data']['listTasaHistorico'];
+        }
+
+        if (!is_array($ratesList)) {
             return [];
         }
 
         $saved = [];
 
-        foreach ($data['listTasasActuales'] as $tasa) {
+        foreach ($ratesList as $tasa) {
             if (!is_array($tasa)) {
                 continue;
             }
@@ -198,11 +224,11 @@ class BancaribeExchangeService implements ExchangeRateServiceInterface
 
     private function extractCurrency(string $descripcion): ?string
     {
-        $lower = strtolower($descripcion);
-        if (str_contains($lower, 'dolar')) {
+        $lower = mb_strtolower($descripcion, 'UTF-8');
+        if (str_contains($lower, 'dolar') || str_contains($lower, 'dólar') || str_contains($lower, 'usd')) {
             return 'USD';
         }
-        if (str_contains($lower, 'euro')) {
+        if (str_contains($lower, 'euro') || str_contains($lower, 'eur')) {
             return 'EUR';
         }
         return null;
@@ -210,7 +236,7 @@ class BancaribeExchangeService implements ExchangeRateServiceInterface
 
     private function extractType(string $descripcion): ?string
     {
-        $lower = strtolower($descripcion);
+        $lower = mb_strtolower($descripcion, 'UTF-8');
         if (str_contains($lower, 'compra')) {
             return 'compra';
         }

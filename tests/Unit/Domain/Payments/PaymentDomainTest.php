@@ -4,9 +4,10 @@ namespace Tests\Unit\Domain\Payments;
 
 use App\Domain\Payments\Entities\{ExchangeRate, Order, Payment};
 use App\Domain\Payments\Enums\{OrderableType, OrderStatus, PaymentMethod, PaymentStatus};
-use App\Domain\Payments\ValueObjects\PaymentResult;
+use App\Domain\Payments\ValueObjects\{BankCode, OtpCode, PaymentReference, PaymentResult};
 use App\Domain\Shared\Enums\Currency;
 use App\Domain\Shared\ValueObjects\{Money, Uuid};
+use App\Domain\Users\ValueObjects\{NationalId, Phone};
 use DateTimeImmutable;
 use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;
@@ -112,5 +113,40 @@ class PaymentDomainTest extends TestCase
 
         $this->assertSame(OrderableType::ServiceContract, OrderableType::fromString('service_contract'));
         $this->assertSame(OrderableType::TowService, OrderableType::fromString('tow_service'));
+    }
+
+    public function testPaymentReferenceExtractsLastEightDigitsAndEquality(): void
+    {
+        $ref1 = PaymentReference::fromString('0000123488776655');
+        $ref2 = PaymentReference::fromString('88776655');
+
+        $this->assertSame('88776655', $ref1->getValue());
+        $this->assertSame('0000123488776655', $ref1->getRawValue());
+        $this->assertTrue($ref1->equals($ref2));
+        $this->assertSame('88776655', (string)$ref1);
+    }
+
+    public function testOtpCodeRequiresStrictlyEightDigits(): void
+    {
+        $otp = OtpCode::fromString('12345678');
+        $this->assertSame('12345678', $otp->getValue());
+        $this->assertTrue($otp->equals(OtpCode::fromString('12345678')));
+
+        $this->expectException(InvalidArgumentException::class);
+        OtpCode::fromString('123456'); // 6 dígitos debe fallar
+    }
+
+    public function testBankCodeAndPhoneAndNationalIdBankFormats(): void
+    {
+        $bank = BankCode::fromString('0114');
+        $this->assertTrue($bank->isBancaribe());
+        $this->assertSame('0114', $bank->getValue());
+        $this->assertTrue($bank->equals(BankCode::fromString('0114')));
+
+        $phone = Phone::fromString('+584122373144');
+        $this->assertSame('04122373144', $phone->toNationalFormat());
+
+        $nationalId = NationalId::fromString('V-12345678');
+        $this->assertSame('V12345678', $nationalId->toCompactFormat());
     }
 }

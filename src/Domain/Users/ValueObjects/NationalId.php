@@ -81,6 +81,14 @@ readonly class NationalId
         return $this->value;
     }
 
+    /**
+     * Retorna el formato compacto sin guion requerido por pasarelas bancarias (ej: V12345678).
+     */
+    public function toCompactFormat(): string
+    {
+        return $this->nationality . $this->number;
+    }
+
     public function equals(NationalId $other): bool
     {
         return $this->value === $other->getValue();

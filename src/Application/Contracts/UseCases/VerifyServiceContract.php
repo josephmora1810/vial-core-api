@@ -6,9 +6,9 @@ use App\Domain\Contracts\Entities\ServiceContract;
 use App\Domain\Contracts\Enums\ContractStatus;
 use App\Domain\Contracts\Repositories\PlanRepositoryInterface;
 use App\Domain\Contracts\Repositories\ServiceContractRepositoryInterface;
+use App\Domain\Shared\Services\RedisClientInterface;
 use App\Domain\Users\Repositories\UserRepositoryInterface;
 use App\Domain\Vehicles\Repositories\VehicleRepositoryInterface;
-use App\Infrastructure\Database\Redis;
 use DateTimeImmutable;
 use DateTimeInterface;
 use Exception;
@@ -21,7 +21,7 @@ class VerifyServiceContract
         private PlanRepositoryInterface $planRepository,
         private UserRepositoryInterface $userRepository,
         private VehicleRepositoryInterface $vehicleRepository,
-        private ?Redis $redis = null
+        private ?RedisClientInterface $redis = null
     ) {}
 
     /**

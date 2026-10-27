@@ -122,14 +122,17 @@ final class InfrastructureServiceProvider
             );
         }
 
+        $customerKey = $_ENV['BANCARIBE_COSTUMER_KEY'] ?? $_ENV['BANCARIBE_CONSUMER_KEY'] ?? $_ENV['BANCARIBE_CUSTOMER_KEY'] ?? '';
+        $customerSecret = $_ENV['BANCARIBE_COSTUMER_SECRET'] ?? $_ENV['BANCARIBE_CONSUMER_SECRET'] ?? $_ENV['BANCARIBE_CUSTOMER_SECRET'] ?? '';
+
         $getBancaribeAuth = fn(array $repos) => new BancaribeAuthService(
             httpClient: $httpClient,
             tokenRepository: $repos['bank_token'](),
             redis: $getRedis(),
             baseAuthUrl: $_ENV['BANCARIBE_BASE_AUTH_URL'] ?? '',
             oauth2Endpoint: $_ENV['BANCARIBE_OAUTH2_ENDPOINT'] ?? 'oauth2/token',
-            customerKey: $_ENV['BANCARIBE_COSTUMER_KEY'] ?? '',
-            customerSecret: $_ENV['BANCARIBE_COSTUMER_SECRET'] ?? '',
+            customerKey: $customerKey,
+            customerSecret: $customerSecret,
             sandboxMode: $isSandbox,
             isLocalEnv: $isLocalEnv
         );

@@ -1,5 +1,7 @@
 <?php
 
+date_default_timezone_set('America/Caracas');
+
 spl_autoload_register(function (string $class): void {
     static $classmap = [
         'FPDF'   => __DIR__ . '/src/Infrastructure/Pdf/Fpdf/fpdf.php',

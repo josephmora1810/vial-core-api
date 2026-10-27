@@ -3,7 +3,7 @@
 namespace App\Infrastructure\Services;
 
 use App\Domain\Auth\Services\AccountRateLimiterInterface;
-use App\Infrastructure\Database\Redis;
+use App\Domain\Shared\Services\RedisClientInterface;
 
 /**
  * Adaptador de Infraestructura para control de fuerza bruta en cuentas utilizando Redis (FR-05).
@@ -13,7 +13,7 @@ class RedisAccountRateLimiter implements AccountRateLimiterInterface
     private const string KEY_PREFIX = 'login_attempts:';
     private const int MAX_FAILED_ATTEMPTS = 5;
 
-    public function __construct(private Redis $redis) {}
+    public function __construct(private RedisClientInterface $redis) {}
 
     public function isLocked(string $identity): bool
     {

@@ -3,8 +3,8 @@
 namespace App\Application\Users\UseCases;
 
 use App\Domain\Auth\Repositories\PersonalAccessTokenRepositoryInterface;
+use App\Domain\Shared\Services\IntegrationLoggerInterface;
 use App\Domain\Users\Repositories\UserRepositoryInterface;
-use App\Infrastructure\Logging\IntegrationLogger;
 use Exception;
 
 class SuspendUser
@@ -12,10 +12,8 @@ class SuspendUser
     public function __construct(
         private UserRepositoryInterface $userRepository,
         private ?PersonalAccessTokenRepositoryInterface $tokenRepository = null,
-        private ?IntegrationLogger $logger = null
-    ) {
-        $this->logger ??= new IntegrationLogger();
-    }
+        private ?IntegrationLoggerInterface $logger = null
+    ) {}
 
     /**
      * Inhabilita/suspende un usuario del sistema (FR-35).

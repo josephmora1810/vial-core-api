@@ -16,6 +16,7 @@ use App\Domain\Auth\{
 };
 use App\Domain\Shared\{
     Services\MailerInterface,
+    Services\RedisClientInterface,
     ValueObjects\Money,
     ValueObjects\Uuid
 };
@@ -30,7 +31,6 @@ use App\Domain\Users\{
     ValueObjects\Phone,
     ValueObjects\Surnames
 };
-use App\Infrastructure\Database\Redis;
 use App\Infrastructure\Mail\UbikEmailTemplates;
 use DateTimeImmutable;
 use Exception;
@@ -43,7 +43,7 @@ class RegisterClientBySeller
         private DocumentExtractorInterface $documentExtractor,
         private ?DocumentRepositoryInterface $documentRepository = null,
         private ?MailerInterface $mailer = null,
-        private ?Redis $redis = null,
+        private ?RedisClientInterface $redis = null,
         private ?EnqueueDocumentS3Upload $enqueueS3 = null
     ) {}
 

@@ -3,10 +3,10 @@
 namespace App\Application\Driver\UseCases;
 
 use App\Domain\Driver\Repositories\DriverShiftRepositoryInterface;
+use App\Domain\Shared\Services\RedisClientInterface;
 use App\Domain\Shared\ValueObjects\Coordinates;
 use App\Domain\Users\Enums\UserRole;
 use App\Domain\Users\Repositories\UserRepositoryInterface;
-use App\Infrastructure\Database\Redis;
 use DomainException;
 use Exception;
 use Throwable;
@@ -16,7 +16,7 @@ class UpdateDriverLocation
     public function __construct(
         private DriverShiftRepositoryInterface $shiftRepository,
         private UserRepositoryInterface $userRepository,
-        private ?Redis $redis = null
+        private ?RedisClientInterface $redis = null
     ) {}
 
     /**

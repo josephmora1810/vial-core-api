@@ -2,8 +2,9 @@
 
 namespace App\Infrastructure\Services\Bancaribe;
 
-use App\Domain\Payments\Services\BalanceGatewayInterface;
-use App\Infrastructure\{Database\Redis, Http\HttpClientException, Http\HttpClientInterface};
+use App\Domain\Payments\Services\{BalanceGatewayInterface, BankAuthServiceInterface};
+use App\Domain\Shared\Services\RedisClientInterface;
+use App\Infrastructure\Http\{HttpClientException, HttpClientInterface};
 use Throwable;
 
 class BancaribeBalanceService implements BalanceGatewayInterface
@@ -11,11 +12,11 @@ class BancaribeBalanceService implements BalanceGatewayInterface
     private const CACHE_TTL = 300; // 5 minutos
 
     public function __construct(
-        private BancaribeAuthService $authService,
+        private BankAuthServiceInterface $authService,
         private HttpClientInterface $httpClient,
-        private ?Redis $redis = null,
+        private ?RedisClientInterface $redis = null,
         private string $baseUrl = '',
-        private string $checkBalanceEndpoint = 'Cuentas/ConsultaSaldo/1.0.0/ctasConsultaSaldos',
+        private string $checkBalanceEndpoint = 'Cuentas/ConsultaSaldos/1.0.0/ctasConsultaSaldos',
         private string $checkBalanceHash = '',
         private string $rif = 'J502098500',
         private bool $sandboxMode = false,
@@ -42,13 +43,14 @@ class BancaribeBalanceService implements BalanceGatewayInterface
         $token = $this->authService->getAccessToken();
         $url = rtrim($this->baseUrl, '/') . '/' . ltrim($this->checkBalanceEndpoint, '/');
         $clienteHash = base64_encode("{$token}:{$this->checkBalanceHash}");
+        $normalizedRif = str_replace('-', '', $this->rif);
 
         $payload = [
             'canal'        => 'api',
             'clienteHash'  => $clienteHash,
-            'clienteRif'   => $this->rif,
+            'clienteRif'   => $normalizedRif,
             'numeroCuenta' => $accountNumber,
-            'requestIp'    => $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1',
+            'requestIp'    => $_SERVER['REMOTE_ADDR'] ?? '153.67.5.92',
         ];
 
         if ($this->sandboxMode) {
@@ -80,6 +82,21 @@ class BancaribeBalanceService implements BalanceGatewayInterface
                     'Accept'        => 'application/json',
                 ]
             );
+
+            // Si devuelve 401 (token expirado/revocado), refrescar token y reintentar en caliente
+            if ($response->status() === 401) {
+                $token = $this->authService->getAccessToken(forceRefresh: true);
+                $payload['clienteHash'] = base64_encode("{$token}:{$this->checkBalanceHash}");
+
+                $response = $this->httpClient->postJson(
+                    url: $url,
+                    data: $payload,
+                    headers: [
+                        'Authorization' => "Bearer {$token}",
+                        'Accept'        => 'application/json',
+                    ]
+                );
+            }
         } catch (Throwable $e) {
             return [
                 'success' => false,

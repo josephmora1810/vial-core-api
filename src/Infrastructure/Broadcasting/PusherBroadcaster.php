@@ -2,9 +2,8 @@
 
 namespace App\Infrastructure\Broadcasting;
 
-use App\Domain\Shared\Services\BroadcasterInterface;
+use App\Domain\Shared\Services\{BroadcasterInterface, IntegrationLoggerInterface};
 use App\Infrastructure\Http\HttpClientInterface;
-use App\Infrastructure\Logging\IntegrationLogger;
 use Throwable;
 
 class PusherBroadcaster implements BroadcasterInterface
@@ -17,7 +16,7 @@ class PusherBroadcaster implements BroadcasterInterface
         private string $cluster = 'sa1',
         private int $port = 443,
         private string $scheme = 'https',
-        private ?IntegrationLogger $logger = null
+        private ?IntegrationLoggerInterface $logger = null
     ) {}
 
     /**

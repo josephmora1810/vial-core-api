@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Tests\Unit\Domain\ValueObjects;
 
 use App\Domain\Shared\ValueObjects\Coordinates;
@@ -20,6 +22,33 @@ class CoverageZoneTest extends TestCase
         );
         $this->assertSame('CCS', $zone->code);
         $this->assertSame('Gran Caracas', $zone->name);
+        $this->assertCount(4, $zone->getVertices());
+    }
+
+    public function test_create_coverage_zone_with_polygon_vertices(): void
+    {
+        $repo = new InMemoryCoverageZoneRepository();
+        $zones = $repo->getActiveZones();
+
+        $this->assertCount(1, $zones);
+        $ccs = $zones[0];
+        $this->assertSame('CCS', $ccs->code);
+        $this->assertSame('Gran Caracas, Litoral Central y Eje Guarenas-Guatire', $ccs->name);
+        $this->assertCount(12, $ccs->getVertices());
+        $this->assertTrue($ccs->equals($zones[0]));
+    }
+
+    public function test_throws_exception_if_polygon_has_fewer_than_three_vertices(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        new CoverageZone(
+            code: 'INVALID',
+            name: 'Polígono inválido',
+            vertices: [
+                new Coordinates(10.50, -66.90),
+                new Coordinates(10.51, -66.91),
+            ]
+        );
     }
 
     public function test_throws_exception_if_min_coordinates_greater_than_max(): void
@@ -42,6 +71,14 @@ class CoverageZoneTest extends TestCase
         $this->assertNotNull($zone);
         $this->assertSame('CCS', $zone->code);
         $this->assertTrue($zone->contains($chacao));
+
+        // Coordenada en Guarenas-Guatire
+        $guarenas = new Coordinates(10.4700, -66.5400);
+        $this->assertNotNull($repo->findMatchingZone($guarenas));
+
+        // Coordenada en La Guaira / Catia La Mar
+        $laGuaira = new Coordinates(10.6000, -66.9500);
+        $this->assertNotNull($repo->findMatchingZone($laGuaira));
     }
 
     public function test_find_matching_zone_returns_null_for_point_outside_caracas(): void

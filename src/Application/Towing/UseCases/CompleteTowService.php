@@ -6,13 +6,13 @@ use App\Application\Towing\DTOs\TowServiceResponseDto;
 use App\Domain\Contracts\Repositories\ServiceContractRepositoryInterface;
 use App\Domain\Shared\{
     Services\BroadcasterInterface,
+    Services\RedisClientInterface,
     ValueObjects\Uuid
 };
 use App\Domain\Towing\{
     Entities\TowService,
     Repositories\TowServiceRepositoryInterface
 };
-use App\Infrastructure\Database\Redis;
 use DomainException;
 use Exception;
 use LogicException;
@@ -24,7 +24,7 @@ class CompleteTowService
         private TowServiceRepositoryInterface $towServiceRepository,
         private ?ServiceContractRepositoryInterface $contractRepository = null,
         private ?BroadcasterInterface $broadcaster = null,
-        private ?Redis $redis = null
+        private ?RedisClientInterface $redis = null
     ) {}
 
     /**

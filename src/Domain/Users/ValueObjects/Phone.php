@@ -105,6 +105,18 @@ readonly class Phone
         return substr($this->value, 1);
     }
 
+    /**
+     * Retorna el formato nacional de 11 dígitos con 0 inicial (ej: 04122373144) requerido por pasarelas bancarias.
+     */
+    public function toNationalFormat(): string
+    {
+        if ($this->isVenezuelan()) {
+            return '0' . substr($this->value, 3);
+        }
+
+        return substr($this->value, 1);
+    }
+
     public function getValue(): string
     {
         return $this->value;

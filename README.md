@@ -3,8 +3,8 @@
 <!-- <p align="center">
   <img src="https://img.shields.io/badge/PHP-8.5%2B%20Puro-777BB4?style=for-the-badge&logo=php&logoColor=white" alt="PHP 8.5+" />
   <img src="https://img.shields.io/badge/Architecture-Hexagonal%20%2F%20DDD-blue?style=for-the-badge" alt="Hexagonal DDD" />
-  <img src="https://img.shields.io/badge/Tests-645%20Passing-success?style=for-the-badge&logo=phpunit&logoColor=white" alt="645 Tests Passing" />
-  <img src="https://img.shields.io/badge/Assertions-2437%20Verified-brightgreen?style=for-the-badge" alt="2437 Assertions" />
+  <img src="https://img.shields.io/badge/Tests-655%20Passing-success?style=for-the-badge&logo=phpunit&logoColor=white" alt="655 Tests Passing" />
+  <img src="https://img.shields.io/badge/Assertions-2469%20Verified-brightgreen?style=for-the-badge" alt="2469 Assertions" />
   <img src="https://img.shields.io/badge/Database-MariaDB%2010.11%2B-003545?style=for-the-badge&logo=mariadb&logoColor=white" alt="MariaDB" />
   <img src="https://img.shields.io/badge/Cache%20%26%20Queues-Redis%206%2B-DC382D?style=for-the-badge&logo=redis&logoColor=white" alt="Redis" />
   <img src="https://img.shields.io/badge/Broadcasting-Pusher%20WebSockets-300D4F?style=for-the-badge&logo=pusher&logoColor=white" alt="Pusher" />
@@ -225,9 +225,15 @@ stateDiagram-v2
 * **Implementación en Core API**: La API está diseñada para ser idempotente. Recibe la solicitud completa cuando el dispositivo restablece la conexión móvil (3G/4G/LTE), almacenando el borrador localmente en la base de datos SQLite de la aplicación móvil (KMP).
 
 #### **FR-22: Geocerca Restrictiva Operativa** *(Prioridad: CRÍTICA)*
-* **Definición SRS**: El sistema DEBE rechazar cualquier solicitud de SOS cuyas coordenadas se encuentren fuera del polígono geográfico de la Gran Caracas y el Litoral Central. Pero, si están dentro del rango, la aplicación móvil DEBE capturar automáticamente las coordenadas GPS exactas si los permisos están concedidos.
+* **Definición SRS**: El sistema DEBE rechazar cualquier solicitud de SOS cuyas coordenadas se encuentren fuera del polígono geográfico de la Gran Caracas, Litoral Central y Eje Guarenas-Guatire. Pero, si están dentro del rango, la aplicación móvil DEBE capturar automáticamente las coordenadas GPS exactas si los permisos están concedidos.
 * **Implementación en Core API**:
-  - **Dominio / Infraestructura**: `InMemoryCoverageZoneRepository`. Define los vértices de polígonos geoespaciales y radios de cobertura que abarcan: Caracas, Los Teques, San Antonio de los Altos, Guarenas, Guatire, Cúa, Charallave, Valles del Tuy, Maiquetía, La Guaira y Litoral Central. Cualquier coordenada fuera del polígono es rechazada inmediatamente con `HTTP 422 Unprocessable Entity` (`OUT_OF_COVERAGE_ZONE`).
+  - **Dominio / Infraestructura**: Value Object `CoverageZone` (algoritmo geométrico **Ray-Casting / Point-in-Polygon** con pre-filtrado por Bounding Box) e `InMemoryCoverageZoneRepository`. Define el polígono operativo `CCS` (`Gran Caracas, Litoral Central y Eje Guarenas-Guatire`) conformado por **12 vértices geográficos** distribuidos en 5 bloques:
+    1. **Bloque Litoral Central (Norte)**: Extremo Oeste La Guaira / Puerto Maya (`10.55, -67.22`), Costa Central Catia La Mar / Macuto / Caraballeda (`10.62, -66.90`) y Extremo Este Chuspa / Caruao (`10.61, -66.32`).
+    2. **Bloque Barlovento / Eje Guarenas-Guatire (Este)**: Entrada a Higuerote / Distribuidor Kempis (`10.48, -66.10`), Caucagua / Autopista GMA y Troncal 9 (`10.28, -66.32`) y Eje Guatire-Guarenas (`10.42, -66.55`).
+    3. **Bloque Valles del Tuy (Sureste / Sur)**: Santa Lucía / Santa Teresa (`10.30, -66.65`) y Charallave / Cúa (`10.22, -66.85`).
+    4. **Bloque Altos Mirandinos y Conexiones (Suroeste)**: Los Teques / San Antonio (`10.33, -67.04`) y Límite Las Tejerías / Peaje ARC (`10.30, -67.18`).
+    5. **Bloque Cierre de Anillo (Oeste)**: El Junquito / Colonia Tovar (`10.46, -67.15`) y Carayaca (`10.51, -67.22`).
+  - Cualquier coordenada de origen o destino fuera del polígono es rechazada inmediatamente con `HTTP 422 Unprocessable Entity` (`OUT_OF_COVERAGE_ZONE`).
 
 #### **FR-23: Matching Algorítmico Espacial** *(Prioridad: CRÍTICA)*
 * **Definición SRS**: El sistema DEBE usar MariaDB para buscar mediante fórmulas espaciales a los Grueros disponibles en un radio X, y notificarles vía WebSockets/Pusher.
@@ -284,7 +290,8 @@ stateDiagram-v2
 #### **FR-28: Orquestación de Intenciones de Pago** *(Prioridad: CRÍTICA)*
 * **Definición SRS**: El Core API DEBE generar una intención de pago comunicándose con los endpoints seguros de Bancaribe, enviando monto, referencia y datos del titular.
 * **Implementación en Core API**:
-  - **Servicios**: `BancaribeAuthService` y `BancaribePaymentService`. Conexión directa contra `oauth2/token` (producción) y endpoints bancarios de C2P y Operaciones Plus. Sincronización de token OAuth2 Bearer en MariaDB y Redis.
+  - **Dominio**: Estrategias de dominio (`C2pStrategy`, `PagoMovilStrategy`), puerto `BankAuthServiceInterface` y Value Objects inmutables (`OtpCode` estricto de 8 dígitos numéricos para C2P, `PaymentReference` normalizado a los últimos 8 dígitos para Pago Móvil Plus, `BankCode` SUDEBAN de 4 dígitos, `Phone::toNationalFormat()` de 11 dígitos y `NationalId::toCompactFormat()`).
+  - **Servicios de Infraestructura**: `BancaribeAuthService` y `BancaribePaymentService`. Conexión directa contra `oauth2/token` (`application/x-www-form-urlencoded` con fallback de credenciales y persistencia primaria en MariaDB `bank_tokens` + caché en Redis) y endpoints bancarios de C2P y Operaciones Plus con auto-recuperación ante `401 Unauthorized`.
   - **Endpoints**: `POST /api/v1/payments/process`, `POST /api/v1/checkout`.
 
 #### **FR-29: Recepción de Webhooks Asíncronos** *(Prioridad: CRÍTICA)*
@@ -1022,38 +1029,36 @@ php bin/phpunit.phar
 
 **Resultado de la Suite de Pruebas:**
 ```text
-PHPUnit 13.4.2 by Sebastian Bergmann and contributors.
-Runtime:       PHP 8.5.11
+PHPUnit 13.0.5 by Sebastian Bergmann and contributors.
+Runtime:       PHP 8.5.1
 Configuration: C:\Users\josep\Documents\vial-core-api\phpunit.xml
 
-...............................................................  63 / 447 ( 14%)
-............................................................... 126 / 447 ( 28%)
-...............................................................  63 / 645 (  9%)
-............................................................... 126 / 645 ( 19%)
-............................................................... 189 / 645 ( 29%)
-............................................................... 252 / 645 ( 39%)
-............................................................... 315 / 645 ( 48%)
-............................................................... 378 / 645 ( 58%)
-............................................................... 441 / 645 ( 68%)
-............................................................... 504 / 645 ( 78%)
-............................................................... 567 / 645 ( 87%)
-............................................................... 630 / 645 ( 97%)
-...............                                                 645 / 645 (100%)
+...............................................................  63 / 655 (  9%)
+............................................................... 126 / 655 ( 19%)
+............................................................... 189 / 655 ( 28%)
+............................................................... 252 / 655 ( 38%)
+............................................................... 315 / 655 ( 48%)
+............................................................... 378 / 655 ( 57%)
+............................................................... 441 / 655 ( 67%)
+............................................................... 504 / 655 ( 76%)
+............................................................... 567 / 655 ( 86%)
+............................................................... 630 / 655 ( 96%)
+.........................                                       655 / 655 (100%)
 
-Time: 00:49.868, Memory: 50.00 MB
+Time: 00:08.532, Memory: 38.50 MB
 
-OK (645 tests, 2437 assertions) - 100% Passing (0 errores, 0 fallos, 0 avisos)
+OK (655 tests, 2469 assertions) - 100% Passing (0 errores, 0 fallos, 0 avisos)
 ```
 
 ### 📊 Desglose de Cobertura de la Suite de Pruebas
 
 | Capa Arquitectural | Componentes y Casos Evaluados | Tests / Aserciones |
 | :--- | :--- | :--- |
-| **Dominio y Core** | Entidades de Dominio (`Commission`, `SellerProfile`, `DriverShift`, `TowService`, `Policy`, `AffiliationContract`, `Document`, `HomeGallery`, `Order`, `Payment`, `ExchangeRate`), Value Objects (`ExtractedVehicleRegistration`, `CancellationReason`, `PaymentResult`, `Uuid`, `Coordinates`, `PlateNumber`, `Money`), Máquinas de Estados y Enums (`CommissionStatus`, `TowServiceStatus`, `OrderStatus`, `PaymentStatus`, `PaymentMethod`, `OrderableType`, `Role`, `DocumentType`, `DocumentStatus`), Servicios de Dominio (`VehicleMatcherService`, `PushNotificationInterface`), Componentes Core (`Router`, `Response`, `Pipeline`, `JwtService`). | 148 tests / 562 aserciones |
+| **Dominio y Core** | Entidades de Dominio (`Commission`, `SellerProfile`, `DriverShift`, `TowService`, `Policy`, `AffiliationContract`, `Document`, `HomeGallery`, `Order`, `Payment`, `ExchangeRate`), Value Objects (`CoverageZone` poligonal de 12 vértices con Ray-Casting, `OtpCode` de 8 dígitos, `PaymentReference` de 8 dígitos, `BankCode` SUDEBAN, `Phone`, `NationalId`, `ExtractedVehicleRegistration`, `CancellationReason`, `PaymentResult`, `RouteSummary`, `Uuid`, `Coordinates`, `PlateNumber`, `Money`), Estrategias de Dominio (`C2pStrategy`, `PagoMovilStrategy`), Máquinas de Estados y Enums (`CommissionStatus`, `TowServiceStatus`, `OrderStatus`, `PaymentStatus`, `PaymentMethod`, `OrderableType`, `Role`, `DocumentType`, `DocumentStatus`), Puertos y Servicios de Dominio (`VehicleMatcherService`, `PushNotificationInterface`, `BankAuthServiceInterface`, `RedisClientInterface`, `IntegrationLoggerInterface`), Componentes Core (`Router`, `Response`, `Pipeline`, `JwtService`). | 158 tests / 594 aserciones |
 | **Casos de Uso, DTOs y Controladores** | Auditoría y DTOs Fuertemente Tipados de Remolque/Towing (`TowingController`, `SosQuoteResponseDto`, `SosRequestResponseDto`, `SosRadarResponseDto`, `SosHistoryResponseDto`, `CancellationReasonsResponseDto`, `TelemetryLoggedResponseDto`, `PusherAuthResponseDto`, `PusherWebhookResponseDto`, `BroadcastingController`, `PusherWebhookController`), Usuarios y Direcciones (`SavedAddressController`, `UserModerationController`, `SavedAddressResponseDto`, `UserModerationResponseDto`, `UserAvatarResponseDto`), Vehículos y OCR (`VehicleController`, `VehicleDetailedResponseDto`, `VehicleScanResponseDto`, `VehicleDeletedResponseDto`), Pagos y Bancaribe (`PaymentController`, `ProcessPayment`, `HandleBancaribeWebhook`, `OrderResponseDto`, `PaymentProcessResponseDto`, `BankBalanceResponseDto`, `ExchangeRatesResponseDto`), Choferes y Flota (`DriverController`, DTOs de Driver, Registro de Grúas, Turnos y Telemetría), Landing (`LandingController`, `ManageHomeGallery`, `GetActiveHomeGallery`, `HomeGalleryResponseDto`), Documentos y KYC (`DocumentResponseDto`, `KycStatusResponseDto`, `DocumentController`), Comisiones (`AdminCommissionController`, `SellerController`), Garantía de Seguridad de Contratos (`ServiceContractResponseDto` solo expone UUID público, nunca ID entero), Reanudación reactiva SOS (`GetActiveTowService`), Despacho Dual (Pusher Beams + WebSockets), Hitos de Llegada y Finalización con Broadcasts. | 335 tests / 1228 aserciones |
 | **Seguridad y Autorización** | Middlewares (`AuthMiddleware`, `AuthorizeMiddleware`, `CorsMiddleware`, `EnforceJsonResponseMiddleware`, `EnsureKycVerifiedMiddleware`, `ThrottleMiddleware`), Invariante de 1 grúa activa por chofer, Bloqueo de finalización de turno durante servicio activo, Auditoría OWASP API1:2023 (Protección BOLA en `/api/v1/sos/{uuid}` y `ServiceContractResponseDto`), Bloqueo de Bypass de Pago en SOS Express, Validación de firmas de canales privados Pusher (`/api/v1/broadcasting/auth`), Calificación bidireccional estricta, Sanitización EXIF y prevención de Path Traversal en subida de imágenes y documentos. | 45 tests / 172 aserciones |
-| **Infraestructura y Adaptadores** | `MariaDbOrderRepository`, `MariaDbPaymentRepository`, `MariaDbExchangeRateRepository`, `MariaDbBankTokenRepository`, `C2pStrategy`, `PagoMovilStrategy`, `MariaDbHomeGalleryRepository`, `MariaDbDriverShiftRepository`, `LaVenezolanaDocumentExtractor` (OCR con tipado estricto `ExtractedVehicleRegistration`), `AwsS3StorageService` (S3 y URLs prefirmadas), `RedisQueueService` (cola asíncrona `queue:s3_document_uploads`), `MariaDbCommissionRepository`, `MariaDbSellerProfileRepository`, `PusherBeamsService` (FCM + APNs push gateway), `MariaDbUserRepository`, `MariaDbTowServiceRepository`, `MariaDbVehicleRepository`, `CachedVehicleCatalogRepository`, Motor de Migraciones MariaDB, `RedisRateLimiter`, `PusherBroadcaster`, `BancaribePaymentGateway`, `SmtpEmailDispatcher`. | 117 tests / 475 aserciones |
-| **Total General** | **Batería Automatizada Completa** | **645 tests / 2437 aserciones (100% OK)** |
+| **Infraestructura y Adaptadores** | `MariaDbOrderRepository`, `MariaDbPaymentRepository`, `MariaDbExchangeRateRepository`, `MariaDbBankTokenRepository`, `BancaribeAuthService`, `BancaribePaymentService`, `BancaribeExchangeService`, `BancaribeBalanceService`, `InMemoryCoverageZoneRepository`, `OsrmRoutingService`, `MariaDbHomeGalleryRepository`, `MariaDbDriverShiftRepository`, `LaVenezolanaDocumentExtractor` (OCR con tipado estricto `ExtractedVehicleRegistration`), `AwsS3StorageService` (S3 SigV4 y URLs prefirmadas), `RedisQueueService` (cola asíncrona `queue:s3_document_uploads`), `MariaDbCommissionRepository`, `MariaDbSellerProfileRepository`, `PusherBeamsService` (FCM + APNs push gateway), `MariaDbUserRepository`, `MariaDbTowServiceRepository`, `MariaDbVehicleRepository`, `CachedVehicleCatalogRepository`, Motor de Migraciones MariaDB, `RedisRateLimiter`, `PusherBroadcaster`, `SmtpEmailDispatcher`. | 117 tests / 475 aserciones |
+| **Total General** | **Batería Automatizada Completa** | **655 tests / 2469 aserciones (100% OK)** |
 
 ### 🔬 Suite de Pruebas de Integración y End-to-End en Caliente (Hot Runner)
 

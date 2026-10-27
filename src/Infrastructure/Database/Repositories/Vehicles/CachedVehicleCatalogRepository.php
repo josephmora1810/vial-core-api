@@ -2,8 +2,8 @@
 
 namespace App\Infrastructure\Database\Repositories\Vehicles;
 
+use App\Domain\Shared\Services\RedisClientInterface;
 use App\Domain\Vehicles\Repositories\VehicleCatalogRepositoryInterface;
-use App\Infrastructure\Database\Redis;
 use Throwable;
 
 /**
@@ -16,7 +16,7 @@ class CachedVehicleCatalogRepository implements VehicleCatalogRepositoryInterfac
 
     public function __construct(
         private VehicleCatalogRepositoryInterface $inner,
-        private ?Redis $redis = null,
+        private ?RedisClientInterface $redis = null,
         private int $ttlSeconds = self::DEFAULT_TTL
     ) {}
 

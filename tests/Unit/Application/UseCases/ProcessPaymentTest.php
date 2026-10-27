@@ -103,7 +103,7 @@ class ProcessPaymentTest extends TestCase
                 'documentType'    => 'V',
                 'documentNumber'  => '12345678',
                 'telefonoPersona' => '04141234567',
-                'otp'             => '000000', // Simulates declined OTP
+                'otp'             => '00000000', // Simulates declined OTP
             ]);
             $this->fail('Expected exception was not thrown.');
         } catch (Exception $e) {

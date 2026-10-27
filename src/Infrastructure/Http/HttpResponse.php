@@ -26,6 +26,14 @@ readonly class HttpResponse
         return $this->status >= 200 && $this->status < 300;
     }
 
+    /**
+     * Accesor para el código de estado HTTP
+     */
+    public function status(): int
+    {
+        return $this->status;
+    }
+
     /** Las cabeceras HTTP no distinguen mayúsculas, por eso se buscan en minúsculas */
     public function header(string $name): ?string
     {

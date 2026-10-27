@@ -18,12 +18,15 @@ use Throwable;
 class OsrmRoutingService implements RoutingServiceInterface
 {
     private string $baseUrl;
+    private string $profile;
 
     public function __construct(
         private HttpClientInterface $httpClient,
-        ?string $baseUrl = null
+        ?string $baseUrl = null,
+        ?string $profile = null
     ) {
         $this->baseUrl = rtrim($baseUrl ?? ($_ENV['OSRM_BASE_URL'] ?? 'https://router.project-osrm.org'), '/');
+        $this->profile = trim($profile ?? ($_ENV['OSRM_PROFILE'] ?? 'driving'), '/') ?: 'driving';
     }
 
     public function calculateRoute(Coordinates $origin, Coordinates $destination): RouteSummary
@@ -32,8 +35,8 @@ class OsrmRoutingService implements RoutingServiceInterface
         $originLat = $origin->getLatitude();
         $destLng = $destination->getLongitude();
         $destLat = $destination->getLatitude();
-        // Endpoint OSRM: /route/v1/driving/{lng1},{lat1};{lng2},{lat2}?overview=false
-        $url = "{$this->baseUrl}/route/v1/driving/{$originLng},{$originLat};{$destLng},{$destLat}?overview=false";
+        // Endpoint OSRM: /route/v1/{profile}/{lng1},{lat1};{lng2},{lat2}?overview=false
+        $url = "{$this->baseUrl}/route/v1/{$this->profile}/{$originLng},{$originLat};{$destLng},{$destLat}?overview=false";
 
         try {
             $response = $this->httpClient->get($url);

@@ -1,16 +1,18 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Application\Auth\UseCases;
 
 use App\Domain\Auth\{
     Repositories\PersonalAccessTokenRepositoryInterface,
     ValueObjects\Password
 };
+use App\Domain\Shared\Services\RedisClientInterface;
 use App\Domain\Users\{
     Repositories\UserRepositoryInterface,
     ValueObjects\Email
 };
-use App\Infrastructure\Database\Redis;
 use Exception;
 use InvalidArgumentException;
 
@@ -19,7 +21,7 @@ class ResetPassword
     public function __construct(
         private UserRepositoryInterface $userRepository,
         private PersonalAccessTokenRepositoryInterface $tokenRepository,
-        private Redis $redis
+        private RedisClientInterface $redis
     ) {}
 
     public function execute(

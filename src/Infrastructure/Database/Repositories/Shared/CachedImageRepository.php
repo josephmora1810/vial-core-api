@@ -3,7 +3,7 @@
 namespace App\Infrastructure\Database\Repositories\Shared;
 
 use App\Domain\Shared\Repositories\ImageRepositoryInterface;
-use App\Infrastructure\Database\Redis;
+use App\Domain\Shared\Services\RedisClientInterface;
 use Throwable;
 
 class CachedImageRepository implements ImageRepositoryInterface
@@ -12,7 +12,7 @@ class CachedImageRepository implements ImageRepositoryInterface
 
     public function __construct(
         private ImageRepositoryInterface $inner,
-        private ?Redis $redis = null
+        private ?RedisClientInterface $redis = null
     ) {}
 
     public function save(string $imageableType, int $imageableId, string $type, string $path): int

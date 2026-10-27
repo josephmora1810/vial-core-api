@@ -1,13 +1,14 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Application\Auth\UseCases;
 
-use App\Domain\Shared\Services\MailerInterface;
+use App\Domain\Shared\Services\{MailerInterface, RedisClientInterface};
 use App\Domain\Users\{
     Repositories\UserRepositoryInterface,
     ValueObjects\Email
 };
-use App\Infrastructure\Database\Redis;
 use App\Infrastructure\Mail\UbikEmailTemplates;
 use Exception;
 use InvalidArgumentException;
@@ -18,7 +19,7 @@ class SendPasswordResetCode
     public function __construct(
         private UserRepositoryInterface $userRepository,
         private MailerInterface $mailer,
-        private Redis $redis
+        private RedisClientInterface $redis
     ) {}
 
     public function execute(string $rawEmail): void

@@ -10,12 +10,12 @@ use App\Domain\Contracts\{
     Repositories\PlanRepositoryInterface,
     Repositories\ServiceContractRepositoryInterface
 };
+use App\Domain\Shared\Services\RedisClientInterface;
 use App\Domain\Users\{
     Repositories\UserRepositoryInterface,
     ValueObjects\NationalId
 };
 use App\Domain\Vehicles\Repositories\VehicleRepositoryInterface;
-use App\Infrastructure\Database\Redis;
 use Exception;
 use InvalidArgumentException;
 use Throwable;
@@ -30,7 +30,7 @@ class SearchClientByNationalId
         private VehicleRepositoryInterface $vehicleRepository,
         private ServiceContractRepositoryInterface $contractRepository,
         private PlanRepositoryInterface $planRepository,
-        private ?Redis $redis = null
+        private ?RedisClientInterface $redis = null
     ) {}
 
     /**

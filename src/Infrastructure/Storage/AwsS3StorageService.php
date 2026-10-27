@@ -1,8 +1,10 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Infrastructure\Storage;
 
-use App\Domain\Shared\Services\StorageServiceInterface;
+use App\Domain\Shared\Services\{IntegrationLoggerInterface, StorageServiceInterface};
 use App\Infrastructure\Logging\IntegrationLogger;
 use Throwable;
 
@@ -13,7 +15,7 @@ class AwsS3StorageService implements StorageServiceInterface
     private string $region;
     private string $bucket;
     private string $baseUrl;
-    private IntegrationLogger $logger;
+    private IntegrationLoggerInterface $logger;
 
     public function __construct(
         ?string $accessKey = null,
@@ -21,7 +23,7 @@ class AwsS3StorageService implements StorageServiceInterface
         ?string $region = null,
         ?string $bucket = null,
         ?string $baseUrl = null,
-        ?IntegrationLogger $logger = null
+        ?IntegrationLoggerInterface $logger = null
     ) {
         $this->accessKey = $accessKey ?? (string)($_ENV['AWS_ACCESS_KEY_ID'] ?? '');
         $this->secretKey = $secretKey ?? (string)($_ENV['AWS_SECRET_ACCESS_KEY'] ?? '');
@@ -51,29 +53,7 @@ class AwsS3StorageService implements StorageServiceInterface
 
         $start = microtime(true);
         $contentHash = hash('sha256', $cleanContent);
-        $amzDate = gmdate('Ymd\THis\Z');
-        $dateStamp = gmdate('Ymd');
-
-        // Canonical Request
-        $canonicalUri = '/' . $storageKey;
-        $canonicalHeaders = "content-type:{$contentType}\nhost:{$host}\nx-amz-content-sha256:{$contentHash}\nx-amz-date:{$amzDate}\n";
-        $signedHeaders = 'content-type;host;x-amz-content-sha256;x-amz-date';
-        $canonicalRequest = "PUT\n{$canonicalUri}\n\n{$canonicalHeaders}\n{$signedHeaders}\n{$contentHash}";
-
-        // String to sign
-        $algorithm = 'AWS4-HMAC-SHA256';
-        $credentialScope = "{$dateStamp}/{$this->region}/s3/aws4_request";
-        $stringToSign = "{$algorithm}\n{$amzDate}\n{$credentialScope}\n" . hash('sha256', $canonicalRequest);
-
-        // Signing key calculation
-        $kSecret = 'AWS4' . $this->secretKey;
-        $kDate = hash_hmac('sha256', $dateStamp, $kSecret, true);
-        $kRegion = hash_hmac('sha256', $this->region, $kDate, true);
-        $kService = hash_hmac('sha256', 's3', $kRegion, true);
-        $kSigning = hash_hmac('sha256', 'aws4_request', $kService, true);
-        $signature = hash_hmac('sha256', $stringToSign, $kSigning);
-
-        $authorization = "{$algorithm} Credential={$this->accessKey}/{$credentialScope}, SignedHeaders={$signedHeaders}, Signature={$signature}";
+        $headers = $this->buildAwsV4Headers('PUT', '/' . $storageKey, $host, $contentHash, $contentType);
 
         $ch = curl_init($endpoint);
         curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'PUT');
@@ -81,13 +61,7 @@ class AwsS3StorageService implements StorageServiceInterface
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
         curl_setopt($ch, CURLOPT_TIMEOUT, 30);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, [
-            'Content-Type: ' . $contentType,
-            'Host: ' . $host,
-            'x-amz-date: ' . $amzDate,
-            'x-amz-content-sha256: ' . $contentHash,
-            'Authorization: ' . $authorization,
-        ]);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
 
         $response = curl_exec($ch);
         $httpCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -127,36 +101,12 @@ class AwsS3StorageService implements StorageServiceInterface
 
         $start = microtime(true);
         $contentHash = hash('sha256', '');
-        $amzDate = gmdate('Ymd\THis\Z');
-        $dateStamp = gmdate('Ymd');
-
-        $canonicalUri = '/' . $storageKey;
-        $canonicalHeaders = "host:{$host}\nx-amz-content-sha256:{$contentHash}\nx-amz-date:{$amzDate}\n";
-        $signedHeaders = 'host;x-amz-content-sha256;x-amz-date';
-        $canonicalRequest = "DELETE\n{$canonicalUri}\n\n{$canonicalHeaders}\n{$signedHeaders}\n{$contentHash}";
-
-        $algorithm = 'AWS4-HMAC-SHA256';
-        $credentialScope = "{$dateStamp}/{$this->region}/s3/aws4_request";
-        $stringToSign = "{$algorithm}\n{$amzDate}\n{$credentialScope}\n" . hash('sha256', $canonicalRequest);
-
-        $kSecret = 'AWS4' . $this->secretKey;
-        $kDate = hash_hmac('sha256', $dateStamp, $kSecret, true);
-        $kRegion = hash_hmac('sha256', $this->region, $kDate, true);
-        $kService = hash_hmac('sha256', 's3', $kRegion, true);
-        $kSigning = hash_hmac('sha256', 'aws4_request', $kService, true);
-        $signature = hash_hmac('sha256', $stringToSign, $kSigning);
-
-        $authorization = "{$algorithm} Credential={$this->accessKey}/{$credentialScope}, SignedHeaders={$signedHeaders}, Signature={$signature}";
+        $headers = $this->buildAwsV4Headers('DELETE', '/' . $storageKey, $host, $contentHash);
 
         $ch = curl_init($endpoint);
         curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'DELETE');
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, [
-            'Host: ' . $host,
-            'x-amz-date: ' . $amzDate,
-            'x-amz-content-sha256: ' . $contentHash,
-            'Authorization: ' . $authorization,
-        ]);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
 
         $response = curl_exec($ch);
         $httpCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -185,13 +135,43 @@ class AwsS3StorageService implements StorageServiceInterface
         $endpoint = "https://{$host}/{$storageKey}";
 
         $contentHash = hash('sha256', '');
+        $headers = $this->buildAwsV4Headers('HEAD', '/' . $storageKey, $host, $contentHash);
+
+        $ch = curl_init($endpoint);
+        curl_setopt($ch, CURLOPT_NOBODY, true);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+
+        curl_exec($ch);
+        $httpCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+
+        return $httpCode === 200;
+    }
+
+    /**
+     * Genera las cabeceras firmadas con el protocolo AWS Signature Version 4 (AWS4-HMAC-SHA256).
+     *
+     * @return list<string>
+     */
+    private function buildAwsV4Headers(
+        string $method,
+        string $canonicalUri,
+        string $host,
+        string $contentHash,
+        ?string $contentType = null
+    ): array {
         $amzDate = gmdate('Ymd\THis\Z');
         $dateStamp = gmdate('Ymd');
 
-        $canonicalUri = '/' . $storageKey;
-        $canonicalHeaders = "host:{$host}\nx-amz-content-sha256:{$contentHash}\nx-amz-date:{$amzDate}\n";
-        $signedHeaders = 'host;x-amz-content-sha256;x-amz-date';
-        $canonicalRequest = "HEAD\n{$canonicalUri}\n\n{$canonicalHeaders}\n{$signedHeaders}\n{$contentHash}";
+        if ($contentType !== null) {
+            $canonicalHeaders = "content-type:{$contentType}\nhost:{$host}\nx-amz-content-sha256:{$contentHash}\nx-amz-date:{$amzDate}\n";
+            $signedHeaders = 'content-type;host;x-amz-content-sha256;x-amz-date';
+        } else {
+            $canonicalHeaders = "host:{$host}\nx-amz-content-sha256:{$contentHash}\nx-amz-date:{$amzDate}\n";
+            $signedHeaders = 'host;x-amz-content-sha256;x-amz-date';
+        }
+
+        $canonicalRequest = "{$method}\n{$canonicalUri}\n\n{$canonicalHeaders}\n{$signedHeaders}\n{$contentHash}";
 
         $algorithm = 'AWS4-HMAC-SHA256';
         $credentialScope = "{$dateStamp}/{$this->region}/s3/aws4_request";
@@ -206,20 +186,16 @@ class AwsS3StorageService implements StorageServiceInterface
 
         $authorization = "{$algorithm} Credential={$this->accessKey}/{$credentialScope}, SignedHeaders={$signedHeaders}, Signature={$signature}";
 
-        $ch = curl_init($endpoint);
-        curl_setopt($ch, CURLOPT_NOBODY, true);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, [
-            'Host: ' . $host,
-            'x-amz-date: ' . $amzDate,
-            'x-amz-content-sha256: ' . $contentHash,
-            'Authorization: ' . $authorization,
-        ]);
+        $headers = [];
+        if ($contentType !== null) {
+            $headers[] = 'Content-Type: ' . $contentType;
+        }
+        $headers[] = 'Host: ' . $host;
+        $headers[] = 'x-amz-date: ' . $amzDate;
+        $headers[] = 'x-amz-content-sha256: ' . $contentHash;
+        $headers[] = 'Authorization: ' . $authorization;
 
-        curl_exec($ch);
-        $httpCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
-
-        return $httpCode === 200;
+        return $headers;
     }
 
     /**

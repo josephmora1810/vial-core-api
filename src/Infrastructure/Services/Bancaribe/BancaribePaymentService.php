@@ -3,18 +3,21 @@
 namespace App\Infrastructure\Services\Bancaribe;
 
 use App\Domain\Payments\Entities\Order;
-use App\Domain\Payments\Services\{ExchangeRateServiceInterface, PaymentGatewayInterface};
-use App\Domain\Payments\ValueObjects\PaymentResult;
+use App\Domain\Payments\Services\{BankAuthServiceInterface, ExchangeRateServiceInterface, PaymentGatewayInterface};
+use App\Domain\Payments\ValueObjects\{BankCode, OtpCode, PaymentReference, PaymentResult};
+use App\Domain\Shared\Services\IntegrationLoggerInterface;
+use App\Domain\Users\ValueObjects\{NationalId, Phone};
 use App\Infrastructure\Http\{HttpClientException, HttpClientInterface, HttpResponse};
 use App\Infrastructure\Logging\IntegrationLogger;
+use InvalidArgumentException;
 use Throwable;
 
 class BancaribePaymentService implements PaymentGatewayInterface
 {
-    private IntegrationLogger $logger;
+    private IntegrationLoggerInterface $logger;
 
     public function __construct(
-        private BancaribeAuthService $authService,
+        private BankAuthServiceInterface $authService,
         private ExchangeRateServiceInterface $exchangeService,
         private HttpClientInterface $httpClient,
         private string $baseUrl = '',
@@ -26,7 +29,7 @@ class BancaribePaymentService implements PaymentGatewayInterface
         private string $telefonoComercio = '04267536320',
         private string $nombreComercio = 'UbikGo',
         private bool $sandboxMode = false,
-        ?IntegrationLogger $logger = null,
+        ?IntegrationLoggerInterface $logger = null,
         private bool $isLocalEnv = true
     ) {
         if ($this->sandboxMode && !$this->isLocalEnv) {
@@ -73,6 +76,20 @@ class BancaribePaymentService implements PaymentGatewayInterface
                     'Accept'        => 'application/json',
                 ]
             );
+
+            // Si devuelve 401 (token expirado/revocado), refrescar token y reintentar
+            if ($response->status() === 401) {
+                $token = $this->authService->getAccessToken(forceRefresh: true);
+                $payload = $this->buildC2pPayload($order, $paymentData, $token, $amountVes);
+                $response = $this->httpClient->postJson(
+                    url: $url,
+                    data: $payload,
+                    headers: [
+                        'Authorization' => "Bearer {$token}",
+                        'Accept'        => 'application/json',
+                    ]
+                );
+            }
         } catch (Throwable $e) {
             return new PaymentResult(
                 success: false,
@@ -127,15 +144,30 @@ class BancaribePaymentService implements PaymentGatewayInterface
         $url = rtrim($this->baseUrl, '/') . '/' . ltrim($this->plusEndpoint, '/');
 
         $montoFormateado = number_format($amount, 2, '.', '');
-        $normalizedId = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', $identificadorPersona));
+        try {
+            $normalizedId = NationalId::fromString($identificadorPersona)->toCompactFormat();
+        } catch (InvalidArgumentException) {
+            $normalizedId = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', $identificadorPersona) ?? '');
+        }
+        $normalizedRif = str_replace('-', '', $this->rifComercio);
+        $normalizedRef = (string)PaymentReference::fromString($reference);
+
+        $normalizedPhone = '';
+        if ($telefono !== null && trim($telefono) !== '') {
+            try {
+                $normalizedPhone = Phone::fromString($telefono)->toNationalFormat();
+            } catch (InvalidArgumentException) {
+                $normalizedPhone = $telefono;
+            }
+        }
 
         $payload = [
             'tipoTrx'              => 'PM',
             'montoTransaccion'     => $montoFormateado,
-            'rif'                  => $this->rifComercio,
+            'rif'                  => $normalizedRif,
             'identificadorPersona' => $normalizedId,
-            'referencia'           => trim($reference),
-            'telefonoDebito'       => $telefono ?? '',
+            'referencia'           => $normalizedRef,
+            'telefonoDebito'       => $normalizedPhone,
             'factura'              => '',
             'fecha'                => $date === date('Y-m-d') ? '' : date('m/d/Y', strtotime($date)),
             'hash'                 => $this->plusHash,
@@ -146,7 +178,7 @@ class BancaribePaymentService implements PaymentGatewayInterface
 
         // Modo Sandbox local para pruebas sin VPN bancaria
         if ($this->sandboxMode) {
-            $res = $this->simulatePagoMovilResponse($payload, $reference, $amount);
+            $res = $this->simulatePagoMovilResponse($payload, $normalizedRef, $amount);
             $this->logger->log(
                 service: 'bancaribe',
                 operation: 'SANDBOX POST PAGO_MOVIL_PLUS',
@@ -169,6 +201,19 @@ class BancaribePaymentService implements PaymentGatewayInterface
                     'Accept'        => 'application/json',
                 ]
             );
+
+            // Si devuelve 401 (token expirado/revocado), refrescar token y reintentar
+            if ($response->status() === 401) {
+                $token = $this->authService->getAccessToken(forceRefresh: true);
+                $response = $this->httpClient->postJson(
+                    url: $url,
+                    data: $payload,
+                    headers: [
+                        'Authorization' => "Bearer {$token}",
+                        'Accept'        => 'application/json',
+                    ]
+                );
+            }
         } catch (Throwable $e) {
             return new PaymentResult(
                 success: false,
@@ -180,9 +225,22 @@ class BancaribePaymentService implements PaymentGatewayInterface
 
         $responseBody = $this->decodeJson($response);
 
+        if (isset($responseBody['success']) && $responseBody['success'] === false) {
+            $msg = $responseBody['data']['messages']['message']
+                ?? $responseBody['data']['descripcion']
+                ?? $responseBody['message']
+                ?? 'No existe la operación reportada en el banco.';
+            return new PaymentResult(
+                success: false,
+                message: (string)$msg,
+                requestPayload: $payload,
+                responsePayload: $responseBody
+            );
+        }
+
         if (!$response->isSuccessful()) {
             $msg = is_array($responseBody)
-                ? ($responseBody['codigo'] ?? $responseBody['message'] ?? 'Error de conexión con el banco.')
+                ? ($responseBody['data']['messages']['message'] ?? $responseBody['codigo'] ?? $responseBody['message'] ?? 'Error de conexión con el banco.')
                 : 'Error de conexión con el banco.';
 
             return new PaymentResult(
@@ -190,16 +248,6 @@ class BancaribePaymentService implements PaymentGatewayInterface
                 message: (string)$msg,
                 requestPayload: $payload,
                 responsePayload: is_array($responseBody) ? $responseBody : ['raw' => $response->body()]
-            );
-        }
-
-        if (isset($responseBody['success']) && $responseBody['success'] === false) {
-            $msg = $responseBody['data']['messages']['message'] ?? 'No existe la operación reportada en el banco.';
-            return new PaymentResult(
-                success: false,
-                message: (string)$msg,
-                requestPayload: $payload,
-                responsePayload: $responseBody
             );
         }
 
@@ -213,7 +261,7 @@ class BancaribePaymentService implements PaymentGatewayInterface
                 return new PaymentResult(
                     success: true,
                     message: 'Pago Móvil verificado correctamente.',
-                    transactionId: isset($data['secuencial']) ? (string)$data['secuencial'] : $reference,
+                    transactionId: isset($data['secuencial']) ? (string)$data['secuencial'] : $normalizedRef,
                     requestPayload: $payload,
                     responsePayload: $responseBody
                 );
@@ -258,12 +306,24 @@ class BancaribePaymentService implements PaymentGatewayInterface
     {
         $docType = strtoupper(trim((string)($paymentData['documentType'] ?? 'V')));
         $docNumber = preg_replace('/[^A-Za-z0-9]/', '', (string)($paymentData['documentNumber'] ?? ''));
+        $normalizedRif = str_replace('-', '', $this->rifComercio);
+
+        $rawPhone = trim((string)($paymentData['telefonoPersona'] ?? ''));
+        if ($rawPhone !== '') {
+            try {
+                $telefonoPersona = Phone::fromString($rawPhone)->toNationalFormat();
+            } catch (InvalidArgumentException) {
+                $telefonoPersona = $rawPhone;
+            }
+        } else {
+            $telefonoPersona = '';
+        }
 
         return [
             'registrarPagoC2pApi' => [
                 'request' => [
                     'anulacion'            => 'N',
-                    'bancoCredito'         => '0114',
+                    'bancoCredito'         => BankCode::BANCARIBE,
                     'bancoPagador'         => (string)($paymentData['bancoPagador'] ?? ''),
                     'cajaTerminal'         => 1,
                     'canalVirtual'         => 14,
@@ -277,10 +337,10 @@ class BancaribePaymentService implements PaymentGatewayInterface
                     'nombreComercio'       => $this->nombreComercio,
                     'numeroReferencia'     => 'null',
                     'otp'                  => (string)($paymentData['otp'] ?? ''),
-                    'rif'                  => $this->rifComercio,
+                    'rif'                  => $normalizedRif,
                     'sucursal'             => 1,
                     'telefonoCredito'      => $this->telefonoComercio,
-                    'telefonoPersona'      => (string)($paymentData['telefonoPersona'] ?? ''),
+                    'telefonoPersona'      => $telefonoPersona,
                     'terminal'             => 'ubikgo 001',
                     'tipoTerminal'         => 'WEB',
                     'vendedor'             => 0,
@@ -292,7 +352,7 @@ class BancaribePaymentService implements PaymentGatewayInterface
     private function simulateC2pResponse(array $payload, array $paymentData): PaymentResult
     {
         $otp = (string)($paymentData['otp'] ?? '');
-        if ($otp === '000000') {
+        if (in_array($otp, ['000000', '00000000'], true)) {
             $fakeFail = [
                 'Envelope' => [
                     'Body' => [

@@ -90,7 +90,7 @@ class PaymentController
         $body['documentType'] ??= $defaultDocType;
         $body['documentNumber'] ??= $defaultDocNum;
         $body['identificadorPersona'] ??= ($defaultDocType . $defaultDocNum);
-        $body['telefonoPersona'] ??= $user->getPhone()->getValue();
+        $body['telefonoPersona'] ??= $user->getPhone()->toNationalFormat();
         $body['ip_address'] = $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1';
 
         try {
