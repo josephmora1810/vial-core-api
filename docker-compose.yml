@@ -5,6 +5,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      target: app
     container_name: ubik_api_php
     ports:
       - "8000:80"
@@ -15,10 +16,17 @@ services:
       - DB_NAME=ubikgo
       - DB_USER=ubik
       - DB_PASSWORD=password
+      - DATABASE_HOST=mariadb
+      - DATABASE_NAME=ubikgo
+      - DATABASE_USER=ubik
+      - DATABASE_PASSWORD=password
       - REDIS_HOST=redis
+      - OSRM_BASE_URL=http://osrm:5000
+      - OSRM_PROFILE=driving
     depends_on:
       - mariadb
       - redis
+      - osrm
 
   mariadb:
     image: mariadb:10.11
@@ -43,7 +51,7 @@ services:
       PMA_PORT: 3306
     depends_on:
       - mariadb
-      
+
   redis:
     image: redis:alpine
     container_name: ubik_redis
@@ -52,6 +60,20 @@ services:
     volumes:
       - redis_data:/data
 
+  osrm:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: osrm
+    image: osrm/osrm-backend:latest
+    container_name: ubik_osrm
+    ports:
+      - "5000:5000"
+    volumes:
+      - osrm_data:/data
+    restart: unless-stopped
+
 volumes:
   mariadb_data:
   redis_data:
+  osrm_data:
