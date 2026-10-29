@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Infrastructure\Providers;
 
 use App\Application\Commissions\UseCases\GenerateOrderCommission;
-use App\Infrastructure\Database\Database;
 use App\Infrastructure\Database\Redis;
 use App\Infrastructure\Database\Repositories\Auth\{
     MariaDbDocumentRepository,
@@ -15,12 +14,12 @@ use App\Infrastructure\Database\Repositories\Commissions\{
     MariaDbCommissionRepository,
     MariaDbSellerProfileRepository
 };
-use App\Infrastructure\Database\Repositories\Driver\MariaDbDriverShiftRepository;
 use App\Infrastructure\Database\Repositories\Contracts\{
     CachedPlanRepository,
     MariaDbPlanRepository,
     MariaDbServiceContractRepository
 };
+use App\Infrastructure\Database\Repositories\Driver\MariaDbDriverShiftRepository;
 use App\Infrastructure\Database\Repositories\Landing\MariaDbHomeGalleryRepository;
 use App\Infrastructure\Database\Repositories\Payments\{
     MariaDbBankTokenRepository,
@@ -46,47 +45,51 @@ use App\Infrastructure\Database\Repositories\Vehicles\{
     MariaDbVehicleCatalogRepository,
     MariaDbVehicleRepository
 };
+use Closure;
+use PDO;
 
 final class RepositoryServiceProvider
 {
     /**
-     * @param Database $db
-     * @param Redis $redis
-     * @return array
+     * @param Closure(): PDO $getDb
+     * @param Closure(): Redis $getRedis
+     * @return array<string, Closure>
      */
-    public static function register(Database $db, Redis $redis): array
+    public static function register(Closure $getDb, Closure $getRedis): array
     {
-
-        //Llamamos a los Repositorios de las conexiones a la bases de datos para hacer cambios en las tablas
-        $getUserRepo = fn() => new MariaDbUserRepository($db->getConnection());
-        $getTokenRepo = fn() => new MariaDbPersonalAccessTokenRepository($db->getConnection());
-        $getDocumentRepo = fn() => new MariaDbDocumentRepository($db->getConnection());
-        $getSavedAddressRepo = fn() => new MariaDbSavedAddressRepository($db->getConnection());
-        $getVehicleRepo = fn() => new MariaDbVehicleRepository($db->getConnection());
+        // Llamamos a los Repositorios de las conexiones a la base de datos para hacer cambios en las tablas
+        $getUserRepo = fn() => new MariaDbUserRepository($getDb());
+        $getTokenRepo = fn() => new MariaDbPersonalAccessTokenRepository($getDb());
+        $getDocumentRepo = fn() => new MariaDbDocumentRepository($getDb());
+        $getSavedAddressRepo = fn() => new MariaDbSavedAddressRepository($getDb());
+        $getVehicleRepo = fn() => new MariaDbVehicleRepository($getDb());
         $getCatalogRepo = fn() => new CachedVehicleCatalogRepository(
-            new MariaDbVehicleCatalogRepository($db->getConnection()),
-            $redis
+            new MariaDbVehicleCatalogRepository($getDb()),
+            $getRedis()
         );
 
-        $getTowServiceRepo = fn() => new MariaDbTowServiceRepository($db->getConnection());
-        $getTowServiceLogRepo = fn() => new MariaDbTowServiceLogRepository($db->getConnection());
-        $getRatingRepo = fn() => new MariaDbRatingRepository($db->getConnection());
+        $getTowServiceRepo = fn() => new MariaDbTowServiceRepository($getDb());
+        $getTowServiceLogRepo = fn() => new MariaDbTowServiceLogRepository($getDb());
+        $getRatingRepo = fn() => new MariaDbRatingRepository($getDb());
 
-        $getBankTokenRepo = fn() => new MariaDbBankTokenRepository($db->getConnection());
-        $getExchangeRateRepo = fn() => new MariaDbExchangeRateRepository($db->getConnection());
+        $getBankTokenRepo = fn() => new MariaDbBankTokenRepository($getDb());
+        $getExchangeRateRepo = fn() => new MariaDbExchangeRateRepository($getDb());
         $getPlanRepo = fn() => new CachedPlanRepository(
-            new MariaDbPlanRepository($db->getConnection()),
-            $redis
+            new MariaDbPlanRepository($getDb()),
+            $getRedis()
         );
-        $getContractRepo = fn() => new MariaDbServiceContractRepository($db->getConnection());
-        $getOrderRepo = fn() => new MariaDbOrderRepository($db->getConnection());
-        $getPaymentRepo = fn() => new MariaDbPaymentRepository($db->getConnection());
-        $getImageRepo = fn() => new CachedImageRepository(new MariaDbImageRepository($db->getConnection()),$redis);
-        $getHomeGalleryRepo = fn() => new MariaDbHomeGalleryRepository($db->getConnection(), $getImageRepo());
-        $getDriverShiftRepo = fn() => new MariaDbDriverShiftRepository($db->getConnection());
+        $getContractRepo = fn() => new MariaDbServiceContractRepository($getDb());
+        $getOrderRepo = fn() => new MariaDbOrderRepository($getDb());
+        $getPaymentRepo = fn() => new MariaDbPaymentRepository($getDb());
+        $getImageRepo = fn() => new CachedImageRepository(
+            new MariaDbImageRepository($getDb()),
+            $getRedis()
+        );
+        $getHomeGalleryRepo = fn() => new MariaDbHomeGalleryRepository($getDb(), $getImageRepo());
+        $getDriverShiftRepo = fn() => new MariaDbDriverShiftRepository($getDb());
 
-        $getSellerProfileRepo = fn() => new MariaDbSellerProfileRepository($db->getConnection());
-        $getCommissionRepo = fn() => new MariaDbCommissionRepository($db->getConnection());
+        $getSellerProfileRepo = fn() => new MariaDbSellerProfileRepository($getDb());
+        $getCommissionRepo = fn() => new MariaDbCommissionRepository($getDb());
         $getGenerateOrderCommission = fn() => new GenerateOrderCommission(
             $getCommissionRepo(),
             $getSellerProfileRepo()
