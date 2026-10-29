@@ -10,9 +10,7 @@ $router = new Router();
 
 $v1 = '/api/v1/';
 
-if (!\defined('API_V1')) {
-    \define('API_V1', '/api/v1/');
-}
+if (!\defined('API_V1')) \define('API_V1', '/api/v1/');
 
 // =========================================================================
 // 1. MONITOREO Y SALUD (SYSTEM / PUBLIC)

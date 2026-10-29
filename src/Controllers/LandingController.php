@@ -21,7 +21,7 @@ class LandingController
      * GET /api/v1/home-gallery
      * Público para la Landing Page de Vue.js (FR-36).
      */
-    public function index(Request $request): void
+    public function index(Request $_): void
     {
         try {
             $banners = $this->getActiveHomeGallery->execute();
@@ -35,7 +35,7 @@ class LandingController
      * GET /api/v1/admin/home-gallery
      * Lista todos los banners (activos e inactivos) para gestión administrativa.
      */
-    public function adminIndex(Request $request): void
+    public function adminIndex(Request $_): void
     {
         try {
             $banners = $this->manageHomeGallery->listAll();
@@ -120,7 +120,7 @@ class LandingController
      * DELETE /api/v1/admin/home-gallery/{id}
      * Elimina un banner y sus imágenes.
      */
-    public function destroy(Request $request, string|int $id): void
+    public function destroy(Request $_, string|int $id): void
     {
         $id = (int)$id;
 
@@ -177,7 +177,7 @@ class LandingController
     private function respondWithException(Exception $e): void
     {
         $code = $e->getCode();
-        $httpCode = (is_int($code) && $code >= 400 && $code < 600) ? $code : 400;
+        $httpCode = (\is_int($code) && $code >= 400 && $code < 600) ? $code : 400;
         Response::json([], $httpCode, 'fail', $e->getMessage());
     }
 }

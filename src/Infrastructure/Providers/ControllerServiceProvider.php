@@ -1,5 +1,9 @@
 <?php
 
+/**
+ *  ControllerServiceProvider se encarga de registrar todos los controladores de la aplicacion con carga perezosa
+ */
+
 declare(strict_types=1);
 
 namespace App\Infrastructure\Providers;
@@ -115,11 +119,11 @@ final class ControllerServiceProvider
      */
     public static function register(array $repos, array $infra): array
     {
-        return array_merge(
-            self::authAndIdentityControllers($repos, $infra),
-            self::contractAndCommercialControllers($repos, $infra),
-            self::operationsAndTowingControllers($repos, $infra)
-        );
+        return [
+            ...self::authAndIdentityControllers($repos, $infra),
+            ...self::contractAndCommercialControllers($repos, $infra),
+            ...self::operationsAndTowingControllers($repos, $infra)
+        ];
     }
 
     /**
@@ -131,17 +135,46 @@ final class ControllerServiceProvider
     {
         return [
             AuthController::class => fn() => new AuthController(
-                new LoginUser($repos['user'](), $repos['token'](), $infra['jwt'], $infra['rate_limiter']()),
-                new RegisterUser($repos['user'](), $infra['document_extractor'], $infra['jwt'], $repos['token'](), $repos['document'](), $infra['enqueue_s3']()),
-                new RefreshToken($repos['token'](), $repos['user'](), $infra['jwt']),
+                new LoginUser(
+                    $repos['user'](), 
+                    $repos['token'](), 
+                    $infra['jwt'], 
+                    $infra['rate_limiter']()
+                ),
+                new RegisterUser(
+                    $repos['user'](), 
+                    $infra['document_extractor'], 
+                    $infra['jwt'], 
+                    $repos['token'](), 
+                    $repos['document'](), 
+                    $infra['enqueue_s3']()
+                ),
+                new RefreshToken(
+                    $repos['token'](), 
+                    $repos['user'](), 
+                    $infra['jwt']
+                ),
                 new LogoutUser($repos['token']()),
-                new SendPasswordResetCode($repos['user'](), $infra['mailer'], $infra['redis']()),
-                new ResetPassword($repos['user'](), $repos['token'](), $infra['redis']()),
+                new SendPasswordResetCode(
+                    $repos['user'](), 
+                    $infra['mailer'], 
+                    $infra['redis']()
+                ),
+                new ResetPassword(
+                    $repos['user'](), 
+                    $repos['token'](), 
+                    $infra['redis']()
+                ),
                 new ScanIdentityCard($infra['document_extractor']),
                 $repos['image']()
             ),
             DocumentController::class => fn() => new DocumentController(
-                new UploadKycDocument($repos['document'](), $repos['user'](), $infra['document_extractor'], $infra['enqueue_s3']()),
+                new UploadKycDocument(
+                    $repos['document'](), 
+                    $repos['user'](), 
+                    $infra['document_extractor'], 
+                    $infra['enqueue_s3']()
+                ),
                 new GetKycStatus($repos['document'](), $repos['user']()),
                 new ReviewKycDocument($repos['document'](), $repos['vehicle']())
             ),
@@ -167,11 +200,13 @@ final class ControllerServiceProvider
     {
         return [
             HomeController::class => fn() => new HomeController(),
+
             PlanController::class => fn() => new PlanController(
                 new ListPlans($repos['plan'](), $infra['bancaribe_exchange']($repos)),
                 new ManagePlan($repos['plan'](), $infra['bancaribe_exchange']($repos)),
                 $repos['plan']()
             ),
+
             ContractController::class => fn() => new ContractController(
                 checkoutServiceContract: new CheckoutServiceContract(
                     $repos['plan'](),
@@ -230,6 +265,7 @@ final class ControllerServiceProvider
                     $infra['redis']()
                 )
             ),
+            
             PaymentController::class => fn() => new PaymentController(
                 processPayment: new ProcessPayment(
                     $repos['order'](),
@@ -278,7 +314,13 @@ final class ControllerServiceProvider
                     $infra['redis'](),
                     $infra['enqueue_s3']()
                 ),
-                new RegisterVehicle($repos['vehicle'](), $repos['user'](), $repos['document'](), $repos['catalog'](), $infra['enqueue_s3']()),
+                new RegisterVehicle(
+                    $repos['vehicle'](), 
+                    $repos['user'](), 
+                    $repos['document'](), 
+                    $repos['catalog'](), 
+                    $infra['enqueue_s3']()
+                ),
                 new CheckoutServiceContract(
                     $repos['plan'](),
                     $repos['vehicle'](),
@@ -345,7 +387,13 @@ final class ControllerServiceProvider
     {
         return [
             VehicleController::class => fn() => new VehicleController(
-                new RegisterVehicle($repos['vehicle'](), $repos['user'](), $repos['document'](), $repos['catalog'](), $infra['enqueue_s3']()),
+                new RegisterVehicle(
+                    $repos['vehicle'](), 
+                    $repos['user'](), 
+                    $repos['document'](), 
+                    $repos['catalog'](), 
+                    $infra['enqueue_s3']()
+                ),
                 new ListUserVehicles($repos['vehicle'](), $repos['user']()),
                 new DeleteVehicle($repos['vehicle']()),
                 new ScanVehicleRegistration($infra['document_extractor'], new VehicleMatcherService($repos['catalog']())),
@@ -372,8 +420,19 @@ final class ControllerServiceProvider
                     $repos['vehicle']()
                 ),
                 $repos['vehicle'](),
-                new StartDriverShift($repos['driver_shift'](), $repos['user'](), $repos['vehicle'](), $repos['tow_service'](), $infra['redis']()),
-                new EndDriverShift($repos['driver_shift'](), $repos['user'](), $repos['tow_service'](), $infra['redis']()),
+                new StartDriverShift(
+                    $repos['driver_shift'](), 
+                    $repos['user'](), 
+                    $repos['vehicle'](), 
+                    $repos['tow_service'](), 
+                    $infra['redis']()
+                ),
+                new EndDriverShift(
+                    $repos['driver_shift'](), 
+                    $repos['user'](), 
+                    $repos['tow_service'](), 
+                    $infra['redis']()
+                ),
                 new UpdateDriverLocation($repos['driver_shift'](), $repos['user'](), $infra['redis']()),
                 $repos['driver_shift'](),
                 new GetCurrentDriverShift($repos['driver_shift'](), $repos['vehicle']())

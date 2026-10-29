@@ -4,10 +4,7 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\Providers;
 
-use App\Application\Documents\UseCases\{
-    EnqueueDocumentS3Upload,
-    ProcessDocumentS3UploadJob
-};
+use App\Application\Documents\UseCases\{EnqueueDocumentS3Upload, ProcessDocumentS3UploadJob};
 use App\Application\Towing\UseCases\ExpireOverdueSosServices;
 use App\Core\JwtService;
 use App\Domain\Shared\Services\{
@@ -17,10 +14,7 @@ use App\Domain\Shared\Services\{
     StorageServiceInterface
 };
 use App\Infrastructure\Broadcasting\PusherBroadcaster;
-use App\Infrastructure\Database\{
-    Database,
-    Redis
-};
+use App\Infrastructure\Database\{Database,Redis};
 use App\Infrastructure\Http\CurlHttpClient;
 use App\Infrastructure\Logging\IntegrationLogger;
 use App\Infrastructure\Mail\SmtpMailer;
@@ -48,41 +42,42 @@ final class InfrastructureServiceProvider
      */
     public static function register(): array
     {
-        // Conexiones MariaDB y Redis lazy
+        // Conexion MariaDB
         $getDb = function () {
             static $pdo = null;
-            if ($pdo === null) {
-                $pdo = (new Database())->getConnection();
-            }
+            if ($pdo === null) $pdo = new Database()->getConnection();
             return $pdo;
         };
 
+        //Conexion a Redis
         $getRedis = function () {
             static $redis = null;
-            if ($redis === null) {
-                $redis = new Redis();
-            }
+            if ($redis === null) $redis = new Redis();
             return $redis;
         };
 
+        // Registro del servicio Jwt
         $jwtService = new JwtService();
 
+        //Registro del cliente HTTP Curl
         $httpClient = new CurlHttpClient(
             timeout: (int) ($_ENV['HTTP_TIMEOUT'] ?? 30),
             connectTimeout: (int) ($_ENV['HTTP_CONNECT_TIMEOUT'] ?? 5)
         );
 
+        //Registro del Servicio de Logs
         IntegrationLogger::registerServicePattern('osrm', ['osrm', 'project-osrm.org', ':5000']);
         IntegrationLogger::registerServicePattern('pusher', ['pusher.com', 'pusherapp.com']);
-
         $integrationLogger = new IntegrationLogger();
 
+        //Registro del servicio del OCR (usa httpClient)
         $documentExtractor = new LaVenezolanaDocumentExtractor(
             httpClient: $httpClient,
             baseUrl: $_ENV['OCR_BASE_URL'] ?? 'http://localhost:8080/api/v1',
             apiKey: !empty($_ENV['OCR_API_KEY']) ? $_ENV['OCR_API_KEY'] : null
         );
 
+        //Registro del servicio Mailer
         $mailer = new SmtpMailer(
             host: $_ENV['SMTP_HOST'] ?? 'localhost',
             port: (int)($_ENV['SMTP_PORT'] ?? 465),
@@ -93,13 +88,19 @@ final class InfrastructureServiceProvider
             encryption: $_ENV['SMTP_ENCRYPTION'] ?? 'ssl'
         );
 
+        //Registro del servicio del Rate Limiter con Sliding Window (usa redis)
         $getRateLimiter = fn() => new RedisAccountRateLimiter($getRedis());
+        
+        //Registro del Servicio de las zonas de coberturas disponibles
         $getCoverageZones = fn() => new InMemoryCoverageZoneRepository();
+
+        //Registro del Servicio OSRM (para calculo de rutas, usa HttpClient)
         $getRoutingService = fn() => new OsrmRoutingService(
             httpClient: $httpClient,
             baseUrl: $_ENV['OSRM_BASE_URL'] ?? null
         );
 
+        //Registro del Servicio de Pusher para Websockets (usa el HttpClient y el Logger)
         $getBroadcaster = fn() => new PusherBroadcaster(
             httpClient: $httpClient,
             appId: $_ENV['PUSHER_APP_ID'] ?? '',
@@ -111,6 +112,7 @@ final class InfrastructureServiceProvider
             logger: $integrationLogger
         );
 
+        // Antes de Registrar el Core Bancario, debemos verificar los booleanos de los sandbox y el entorno del sistema (los sandbox no se deben activar en produccion)
         $isSandbox = filter_var($_ENV['BANCARIBE_SANDBOX'] ?? false, FILTER_VALIDATE_BOOLEAN);
         $isPaymentSandbox = filter_var($_ENV['BANCARIBE_PAYMENT_SANDBOX'] ?? true, FILTER_VALIDATE_BOOLEAN);
         $appEnv = $_ENV['APP_ENV'] ?? 'local';
@@ -122,9 +124,18 @@ final class InfrastructureServiceProvider
             );
         }
 
+        //Pedimos las credenciales del core bancario
+        // en este caso pedimos con errores ortograficos debido a malas experiencias
         $customerKey = $_ENV['BANCARIBE_COSTUMER_KEY'] ?? $_ENV['BANCARIBE_CONSUMER_KEY'] ?? $_ENV['BANCARIBE_CUSTOMER_KEY'] ?? '';
         $customerSecret = $_ENV['BANCARIBE_COSTUMER_SECRET'] ?? $_ENV['BANCARIBE_CONSUMER_SECRET'] ?? $_ENV['BANCARIBE_CUSTOMER_SECRET'] ?? '';
 
+        //Generamos el servicio de autenticacion del core bancario (usa HttpClient y Redis)
+        /**
+         * Necesita $repos['bank_token']()
+         * el cual corresponde a $getBankTokenRepo = fn() => new MariaDbBankTokenRepository($getDb()); (en RepositoryServiceProvider)
+         * Nosotros generamos el servicio de manera lazy, es decir, que hasta que no la necesitemos, no se llama
+         * por eso no da error al necesitar $repos['bank_token'](), porque eso se llamará después
+         */
         $getBancaribeAuth = fn(array $repos) => new BancaribeAuthService(
             httpClient: $httpClient,
             tokenRepository: $repos['bank_token'](),
@@ -137,6 +148,13 @@ final class InfrastructureServiceProvider
             isLocalEnv: $isLocalEnv
         );
 
+        //Generamos el servicio de Tasa de Cambios Bcv (usa HttpClient, Redis y el repositorio de autenticación del core bancario)
+        /**
+         * Necesita $repos['exchange_rate']()
+         * el cual corresponde a $getExchangeRateRepo = fn() => new MariaDbExchangeRateRepository($getDb()); (en RepositoryServiceProvider)
+         * Nosotros generamos el servicio de manera lazy, es decir, que hasta que no la necesitemos, no se llama
+         * por eso no da error al necesitar $repos['exchange_rate'](), porque eso se llamará después
+         */
         $getExchangeService = fn(array $repos) => new BancaribeExchangeService(
             authService: $getBancaribeAuth($repos),
             httpClient: $httpClient,
@@ -150,6 +168,13 @@ final class InfrastructureServiceProvider
             fallbackRate: (float)($_ENV['BANCARIBE_FALLBACK_RATE'] ?? 40.00)
         );
 
+        //Generamos el servicio de Pagos del Core Bancario
+        /**
+         *  Necesita:
+         *      * El servicio de Autenticacion Bancario
+         *      * El servicio de Tasa de Cambios Bancario
+         *      * El cliente Http Curl
+         */
         $getPaymentGateway = fn(array $repos) => new BancaribePaymentService(
             authService: $getBancaribeAuth($repos),
             exchangeService: $getExchangeService($repos),
@@ -166,6 +191,14 @@ final class InfrastructureServiceProvider
             isLocalEnv: $isLocalEnv
         );
 
+        // Generamos el servicio de Consulta de Cuentas del Core Bancario
+        /**
+         *  Necesita:
+         *      * El servicio de Autenticacion Bancario
+         *      * El servicio de Tasa de Cambios Bancario
+         *      * El cliente Http Curl
+         *      * Servicio de Redis
+         */
         $getBalanceGateway = fn(array $repos) => new BancaribeBalanceService(
             authService: $getBancaribeAuth($repos),
             httpClient: $httpClient,
@@ -178,15 +211,36 @@ final class InfrastructureServiceProvider
             isLocalEnv: $isLocalEnv
         );
 
+        // Generamos el Servicio de Queue (necesita redis)
         $getQueueService = fn() => new RedisQueueService($getRedis());
+
+        // Generamos el Servicio de Notificaciones de Pusher (necesita el cliente Http y el Servicio de Logs)
         $getPushNotification = fn() => new PusherBeamsService(
             httpClient: $httpClient,
             instanceId: $_ENV['PUSHER_BEAMS_INSTANCE_ID'] ?? '',
             secretKey: $_ENV['PUSHER_BEAMS_SECRET_KEY'] ?? '',
             logger: $integrationLogger
         );
+
+        // Generamos el servicio de Storage para guardar documentos (necesita el servicio de Logs)
         $getStorageService = fn() => new AwsS3StorageService(logger: $integrationLogger);
+
+        // Generamos el Servicio que Sube las fotos al Storage en cola (Necesita el servicio de queue)
         $getEnqueueS3 = fn() => new EnqueueDocumentS3Upload($getQueueService());
+
+        // Generamos el job que se encarga de encolar las subidas de imagenes (necesita el servicio de queue, el servicio de storage y el servicio de logs)
+        /**
+         * Necesita $repos['document']()
+         * el cual corresponde a $getDocumentRepo = fn() => new MariaDbDocumentRepository($getDb()); (en RepositoryServiceProvider)
+         * Nosotros generamos el servicio de manera lazy, es decir, que hasta que no la necesitemos, no se llama
+         * por eso no da error al necesitar $repos['document'](), porque eso se llamará después
+         */
+        /**
+         * Necesita $repos['image']()
+         * el cual corresponde a $getImageRepo = fn() => new CachedImageRepository(new MariaDbImageRepository($getDb()),$getRedis()); (en RepositoryServiceProvider)
+         * Nosotros generamos el servicio de manera lazy, es decir, que hasta que no la necesitemos, no se llama
+         * por eso no da error al necesitar $repos['image'](), porque eso se llamará después
+         */
         $getProcessS3 = fn(array $repos) => new ProcessDocumentS3UploadJob(
             queueService: $getQueueService(),
             storageService: $getStorageService(),
@@ -195,6 +249,7 @@ final class InfrastructureServiceProvider
             logger: $integrationLogger
         );
 
+        // Retornamos todos los servicios registrados
         return [
             'db'                 => $getDb,
             'redis'              => $getRedis,
@@ -227,13 +282,13 @@ final class InfrastructureServiceProvider
     public static function createServices(array $repos, array $infra): array
     {
         return [
-            BroadcasterInterface::class       => $infra['broadcaster'],
-            PushNotificationInterface::class  => $infra['push_notification'],
-            QueueServiceInterface::class      => $infra['queue_service'],
-            StorageServiceInterface::class    => $infra['storage_service'],
-            EnqueueDocumentS3Upload::class    => $infra['enqueue_s3'],
-            ProcessDocumentS3UploadJob::class => fn() => $infra['process_s3']($repos),
-            ExpireOverdueSosServices::class   => fn() => new ExpireOverdueSosServices(
+            BroadcasterInterface::class       => $infra['broadcaster'],                     // Servicio de Broadcast
+            PushNotificationInterface::class  => $infra['push_notification'],               // Servicio de Notificacion de Pusher
+            QueueServiceInterface::class      => $infra['queue_service'],                   // Servicio de Queue
+            StorageServiceInterface::class    => $infra['storage_service'],                 // Servicio de Storage (s3)
+            EnqueueDocumentS3Upload::class    => $infra['enqueue_s3'],                      // Servicio de Queue para encolar documentos al S3
+            ProcessDocumentS3UploadJob::class => fn() => $infra['process_s3']($repos),      // Servicio de Job para subir documentos al s3
+            ExpireOverdueSosServices::class   => fn() => new ExpireOverdueSosServices(      // Servicio de Expiracion de Servicios sin responder
                 $repos['tow_service'](),
                 $repos['order'](),
                 $repos['user'](),

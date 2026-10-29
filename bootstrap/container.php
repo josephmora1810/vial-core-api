@@ -12,7 +12,7 @@ use App\Infrastructure\Providers\{
 };
 
 $infra = InfrastructureServiceProvider::register();
-$repos = RepositoryServiceProvider::register($infra);
+$repos = RepositoryServiceProvider::register($infra['db'], $infra['redis']);
 $controllers = ControllerServiceProvider::register($repos, $infra);
 $middlewares = MiddlewareServiceProvider::register($repos, $infra);
 

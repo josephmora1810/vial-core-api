@@ -26,9 +26,9 @@ final class MiddlewareServiceProvider
             'route_middlewares' => [
                 'auth'       => fn() => new AuthMiddleware($infra['jwt'], $repos['user']()),
                 'kyc'        => fn(?string $mode = null) => new EnsureKycVerifiedMiddleware($repos['document'](), $mode ?? 'full'),
-                'role'       => fn(string $role) => AuthorizeMiddleware::role($role),
-                'permission' => fn(string $perm) => AuthorizeMiddleware::permission($perm),
-                'can'        => fn(string $perm) => AuthorizeMiddleware::permission($perm),
+                'role'       => AuthorizeMiddleware::role(...),
+                'permission' => AuthorizeMiddleware::permission(...),
+                'can'        => AuthorizeMiddleware::permission(...),
             ],
             'global_middlewares' => [
                 new CorsMiddleware(),

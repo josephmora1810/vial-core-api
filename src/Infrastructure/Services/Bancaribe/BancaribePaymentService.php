@@ -352,7 +352,7 @@ class BancaribePaymentService implements PaymentGatewayInterface
     private function simulateC2pResponse(array $payload, array $paymentData): PaymentResult
     {
         $otp = (string)($paymentData['otp'] ?? '');
-        if (in_array($otp, ['000000', '00000000'], true)) {
+        if (\in_array($otp, ['000000', '00000000'], true)) {
             $fakeFail = [
                 'Envelope' => [
                     'Body' => [

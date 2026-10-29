@@ -6,14 +6,21 @@ use Exception;
 
 class Kernel
 {
+    /**
+     * 
+     * @param Router $router
+     * @param array $container
+     */
     public function __construct(
         private Router $router,
-        private array $config
+        private array $container
     ) {}
 
     public function handle(Request $request): void
     {
+
         $dispatch = function (Request $req) {
+            // Nos traemos las rutas y las formateamos
             $match = $this->router->resolve($req);
             $action = $match['action'];
             $params = $match['params'] ?? [];
@@ -21,7 +28,7 @@ class Kernel
 
             // Resolvemos los middlewares de la ruta (ejecutando el closure si es lazy, con soporte para parámetros como role:client)
             $resolvedPipes = array_map(function ($pipe) {
-                $map = $this->config['route_middlewares'] ?? [];
+                $map = $this->container['route_middlewares'] ?? [];
                 if (\is_string($pipe)) {
                     if (isset($map[$pipe])) {
                         return is_callable($map[$pipe]) ? $map[$pipe]() : $map[$pipe];
@@ -45,7 +52,7 @@ class Kernel
                     throw new Exception("El controlador {$controllerName} no fue encontrado", 500);
                 }
 
-                $controllers = $this->config['controllers'] ?? [];
+                $controllers = $this->container['controllers'] ?? [];
                 $controller = isset($controllers[$controllerClass])
                     ? $controllers[$controllerClass]()
                     : new $controllerClass();
@@ -55,7 +62,7 @@ class Kernel
                 }
 
                 // array_values evita conflictos con named arguments en PHP 8+
-                $data = array_merge([$finalReq], array_values($params));
+                $data = [$finalReq, ...array_values($params)];
                 \call_user_func_array([$controller, $method], $data);
             };
 
@@ -72,7 +79,7 @@ class Kernel
         // Pipeline Global
         new Pipeline()
             ->send($request)
-            ->through($this->config['global_middlewares'] ?? [])
+            ->through($this->container['global_middlewares'] ?? [])
             ->then($dispatch);
     }
 }

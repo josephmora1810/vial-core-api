@@ -112,19 +112,19 @@ class RegisterUser
         // 5.1 Resolver patronímicos: Prioridad a datos manuales si fueron provistos (corrección de OCR), sino tomar los del OCR
         $nationalId = !empty($rawNationalId)
             ? new NationalId($rawNationalId)
-            : ($extractedIdentity ? $extractedIdentity->getNationalId() : null);
+            : $extractedIdentity?->getNationalId();
 
         $names = !empty($rawNames)
             ? new Names($rawNames)
-            : ($extractedIdentity ? $extractedIdentity->getNames() : null);
+            : $extractedIdentity?->getNames();
 
         $surnames = !empty($rawSurnames)
             ? new Surnames($rawSurnames)
-            : ($extractedIdentity ? $extractedIdentity->getSurnames() : null);
+            : $extractedIdentity?->getSurnames();
 
         $birthDate = !empty($rawBirthDate)
             ? new BirthDate($rawBirthDate)
-            : ($extractedIdentity ? $extractedIdentity->getBirthDate() : null);
+            : $extractedIdentity?->getBirthDate();
 
         if ($nationalId === null || $names === null || $surnames === null) {
             throw new Exception("Los datos patronímicos (cédula, nombres y apellidos) son obligatorios.", 422);
